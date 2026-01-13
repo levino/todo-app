@@ -3,92 +3,51 @@
   "version": 1,
   "tasks": [
     {
-      "id": "setup-pocketbase-schema",
-      "title": "Create PocketBase schema for groups, children and tasks",
-      "description": "Use /create-collection or pb.collections.create() to create the collections: groups (name), children (name, group, avatar), tasks (title, child, priority, completed, completedAt). Never write SQL by hand!",
+      "id": "kiosk-page-with-task-list",
+      "title": "Child sees their personal task list on the kiosk page",
+      "description": "**User Story:** As a child using the family tablet, I want to see my tasks in a clear, simple list, so that I know exactly what I need to do without being overwhelmed.\n\n**Acceptance Criteria:**\n- WHEN the kiosk page loads for a child THEN the app SHALL display only tasks assigned to that child\n- WHEN displaying tasks THEN the app SHALL show each task title in large, readable text\n- WHEN tasks are displayed THEN the list SHALL be read-only with no editing controls visible\n- WHEN viewing the task list THEN the layout SHALL be optimized for tablet landscape mode\n- WHEN displaying interactive elements THEN touch targets SHALL be at least 44x44 pixels",
       "status": "pending",
       "createdAt": "2026-01-13T10:00:00Z",
       "notes": []
     },
     {
-      "id": "seed-test-data",
-      "title": "Seed test data for development",
-      "description": "Create migration that adds a test family with 2 children and 3-4 tasks each. Serves as foundation for UI development.",
+      "id": "child-switcher-integrated",
+      "title": "Controls to switch between children are integrated into the task view",
+      "description": "**User Story:** As a child using the family tablet, I want to easily switch to see my tasks (not my sibling's) without navigating to a separate screen, so that the experience is quick and seamless.\n\n**Acceptance Criteria:**\n- WHEN the kiosk page loads THEN child selector controls (avatars or tabs) SHALL appear on the side or above the task list\n- WHEN a child taps a different child's avatar/tab THEN the app SHALL immediately switch to show that child's tasks\n- IF there is only one child in the family THEN the child selector controls SHALL be hidden\n- WHEN viewing the task list THEN the currently selected child SHALL be visually indicated\n- WHEN switching children THEN no page navigation SHALL occur (integrated experience)",
       "status": "pending",
       "createdAt": "2026-01-13T10:00:00Z",
-      "dependsOn": ["setup-pocketbase-schema"],
       "notes": []
     },
     {
-      "id": "create-pocketbase-client",
-      "title": "Create TypeScript PocketBase client for tasks",
-      "description": "Extend (or create) src/lib/pocketbase.ts with typed functions: getChildrenByGroup(), getTasksByChild(), completeTask(). Server-side only!",
+      "id": "tasks-ordered-fairly",
+      "title": "Tasks are ordered fairly so no task feels stuck at the bottom",
+      "description": "**User Story:** As a child, I want my tasks to be ordered fairly, so that I do not always see the same boring task at the bottom of my list.\n\n**Acceptance Criteria:**\n- WHEN tasks are displayed THEN higher priority tasks SHALL appear before lower priority tasks\n- IF multiple tasks have the same priority THEN the app SHALL randomize their order on each page load\n- IF a task has no priority defined THEN the app SHALL treat it as lowest priority\n- WHEN the page is refreshed THEN tasks with equal priority MAY appear in a different order",
       "status": "pending",
       "createdAt": "2026-01-13T10:00:00Z",
-      "dependsOn": ["setup-pocketbase-schema"],
       "notes": []
     },
     {
-      "id": "test-pocketbase-client",
-      "title": "Write tests for PocketBase client",
-      "description": "Integration tests against real PocketBase instance (no mocking!). Tests for all CRUD operations.",
+      "id": "child-checks-off-task",
+      "title": "Child can check off a completed task",
+      "description": "**User Story:** As a child, I want to check off a task with one tap, so that completing tasks feels quick and I can move on to the next one.\n\n**Acceptance Criteria:**\n- WHEN viewing my task list THEN each task SHALL have a clearly visible checkbox or completion button\n- WHEN I tap the checkbox THEN the task SHALL be marked as completed in the system\n- WHEN a task is completed THEN it SHALL no longer appear in my task list\n- IF I accidentally check off a task THEN there is no undo (simplicity over recoverability for children)\n- WHEN checking off a task THEN no confirmation dialog SHALL appear (one-tap completion)",
       "status": "pending",
       "createdAt": "2026-01-13T10:00:00Z",
-      "dependsOn": ["create-pocketbase-client", "seed-test-data"],
       "notes": []
     },
     {
-      "id": "implement-child-selector",
-      "title": "Implement child selector UI",
-      "description": "Kiosk main page with child selection: tabs or avatar buttons. No JavaScript - pure links or form buttons. TDD: Write test first!",
+      "id": "satisfying-completion-feedback",
+      "title": "Completing a task feels satisfying with visual feedback",
+      "description": "**User Story:** As a child, I want to see a satisfying animation when I complete a task, so that checking things off feels rewarding and fun.\n\n**Acceptance Criteria:**\n- WHEN I check off a task THEN the task SHALL fade out or dissolve before disappearing\n- WHEN the animation plays THEN it SHALL complete within 500ms (not too slow)\n- WHEN the animation finishes THEN the remaining tasks SHALL smoothly fill the gap\n- IF the browser does not support animations THEN the task SHALL simply disappear (graceful degradation)",
       "status": "pending",
       "createdAt": "2026-01-13T10:00:00Z",
-      "dependsOn": ["test-pocketbase-client"],
       "notes": []
     },
     {
-      "id": "implement-task-list",
-      "title": "Display task list for selected child",
-      "description": "Read-only list of tasks. Sort by priority, then random. Large, clear display. DaisyUI styling. TDD!",
+      "id": "all-tasks-done-celebration",
+      "title": "Child sees a celebratory message when all tasks are completed",
+      "description": "**User Story:** As a child, I want to see a fun celebration when I finish all my tasks, so that I feel proud and motivated.\n\n**Acceptance Criteria:**\n- WHEN a child has no pending tasks THEN the app SHALL display a celebratory achievement message\n- WHEN showing the celebration THEN the app SHALL display a large, friendly emoji (e.g. star, trophy, party)\n- WHEN showing the celebration THEN the message SHALL be in German (e.g. \"Super gemacht!\" or \"Alle Aufgaben erledigt!\")\n- WHEN showing the celebration THEN the message SHALL make the child feel accomplished and proud\n- IF the child switches to their view and has no tasks THEN the celebration SHALL appear immediately",
       "status": "pending",
       "createdAt": "2026-01-13T10:00:00Z",
-      "dependsOn": ["implement-child-selector"],
-      "notes": []
-    },
-    {
-      "id": "implement-task-completion",
-      "title": "Implement task completion",
-      "description": "POST handler for task completion. After checking: redirect back to list. No JavaScript! TDD: Write test for the flow first.",
-      "status": "pending",
-      "createdAt": "2026-01-13T10:00:00Z",
-      "dependsOn": ["implement-task-list"],
-      "notes": []
-    },
-    {
-      "id": "add-completion-animation",
-      "title": "Add animation on task completion",
-      "description": "Use Astro View Transitions for fade-out animation. Should feel satisfying without JavaScript.",
-      "status": "pending",
-      "createdAt": "2026-01-13T10:00:00Z",
-      "dependsOn": ["implement-task-completion"],
-      "notes": []
-    },
-    {
-      "id": "tablet-responsive-styling",
-      "title": "Optimize responsive styling for tablet",
-      "description": "Optimize layout for iPad landscape. Large touch targets, clear spacing. Use Tailwind breakpoints.",
-      "status": "pending",
-      "createdAt": "2026-01-13T10:00:00Z",
-      "dependsOn": ["add-completion-animation"],
-      "notes": []
-    },
-    {
-      "id": "e2e-tests-kiosk-flow",
-      "title": "E2E tests for complete kiosk flow",
-      "description": "Playwright tests: select child, see task, check off task, task disappears. Against real PocketBase instance.",
-      "status": "pending",
-      "createdAt": "2026-01-13T10:00:00Z",
-      "dependsOn": ["tablet-responsive-styling"],
       "notes": []
     }
   ]
