@@ -1,0 +1,95 @@
+{
+  "$schema": "../tasks.schema.json",
+  "version": 1,
+  "tasks": [
+    {
+      "id": "setup-pocketbase-schema",
+      "title": "Create PocketBase schema for groups, children and tasks",
+      "description": "Use /create-collection or pb.collections.create() to create the collections: groups (name), children (name, group, avatar), tasks (title, child, priority, completed, completedAt). Never write SQL by hand!",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "notes": []
+    },
+    {
+      "id": "seed-test-data",
+      "title": "Seed test data for development",
+      "description": "Create migration that adds a test family with 2 children and 3-4 tasks each. Serves as foundation for UI development.",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["setup-pocketbase-schema"],
+      "notes": []
+    },
+    {
+      "id": "create-pocketbase-client",
+      "title": "Create TypeScript PocketBase client for tasks",
+      "description": "Extend (or create) src/lib/pocketbase.ts with typed functions: getChildrenByGroup(), getTasksByChild(), completeTask(). Server-side only!",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["setup-pocketbase-schema"],
+      "notes": []
+    },
+    {
+      "id": "test-pocketbase-client",
+      "title": "Write tests for PocketBase client",
+      "description": "Integration tests against real PocketBase instance (no mocking!). Tests for all CRUD operations.",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["create-pocketbase-client", "seed-test-data"],
+      "notes": []
+    },
+    {
+      "id": "implement-child-selector",
+      "title": "Implement child selector UI",
+      "description": "Kiosk main page with child selection: tabs or avatar buttons. No JavaScript - pure links or form buttons. TDD: Write test first!",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["test-pocketbase-client"],
+      "notes": []
+    },
+    {
+      "id": "implement-task-list",
+      "title": "Display task list for selected child",
+      "description": "Read-only list of tasks. Sort by priority, then random. Large, clear display. DaisyUI styling. TDD!",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["implement-child-selector"],
+      "notes": []
+    },
+    {
+      "id": "implement-task-completion",
+      "title": "Implement task completion",
+      "description": "POST handler for task completion. After checking: redirect back to list. No JavaScript! TDD: Write test for the flow first.",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["implement-task-list"],
+      "notes": []
+    },
+    {
+      "id": "add-completion-animation",
+      "title": "Add animation on task completion",
+      "description": "Use Astro View Transitions for fade-out animation. Should feel satisfying without JavaScript.",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["implement-task-completion"],
+      "notes": []
+    },
+    {
+      "id": "tablet-responsive-styling",
+      "title": "Optimize responsive styling for tablet",
+      "description": "Optimize layout for iPad landscape. Large touch targets, clear spacing. Use Tailwind breakpoints.",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["add-completion-animation"],
+      "notes": []
+    },
+    {
+      "id": "e2e-tests-kiosk-flow",
+      "title": "E2E tests for complete kiosk flow",
+      "description": "Playwright tests: select child, see task, check off task, task disappears. Against real PocketBase instance.",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["tablet-responsive-styling"],
+      "notes": []
+    }
+  ]
+}
