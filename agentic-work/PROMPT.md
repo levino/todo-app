@@ -45,23 +45,31 @@ If no pending/in_progress tasks remain, output `<promise>COMPLETE</promise>` and
 **IMMEDIATELY** mark the task as `in_progress` in tasks.json before working. This ensures the next session knows where to continue if interrupted.
 
 **CRITICAL - Test-Driven Development (TDD):**
-1. **Write a failing integration test FIRST** (not E2E!)
-2. Run the test to confirm it fails: `POCKETBASE_URL=http://localhost:8090 npm run test:bare -- --run`
+1. **Write a failing integration test FIRST** in `*.integration.test.ts`
+2. Run the test inside Docker Compose: `docker compose run --rm playwright npm run test:bare -- --run`
 3. Write code to make the test pass
 4. **RUN THE TESTS AGAIN** to verify they pass
 5. Only mark task as complete if tests pass
 
-**Integration Tests (PRIMARY):**
-- Use Vitest with real PocketBase API (no mocks!)
-- Test API endpoints and data layer thoroughly
-- Tests must be extensive - cover edge cases
-- **YOU MUST RUN `npm run test:bare -- --run` AND SEE TESTS PASS**
+**Test File Naming:**
+- `*.test.ts` - Unit tests (pure logic, no API, no side effects)
+- `*.integration.test.ts` - Integration tests (Astro Container + real PocketBase) **← USE THIS!**
+- `*.e2e.test.ts` - Playwright E2E tests (NOT needed now)
 
-**E2E Tests (OPTIONAL):**
-- Playwright tests are slow and heavy
-- Only write E2E tests for critical user flows
-- Integration tests cover most functionality
-- Do NOT write E2E tests for every feature
+**Integration Tests (`*.integration.test.ts`) - PRIMARY:**
+- Use Astro Container API to test pages/components
+- Connect to real PocketBase API (no mocks!)
+- Must run inside Docker Compose (containers talk to each other)
+- Tests must be extensive - cover all functionality and edge cases
+- **YOU MUST RUN TESTS AND SEE THEM PASS:**
+  ```bash
+  docker compose run --rm playwright npm run test:bare -- --run
+  ```
+
+**E2E Tests - NOT NEEDED:**
+- Do NOT write E2E tests at this stage
+- Integration tests cover functionality
+- E2E tests are for later (critical user flows only)
 
 **PocketBase Schema Changes:**
 - **Never write migration SQL by hand!**
@@ -69,8 +77,8 @@ If no pending/in_progress tasks remain, output `<promise>COMPLETE</promise>` and
 - PocketBase generates the migration automatically
 
 **Verification Checklist (before marking task complete):**
-- [ ] Integration tests written and passing
-- [ ] `npm run test:bare -- --run` shows green
+- [ ] Integration tests written in `*.integration.test.ts`
+- [ ] Tests run and pass: `docker compose run --rm playwright npm run test:bare -- --run`
 - [ ] `npm run build` succeeds
 - [ ] Code actually works (verified by tests!)
 

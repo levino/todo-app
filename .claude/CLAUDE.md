@@ -13,21 +13,40 @@ This applies to all bug fixes and new features.
 
 ## Testing Strategy
 
-### Integration Tests (PRIMARY - use extensively!)
+### Test Types and File Naming
 
-**Write integration tests using Vitest + Astro Container API against the real PocketBase API.**
+| Type | File Pattern | Runs In | Purpose |
+|------|--------------|---------|---------|
+| **Unit Tests** | `*.test.ts` | Anywhere | Pure logic, no side effects, no API |
+| **Integration Tests** | `*.integration.test.ts` | Docker Compose | Astro Container API + real PocketBase |
+| **E2E Tests** | `*.e2e.test.ts` | Docker Compose | Playwright browser tests (optional) |
 
-- Test API endpoints by making real HTTP requests
-- Test Astro pages using the Container API
-- **NEVER mock PocketBase** - always test against the real instance
-- Tests must be extensive and cover all functionality
-- **ALWAYS run tests** after implementation to verify it works
+### Unit Tests (`*.test.ts`)
 
-Example test structure:
+- Pure functions, utilities, helpers
+- No side effects, no network calls
+- Can run anywhere (no Docker needed)
+- Fast and isolated
+
+### Integration Tests (`*.integration.test.ts`) - PRIMARY!
+
+**This is the main test type. Write extensive integration tests for all features.**
+
+- Use **Astro Container API** to test pages/components
+- Connect to **real PocketBase API** (no mocks!)
+- Must run inside Docker Compose (containers talk to each other)
+- Test the full stack: page rendering → API calls → database
+
+```bash
+# Run integration tests (inside Docker Compose network)
+docker compose run --rm playwright npm run test:bare -- --run
+```
+
+Example:
 ```typescript
-// src/lib/kiosk.integration.test.ts
+// src/features/kiosk.integration.test.ts
 import PocketBase from 'pocketbase'
-import { describe, expect, it, beforeAll, afterAll } from 'vitest'
+import { describe, expect, it, beforeAll } from 'vitest'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -39,18 +58,18 @@ describe('Kiosk Tasks', () => {
     await pb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
   })
 
-  it('should create and fetch tasks', async () => {
-    // Test real API behavior
+  it('should fetch tasks for a child', async () => {
+    // Test real API behavior - no mocks!
   })
 })
 ```
 
-### E2E Tests (OPTIONAL - only when needed)
+### E2E Tests (`*.e2e.test.ts`) - NOT NEEDED NOW
 
-- Playwright E2E tests are heavy and slow
-- Only add E2E tests for critical user flows
-- Integration tests should cover most functionality
-- E2E tests are NOT required for every feature
+- Playwright browser automation
+- Run inside Docker Compose
+- **Not required at this stage** - integration tests cover functionality
+- Only add later for critical user flows if needed
 
 ## PocketBase Database Schema Changes
 
