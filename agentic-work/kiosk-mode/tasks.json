@@ -44,9 +44,16 @@
       "id": "child-checks-off-task",
       "title": "Child can check off a completed task",
       "description": "**User Story:** As a child, I want to check off a task with one tap, so that completing tasks feels quick and I can move on to the next one.\n\n**Acceptance Criteria:**\n- WHEN viewing my task list THEN each task SHALL have a clearly visible checkbox or completion button\n- WHEN I tap the checkbox THEN the task SHALL be marked as completed in the system\n- WHEN a task is completed THEN it SHALL no longer appear in my task list\n- IF I accidentally check off a task THEN there is no undo (simplicity over recoverability for children)\n- WHEN checking off a task THEN no confirmation dialog SHALL appear (one-tap completion)",
-      "status": "pending",
+      "status": "completed",
       "createdAt": "2026-01-13T10:00:00Z",
-      "notes": []
+      "completedAt": "2026-01-13T18:04:00Z",
+      "notes": [
+        "Added POST endpoint /kiosk/task/[taskId]/complete",
+        "Each task has large checkmark button (56x56px)",
+        "One-tap completion with no confirmation",
+        "Uses Post-Redirect-Get pattern for SSR",
+        "Task disappears after completion (filtered by completed=false)"
+      ]
     },
     {
       "id": "satisfying-completion-feedback",

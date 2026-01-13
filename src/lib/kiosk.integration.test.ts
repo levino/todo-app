@@ -130,4 +130,27 @@ describe('Kiosk Mode - Task List', () => {
     expect(result.items[0].name).toBe('Max')
     expect(result.items[0].avatar).toBe('👦')
   })
+
+  it('should mark a task as completed with timestamp', async () => {
+    const taskId = taskIds[0]
+    const beforeComplete = new Date()
+
+    // Complete the task
+    await pb.collection('kiosk_tasks').update(taskId, {
+      completed: true,
+      completedAt: new Date().toISOString(),
+    })
+
+    // Verify task is completed
+    const task = await pb.collection('kiosk_tasks').getOne(taskId)
+    expect(task.completed).toBe(true)
+    expect(task.completedAt).toBeDefined()
+    expect(new Date(task.completedAt).getTime()).toBeGreaterThanOrEqual(beforeComplete.getTime())
+
+    // Restore for other tests
+    await pb.collection('kiosk_tasks').update(taskId, {
+      completed: false,
+      completedAt: null,
+    })
+  })
 })

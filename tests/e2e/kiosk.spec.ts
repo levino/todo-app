@@ -169,6 +169,42 @@ test.describe('Kiosk Mode', () => {
     // Should show Leon's name in header
     await expect(page.locator('h1')).toContainText('Leon')
   })
+
+  test('should have completion buttons for each task', async ({ page }) => {
+    await page.goto(`/kiosk/${childId}`)
+
+    // Each task should have a completion button
+    const completeButtons = page.locator('[data-testid="complete-button"]')
+    const taskItems = page.locator('[data-testid="task-item"]')
+
+    const taskCount = await taskItems.count()
+    await expect(completeButtons).toHaveCount(taskCount)
+
+    // Buttons should be large enough for touch (56px)
+    const firstButton = completeButtons.first()
+    const box = await firstButton.boundingBox()
+    expect(box).not.toBeNull()
+    expect(box!.width).toBeGreaterThanOrEqual(56)
+    expect(box!.height).toBeGreaterThanOrEqual(56)
+  })
+
+  test('should remove task from list when completed', async ({ page }) => {
+    await page.goto(`/kiosk/${childId}`)
+
+    // Count initial tasks
+    const initialTaskItems = page.locator('[data-testid="task-item"]')
+    const initialCount = await initialTaskItems.count()
+    expect(initialCount).toBeGreaterThan(0)
+
+    // Click the first complete button
+    await page.click('[data-testid="complete-button"]')
+
+    // Should still be on the same page
+    await expect(page).toHaveURL(new RegExp(`/kiosk/${childId}`))
+
+    // Should have one less task
+    await expect(page.locator('[data-testid="task-item"]')).toHaveCount(initialCount - 1)
+  })
 })
 
 test.describe('Kiosk Mode - Single Child', () => {

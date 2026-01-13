@@ -1,5 +1,28 @@
 # Kiosk Mode - History
 
+## 2026-01-13: Task child-checks-off-task completed
+
+### What was done
+- Created POST endpoint at `/kiosk/task/[taskId]/complete`
+- Added large checkmark button (56x56px) to each task item
+- Button uses DaisyUI btn-circle btn-success styling
+- One-tap completion with no confirmation dialog
+- Uses Post-Redirect-Get pattern (303 redirect back to kiosk page)
+- Task marked as completed with timestamp, disappears from list
+
+### Decisions
+1. **Button style**: Large circular green checkmark button - very clear and child-friendly
+2. **No undo**: Intentionally no way to undo - simplicity for children
+3. **SSR approach**: Form POST with redirect, no JavaScript needed
+4. **Hidden childId**: Passed via hidden form field to know where to redirect
+
+### Tips for the next developer
+- The completion animation can be added using Astro View Transitions
+- The button uses aria-label for accessibility ("X erledigen")
+- Test completion by running E2E tests (need Playwright browsers)
+
+---
+
 ## 2026-01-13: Task child-switcher-integrated completed
 
 ### What was done
