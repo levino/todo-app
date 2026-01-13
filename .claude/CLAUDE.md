@@ -7,8 +7,50 @@
 1. First write a test that fails
 2. Then change the code to make the test pass
 3. Refactor only when tests are green
+4. **RUN THE TESTS** to verify they pass: `npm run test:bare -- --run`
 
 This applies to all bug fixes and new features.
+
+## Testing Strategy
+
+### Integration Tests (PRIMARY - use extensively!)
+
+**Write integration tests using Vitest + Astro Container API against the real PocketBase API.**
+
+- Test API endpoints by making real HTTP requests
+- Test Astro pages using the Container API
+- **NEVER mock PocketBase** - always test against the real instance
+- Tests must be extensive and cover all functionality
+- **ALWAYS run tests** after implementation to verify it works
+
+Example test structure:
+```typescript
+// src/lib/kiosk.integration.test.ts
+import PocketBase from 'pocketbase'
+import { describe, expect, it, beforeAll, afterAll } from 'vitest'
+
+const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+
+describe('Kiosk Tasks', () => {
+  let pb: PocketBase
+
+  beforeAll(async () => {
+    pb = new PocketBase(POCKETBASE_URL)
+    await pb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
+  })
+
+  it('should create and fetch tasks', async () => {
+    // Test real API behavior
+  })
+})
+```
+
+### E2E Tests (OPTIONAL - only when needed)
+
+- Playwright E2E tests are heavy and slow
+- Only add E2E tests for critical user flows
+- Integration tests should cover most functionality
+- E2E tests are NOT required for every feature
 
 ## PocketBase Database Schema Changes
 

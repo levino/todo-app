@@ -44,22 +44,38 @@ If no pending/in_progress tasks remain, output `<promise>COMPLETE</promise>` and
 
 **IMMEDIATELY** mark the task as `in_progress` in tasks.json before working. This ensures the next session knows where to continue if interrupted.
 
-**IMPORTANT - Test-Driven Development (TDD):**
-- **No code changes without a failing test!**
-- First write a test that fails
-- Then write code to make the test pass
-- Refactor only when tests are green
-- This applies to all bug fixes and new features
+**CRITICAL - Test-Driven Development (TDD):**
+1. **Write a failing integration test FIRST** (not E2E!)
+2. Run the test to confirm it fails: `POCKETBASE_URL=http://localhost:8090 npm run test:bare -- --run`
+3. Write code to make the test pass
+4. **RUN THE TESTS AGAIN** to verify they pass
+5. Only mark task as complete if tests pass
+
+**Integration Tests (PRIMARY):**
+- Use Vitest with real PocketBase API (no mocks!)
+- Test API endpoints and data layer thoroughly
+- Tests must be extensive - cover edge cases
+- **YOU MUST RUN `npm run test:bare -- --run` AND SEE TESTS PASS**
+
+**E2E Tests (OPTIONAL):**
+- Playwright tests are slow and heavy
+- Only write E2E tests for critical user flows
+- Integration tests cover most functionality
+- Do NOT write E2E tests for every feature
 
 **PocketBase Schema Changes:**
 - **Never write migration SQL by hand!**
 - Use `/create-collection` skill or write temporary JS with `pb.collections.create()`
 - PocketBase generates the migration automatically
 
+**Verification Checklist (before marking task complete):**
+- [ ] Integration tests written and passing
+- [ ] `npm run test:bare -- --run` shows green
+- [ ] `npm run build` succeeds
+- [ ] Code actually works (verified by tests!)
+
 Additional rules:
 - **Complete the task fully** - don't leave it half-done
-- Verify build with `npm run build` when code changes
-- Run tests with `npm run test:bare`
 - Only mark as `blocked` if you truly cannot continue
 
 ### Step 4: Update State
@@ -95,11 +111,13 @@ This signals the loop to stop. Otherwise just end your session normally and the 
 ## Important Rules
 
 - **TDD is mandatory**: Test first, then code. No exceptions.
+- **RUN THE TESTS**: You MUST run `npm run test:bare -- --run` and verify tests pass before marking complete
+- **Integration tests over E2E**: Write extensive Vitest integration tests, E2E is optional
 - **One task, fully completed**: Pick one task and complete it fully before session ends
 - **Never leave tasks half-done**: Only mark as `blocked` if truly blocked
 - **No scope creep**: Only add new tasks if absolutely necessary to complete existing work
 - **Always commit**: Leave codebase in clean, working state
-- **Build and tests**: Verify changes before committing
+- **Verify before committing**: Tests green + build passes = ready to commit
 - **Update history**: Document what was done for future sessions
 
 ## Project-Specific Notes
@@ -109,7 +127,7 @@ This signals the loop to stop. Otherwise just end your session normally and the 
 - **Backend**: PocketBase (Docker container)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS / DaisyUI
-- **Tests**: Vitest (Unit) + Playwright (E2E)
+- **Tests**: Vitest (Integration - PRIMARY) + Playwright (E2E - optional)
 
 ### Important Commands
 ```bash
