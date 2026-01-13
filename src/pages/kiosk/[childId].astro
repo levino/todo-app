@@ -1,0 +1,88 @@
+---
+import Layout from '@levino/shipyard-base/layouts/Page.astro'
+import { getPocketBase } from '@/lib/pocketbase'
+
+interface Child {
+  id: string
+  name: string
+  avatar: string
+  group: string
+}
+
+interface KioskTask {
+  id: string
+  title: string
+  child: string
+  priority: number | null
+  completed: boolean
+  completedAt: string | null
+}
+
+const { childId } = Astro.params
+
+let child: Child | null = null
+let tasks: KioskTask[] = []
+let error = ''
+
+try {
+  const pb = getPocketBase()
+
+  // Fetch the child
+  child = await pb.collection('children').getOne<Child>(childId!)
+
+  // Fetch incomplete tasks for this child, sorted by priority
+  const result = await pb.collection('kiosk_tasks').getList<KioskTask>(1, 100, {
+    filter: `child = "${childId}" && completed = false`,
+    sort: 'priority,-created',
+  })
+  tasks = result.items
+} catch (e) {
+  error = 'Fehler beim Laden der Aufgaben.'
+}
+---
+
+<Layout title={child ? `${child.name} - Aufgaben` : 'Kiosk'}>
+  <div class="min-h-screen bg-base-100 p-4 md:p-8">
+    {error && (
+      <div class="alert alert-error mb-6">
+        <span>{error}</span>
+      </div>
+    )}
+
+    {child && (
+      <div class="max-w-3xl mx-auto">
+        {/* Child header */}
+        <header class="flex items-center gap-4 mb-8">
+          {child.avatar && (
+            <span class="text-5xl">{child.avatar}</span>
+          )}
+          <h1 class="text-3xl md:text-4xl font-bold">{child.name}</h1>
+        </header>
+
+        {/* Task list */}
+        {tasks.length === 0 ? (
+          <div class="text-center py-16">
+            <p class="text-2xl text-gray-500">Keine Aufgaben!</p>
+          </div>
+        ) : (
+          <ul class="space-y-3">
+            {tasks.map((task) => (
+              <li
+                data-testid="task-item"
+                class="flex items-center gap-4 p-4 bg-base-200 rounded-xl min-h-[56px]"
+              >
+                <span class="text-xl md:text-2xl flex-1">{task.title}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    )}
+
+    {!child && !error && (
+      <div class="text-center py-16">
+        <p class="text-2xl text-gray-500">Kind nicht gefunden.</p>
+      </div>
+    )}
+  </div>
+</Layout>

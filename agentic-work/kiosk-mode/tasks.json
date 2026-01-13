@@ -6,9 +6,16 @@
       "id": "kiosk-page-with-task-list",
       "title": "Child sees their personal task list on the kiosk page",
       "description": "**User Story:** As a child using the family tablet, I want to see my tasks in a clear, simple list, so that I know exactly what I need to do without being overwhelmed.\n\n**Acceptance Criteria:**\n- WHEN the kiosk page loads for a child THEN the app SHALL display only tasks assigned to that child\n- WHEN displaying tasks THEN the app SHALL show each task title in large, readable text\n- WHEN tasks are displayed THEN the list SHALL be read-only with no editing controls visible\n- WHEN viewing the task list THEN the layout SHALL be optimized for tablet landscape mode\n- WHEN displaying interactive elements THEN touch targets SHALL be at least 44x44 pixels",
-      "status": "pending",
+      "status": "completed",
       "createdAt": "2026-01-13T10:00:00Z",
-      "notes": []
+      "completedAt": "2026-01-13T17:56:00Z",
+      "notes": [
+        "Created PocketBase collections: groups, children, kiosk_tasks",
+        "Implemented /kiosk/[childId] page with read-only task list",
+        "Tasks sorted by priority, displayed in large readable text",
+        "Min-height 56px for touch targets (exceeds 44px requirement)",
+        "German UI text (Keine Aufgaben, Fehler beim Laden)"
+      ]
     },
     {
       "id": "child-switcher-integrated",
