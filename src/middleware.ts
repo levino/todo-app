@@ -1,12 +1,14 @@
 import { defineMiddleware } from 'astro:middleware'
-import { handleAuthRequest } from '@levino/pocketbase-auth'
+import { validateAuth, createRequestPocketBase } from './lib/auth'
 
 // Public paths that don't require authentication
-const publicPaths = ['/public/', '/api/health']
+const publicPaths = ['/login', '/signup', '/api/auth/', '/api/health']
 
 export const onRequest = defineMiddleware(async (context, next) => {
   // Skip auth entirely in test environment
   if (import.meta.env.DISABLE_AUTH === 'true') {
+    // Still provide a PocketBase instance for tests
+    context.locals.pb = createRequestPocketBase()
     return next()
   }
 
@@ -14,22 +16,29 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
   // Skip auth for public paths
   if (publicPaths.some((p) => path.startsWith(p))) {
+    // Provide an unauthenticated PocketBase instance for public routes
+    context.locals.pb = createRequestPocketBase()
     return next()
   }
 
-  // Configure these for your deployment
-  const authUrl = import.meta.env.AUTH_POCKETBASE_URL || 'http://localhost:8090'
-  const authGroup = import.meta.env.AUTH_POCKETBASE_GROUP || 'default'
+  // Validate authentication from cookie
+  const cookieHeader = context.request.headers.get('Cookie')
+  const { valid, user, pb } = await validateAuth(cookieHeader)
 
-  // handleAuthRequest handles /api/cookie, /api/logout, and auth checks
-  const authResponse = await handleAuthRequest(context.request, {
-    pocketbaseUrl: authUrl,
-    groupField: authGroup,
-  })
+  // Attach the per-request PocketBase instance to locals
+  // This instance has the user's auth loaded if valid
+  context.locals.pb = pb
 
-  if (authResponse) {
-    return authResponse
+  if (!valid) {
+    // Redirect to login if not authenticated
+    return context.redirect('/login')
   }
+
+  // Attach user info to locals for use in pages
+  context.locals.user = user
+
+  // Group membership is enforced by PocketBase collection rules, not here.
+  // The pb instance is authenticated, so PocketBase will apply the rules.
 
   return next()
 })

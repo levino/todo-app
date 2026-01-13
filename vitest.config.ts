@@ -6,5 +6,7 @@ export default getViteConfig({
     globals: true,
     setupFiles: ['tests/setup.integration.ts'],
     exclude: ['node_modules', 'dist', 'tests/e2e'],
+    // Run tests sequentially since integration tests share a PocketBase database
+    fileParallelism: false,
   },
 })

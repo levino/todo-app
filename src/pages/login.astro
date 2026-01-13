@@ -1,0 +1,68 @@
+---
+import AuthLayout from '@/layouts/AuthLayout.astro'
+
+// Get error message from URL params if redirected after failed login
+const error = Astro.url.searchParams.get('error')
+---
+
+<AuthLayout title="Anmelden">
+  <div class="min-h-screen flex items-center justify-center bg-base-100 p-4">
+    <div class="card w-full max-w-md bg-base-200 shadow-xl">
+      <div class="card-body">
+        <h1 class="card-title text-2xl font-bold text-center justify-center mb-6">
+          Anmelden
+        </h1>
+
+        {error && (
+          <div class="alert alert-error mb-4">
+            <span>{decodeURIComponent(error)}</span>
+          </div>
+        )}
+
+        <form method="POST" action="/api/auth/login" class="space-y-4">
+          <div class="form-control">
+            <label class="label" for="email">
+              <span class="label-text">E-Mail</span>
+            </label>
+            <input
+              type="email"
+              id="email"
+              name="email"
+              placeholder="name@example.com"
+              class="input input-bordered w-full"
+              required
+              autocomplete="email"
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label" for="password">
+              <span class="label-text">Passwort</span>
+            </label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              placeholder="********"
+              class="input input-bordered w-full"
+              required
+              autocomplete="current-password"
+            />
+          </div>
+
+          <div class="form-control mt-6">
+            <button type="submit" class="btn btn-primary w-full">
+              Anmelden
+            </button>
+          </div>
+        </form>
+
+        <div class="divider">oder</div>
+
+        <p class="text-center">
+          Noch kein Konto? <a href="/signup" class="link link-primary">Registrieren</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</AuthLayout>

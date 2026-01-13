@@ -7,9 +7,11 @@
 1. First write a test that fails
 2. Then change the code to make the test pass
 3. Refactor only when tests are green
-4. **RUN THE TESTS** to verify they pass: `npm run test:bare -- --run`
+4. **RUN THE TESTS** to verify they pass: `npm run docker:test`
 
 This applies to all bug fixes and new features.
+
+**IMPORTANT:** Never run `npm run test:bare` directly on the host machine. Tests require Docker networking to reach `pocketbase-test`. Always use `npm run docker:test` which runs tests inside a container.
 
 ## Testing Strategy
 
@@ -38,16 +40,13 @@ This applies to all bug fixes and new features.
 - Test the full stack: page rendering → API calls → database
 
 ```bash
-# Run tests (starts Docker Compose, runs inside container where pocketbase-test is accessible)
-npm test
-
-# Or if already inside Docker network:
-npm run test:bare
+# Run tests (resets test DB, runs inside container where pocketbase-test is accessible)
+npm run docker:test
 ```
 
 **Script naming convention:**
-- `npm test` → Wraps in Docker Compose, runs in container with network access
-- `npm run test:bare` → Runs directly (use when already in Docker network)
+- `npm run docker:test` → Resets test DB, runs tests in Docker container with network access
+- `npm run test:bare` → **DO NOT USE DIRECTLY** - only runs inside Docker container
 
 **Example: Testing an Astro Page with Container API**
 
@@ -180,15 +179,15 @@ Then: `node temp-collection.js && rm temp-collection.js`
 ## Development Workflow
 
 ```bash
-# Start PocketBase
+# Start PocketBase for development
 docker compose up -d pocketbase-dev
 
-# Get container IP for scripts
-docker network inspect shipyard-pocketbase-template_default --format '{{range .Containers}}{{.IPv4Address}}{{end}}'
+# Get container IP for migration scripts
+docker network inspect levino-todo-app_default --format '{{range .Containers}}{{.IPv4Address}}{{end}}'
 
-# Start dev server
-npm run dev:bare
+# Start dev server (requires POCKETBASE_URL env var)
+POCKETBASE_URL=http://localhost:8090 npm run dev:bare
 
-# Run tests
-npm run test:bare
+# Run tests (ALWAYS use docker:test, never test:bare directly!)
+npm run docker:test
 ```

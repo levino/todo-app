@@ -6,17 +6,31 @@
 
 import PocketBase from 'pocketbase'
 
-const POCKETBASE_URL =
-  process.env.POCKETBASE_URL ||
-  import.meta.env.POCKETBASE_URL ||
-  import.meta.env.SERVICE_URL_POCKETBASE ||
-  'http://localhost:8090'
+/**
+ * Get the PocketBase URL at runtime.
+ * Throws if not set - there is no sensible default.
+ */
+export function getPocketBaseUrl(): string {
+  const url =
+    process.env.POCKETBASE_URL ||
+    import.meta.env.POCKETBASE_URL ||
+    import.meta.env.SERVICE_URL_POCKETBASE
+
+  if (!url) {
+    throw new Error(
+      'POCKETBASE_URL environment variable is not set. ' +
+        'Set it via POCKETBASE_URL, import.meta.env.POCKETBASE_URL, or SERVICE_URL_POCKETBASE.'
+    )
+  }
+
+  return url
+}
 
 /**
  * Create a new PocketBase client instance
  */
 export function createPocketBase(): PocketBase {
-  return new PocketBase(POCKETBASE_URL)
+  return new PocketBase(getPocketBaseUrl())
 }
 
 /**

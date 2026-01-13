@@ -28,7 +28,6 @@
     "@astrojs/check": "^0.9.6",
     "@astrojs/node": "^9.0.0",
     "@astrojs/tailwind": "^6.0.2",
-    "@levino/pocketbase-auth": "*",
     "@levino/shipyard-base": "*",
     "@tailwindcss/typography": "^0.5.15",
     "astro": "^5.16.0",
