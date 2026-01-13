@@ -8,6 +8,7 @@ test.describe('Kiosk Mode', () => {
   let pb: PocketBase
   let groupId: string
   let childId: string
+  let siblingId: string
   let taskIds: string[] = []
 
   test.beforeAll(async () => {
@@ -29,6 +30,14 @@ test.describe('Kiosk Mode', () => {
       avatar: '👧',
     })
     childId = child.id
+
+    // Create a sibling for testing child switcher
+    const sibling = await pb.collection('children').create({
+      name: 'Leon',
+      group: groupId,
+      avatar: '👦',
+    })
+    siblingId = sibling.id
 
     // Create test tasks
     const task1 = await pb.collection('kiosk_tasks').create({
@@ -57,6 +66,11 @@ test.describe('Kiosk Mode', () => {
     }
     try {
       await pb.collection('children').delete(childId)
+    } catch {
+      // Ignore
+    }
+    try {
+      await pb.collection('children').delete(siblingId)
     } catch {
       // Ignore
     }
@@ -117,5 +131,92 @@ test.describe('Kiosk Mode', () => {
     await expect(page.locator('button:has-text("Edit")')).not.toBeVisible()
     await expect(page.locator('button:has-text("Löschen")')).not.toBeVisible()
     await expect(page.locator('button:has-text("Bearbeiten")')).not.toBeVisible()
+  })
+
+  test('should show child switcher when multiple children exist', async ({ page }) => {
+    await page.goto(`/kiosk/${childId}`)
+
+    // Child switcher should be visible
+    const switcher = page.locator('[data-testid="child-switcher"]')
+    await expect(switcher).toBeVisible()
+
+    // Should show both children as tabs
+    const tabs = page.locator('[data-testid="child-tab"]')
+    await expect(tabs).toHaveCount(2)
+
+    // Should show both names
+    await expect(page.locator('[data-testid="child-switcher"]')).toContainText('Emma')
+    await expect(page.locator('[data-testid="child-switcher"]')).toContainText('Leon')
+  })
+
+  test('should highlight the currently selected child', async ({ page }) => {
+    await page.goto(`/kiosk/${childId}`)
+
+    // The selected child tab should have primary styling
+    const selectedTab = page.locator(`[data-testid="child-tab"][href="/kiosk/${childId}"]`)
+    await expect(selectedTab).toHaveClass(/bg-primary/)
+  })
+
+  test('should switch to sibling when clicking their tab', async ({ page }) => {
+    await page.goto(`/kiosk/${childId}`)
+
+    // Click on Leon's tab
+    await page.click(`[data-testid="child-tab"][href="/kiosk/${siblingId}"]`)
+
+    // Should navigate to Leon's page
+    await expect(page).toHaveURL(`/kiosk/${siblingId}`)
+
+    // Should show Leon's name in header
+    await expect(page.locator('h1')).toContainText('Leon')
+  })
+})
+
+test.describe('Kiosk Mode - Single Child', () => {
+  let pb: PocketBase
+  let groupId: string
+  let childId: string
+
+  test.beforeAll(async () => {
+    pb = new PocketBase(POCKETBASE_URL)
+    await pb
+      .collection('_superusers')
+      .authWithPassword('admin@test.local', 'testtest123')
+
+    // Create a group with only one child
+    const group = await pb.collection('groups').create({
+      name: 'Single Child Family',
+    })
+    groupId = group.id
+
+    const child = await pb.collection('children').create({
+      name: 'Mia',
+      group: groupId,
+      avatar: '👶',
+    })
+    childId = child.id
+  })
+
+  test.afterAll(async () => {
+    try {
+      await pb.collection('children').delete(childId)
+    } catch {
+      // Ignore
+    }
+    try {
+      await pb.collection('groups').delete(groupId)
+    } catch {
+      // Ignore
+    }
+  })
+
+  test('should hide child switcher when only one child exists', async ({ page }) => {
+    await page.goto(`/kiosk/${childId}`)
+
+    // Child switcher should NOT be visible
+    const switcher = page.locator('[data-testid="child-switcher"]')
+    await expect(switcher).not.toBeVisible()
+
+    // Should still show the child's name
+    await expect(page.locator('h1')).toContainText('Mia')
   })
 })

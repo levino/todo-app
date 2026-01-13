@@ -67,6 +67,28 @@ describe('Kiosk Mode - Task List', () => {
     }
   })
 
+  it('should fetch all siblings (children in the same group)', async () => {
+    // Create a second child in the same group
+    const sibling = await pb.collection('children').create({
+      name: 'Lisa',
+      group: groupId,
+      avatar: '👧',
+    })
+
+    try {
+      const result = await pb.collection('children').getList(1, 100, {
+        filter: `group = "${groupId}"`,
+        sort: 'name',
+      })
+
+      expect(result.items.length).toBe(2)
+      expect(result.items[0].name).toBe('Lisa')
+      expect(result.items[1].name).toBe('Max')
+    } finally {
+      await pb.collection('children').delete(sibling.id)
+    }
+  })
+
   it('should fetch tasks for a specific child', async () => {
     const result = await pb.collection('kiosk_tasks').getList(1, 100, {
       filter: `child = "${childId}" && completed = false`,

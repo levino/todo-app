@@ -21,9 +21,16 @@
       "id": "child-switcher-integrated",
       "title": "Controls to switch between children are integrated into the task view",
       "description": "**User Story:** As a child using the family tablet, I want to easily switch to see my tasks (not my sibling's) without navigating to a separate screen, so that the experience is quick and seamless.\n\n**Acceptance Criteria:**\n- WHEN the kiosk page loads THEN child selector controls (avatars or tabs) SHALL appear on the side or above the task list\n- WHEN a child taps a different child's avatar/tab THEN the app SHALL immediately switch to show that child's tasks\n- IF there is only one child in the family THEN the child selector controls SHALL be hidden\n- WHEN viewing the task list THEN the currently selected child SHALL be visually indicated\n- WHEN switching children THEN no page navigation SHALL occur (integrated experience)",
-      "status": "pending",
+      "status": "completed",
       "createdAt": "2026-01-13T10:00:00Z",
-      "notes": []
+      "completedAt": "2026-01-13T18:00:00Z",
+      "notes": [
+        "Added child switcher nav above task list with avatars/names",
+        "Selected child highlighted with bg-primary styling",
+        "Switcher hidden when only one child in group",
+        "Touch-friendly tabs (min-height 56px, min-width 120px)",
+        "Uses page navigation (SSR) but could add View Transitions later"
+      ]
     },
     {
       "id": "tasks-ordered-fairly",

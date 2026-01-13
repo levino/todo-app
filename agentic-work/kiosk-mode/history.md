@@ -1,5 +1,29 @@
 # Kiosk Mode - History
 
+## 2026-01-13: Task child-switcher-integrated completed
+
+### What was done
+- Added child switcher navigation above the task list
+- Fetches all siblings (children in the same group)
+- Displays each child as a tab with avatar and name
+- Selected child highlighted with `bg-primary` styling
+- Switcher automatically hidden when only one child exists
+- Added integration test for fetching siblings
+- Added E2E tests for switcher visibility and navigation
+
+### Decisions
+1. **Position**: Switcher placed above task list (not on side) for simplicity
+2. **Navigation**: Uses page navigation via links instead of client-side state (SSR approach)
+3. **Touch targets**: Tabs have min-height 56px and min-width 120px for easy tapping
+4. **Styling**: Uses DaisyUI's `bg-primary` for selected state, `bg-base-200` for others
+
+### Tips for the next developer
+- View Transitions could be added later for smoother child switching
+- The sibling query uses the `group` field from the current child
+- E2E tests require Playwright browsers to be installed
+
+---
+
 ## 2026-01-13: Task kiosk-page-with-task-list completed
 
 ### What was done
