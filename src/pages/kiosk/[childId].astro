@@ -92,10 +92,14 @@ const showSwitcher = siblings.length > 1
           <h1 class="text-3xl md:text-4xl font-bold">{child.name}</h1>
         </header>
 
-        {/* Task list */}
+        {/* Task list or celebration */}
         {tasks.length === 0 ? (
-          <div class="text-center py-16">
-            <p class="text-2xl text-gray-500">Keine Aufgaben!</p>
+          <div data-testid="celebration" class="text-center py-16">
+            <div data-testid="celebration-emoji" class="text-8xl mb-6">🌟</div>
+            <h2 class="text-3xl md:text-4xl font-bold text-success mb-4">Super gemacht!</h2>
+            <p class="text-xl md:text-2xl text-base-content/70">
+              Alle Aufgaben erledigt!
+            </p>
           </div>
         ) : (
           <ul class="space-y-3">

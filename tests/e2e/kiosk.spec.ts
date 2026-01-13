@@ -255,4 +255,19 @@ test.describe('Kiosk Mode - Single Child', () => {
     // Should still show the child's name
     await expect(page.locator('h1')).toContainText('Mia')
   })
+
+  test('should show celebration when child has no tasks', async ({ page }) => {
+    await page.goto(`/kiosk/${childId}`)
+
+    // Should show celebration element
+    const celebration = page.locator('[data-testid="celebration"]')
+    await expect(celebration).toBeVisible()
+
+    // Should show large emoji
+    const emoji = page.locator('[data-testid="celebration-emoji"]')
+    await expect(emoji).toBeVisible()
+
+    // Should show German congratulation message
+    await expect(celebration).toContainText(/Super gemacht|Alle Aufgaben erledigt|Toll gemacht/)
+  })
 })
