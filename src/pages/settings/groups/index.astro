@@ -1,0 +1,106 @@
+---
+import Layout from '@levino/shipyard-base/layouts/Page.astro'
+import { getUserGroups, type Group } from '@/lib/groups'
+
+const { pb, user } = Astro.locals
+
+if (!user) {
+  return Astro.redirect('/login')
+}
+
+let groups: Group[] = []
+let error = ''
+
+const urlError = Astro.url.searchParams.get('error')
+const success = Astro.url.searchParams.get('success')
+
+try {
+  groups = await getUserGroups(pb, user.id)
+} catch (e) {
+  console.error('Failed to load groups:', e)
+  error = 'Fehler beim Laden der Gruppen'
+}
+---
+
+<Layout title="Gruppen">
+  <div class="container mx-auto px-4 py-8 max-w-2xl">
+    <h1 class="text-3xl font-bold mb-8">Meine Gruppen</h1>
+
+    {error && (
+      <div class="alert alert-error mb-6">
+        <span>{error}</span>
+      </div>
+    )}
+
+    {urlError && (
+      <div class="alert alert-error mb-6">
+        <span>{decodeURIComponent(urlError)}</span>
+      </div>
+    )}
+
+    {success && (
+      <div class="alert alert-success mb-6">
+        <span>{decodeURIComponent(success)}</span>
+      </div>
+    )}
+
+    {/* Create new group form */}
+    <div class="card bg-base-200 mb-8">
+      <div class="card-body">
+        <h2 class="card-title text-xl">Neue Gruppe erstellen</h2>
+        <form method="POST" action="/api/groups/create" class="flex gap-2">
+          <input
+            type="text"
+            name="name"
+            placeholder="z.B. Familie Müller"
+            class="input input-bordered flex-1"
+            required
+          />
+          <button type="submit" class="btn btn-primary">
+            Erstellen
+          </button>
+        </form>
+      </div>
+    </div>
+
+    {/* Groups list */}
+    {groups.length === 0 ? (
+      <div class="text-center py-12 bg-base-200 rounded-xl">
+        <p class="text-xl text-base-content/70 mb-4">
+          Du gehörst noch zu keiner Gruppe.
+        </p>
+        <p class="text-base-content/50">
+          Erstelle eine neue Gruppe oder warte auf eine Einladung.
+        </p>
+      </div>
+    ) : (
+      <ul class="space-y-3">
+        {groups.map((group) => (
+          <li class="flex items-center justify-between p-4 bg-base-200 rounded-xl">
+            <span class="text-xl font-medium">{group.name}</span>
+            <div class="flex gap-2">
+              <a
+                href={`/g/${group.id}/tasks`}
+                class="btn btn-primary btn-sm"
+              >
+                Öffnen
+              </a>
+              <a
+                href={`/g/${group.id}/children`}
+                class="btn btn-outline btn-sm"
+              >
+                Kinder
+              </a>
+              <a
+                href={`/g/${group.id}/members`}
+                class="btn btn-outline btn-sm"
+              >
+                Mitglieder
+              </a>
+            </div>
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+</Layout>

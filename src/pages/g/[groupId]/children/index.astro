@@ -1,0 +1,158 @@
+---
+import Layout from '@levino/shipyard-base/layouts/Page.astro'
+import ColoredInitials from '@/components/ColoredInitials.astro'
+import { CHILD_COLORS } from '@/lib/groups'
+
+interface Child {
+  id: string
+  name: string
+  color: string
+  group: string
+}
+
+const { pb, user, groupId } = Astro.locals
+
+if (!user || !groupId) {
+  return Astro.redirect('/login')
+}
+
+// Get group info
+let groupName = ''
+try {
+  const group = await pb.collection('groups').getOne(groupId)
+  groupName = group.name
+} catch {
+  return Astro.redirect('/settings/groups')
+}
+
+// Get children
+let children: Child[] = []
+let error = ''
+
+const urlError = Astro.url.searchParams.get('error')
+const success = Astro.url.searchParams.get('success')
+
+try {
+  const result = await pb.collection('children').getList<Child>(1, 100, {
+    filter: `group = "${groupId}"`,
+    sort: 'name',
+  })
+  children = result.items
+} catch (e) {
+  console.error('Failed to load children:', e)
+  error = 'Fehler beim Laden der Kinder'
+}
+---
+
+<Layout title={`Kinder - ${groupName}`}>
+  <div class="container mx-auto px-4 py-8 max-w-2xl">
+    <div class="flex items-center gap-4 mb-8">
+      <a href={`/g/${groupId}/tasks`} class="btn btn-ghost btn-sm">
+        ← Zurück
+      </a>
+      <h1 class="text-3xl font-bold">Kinder</h1>
+    </div>
+
+    <p class="text-base-content/70 mb-6">{groupName}</p>
+
+    {error && (
+      <div class="alert alert-error mb-6">
+        <span>{error}</span>
+      </div>
+    )}
+
+    {urlError && (
+      <div class="alert alert-error mb-6">
+        <span>{decodeURIComponent(urlError)}</span>
+      </div>
+    )}
+
+    {success && (
+      <div class="alert alert-success mb-6">
+        <span>{decodeURIComponent(success)}</span>
+      </div>
+    )}
+
+    {/* Add child form */}
+    <div class="card bg-base-200 mb-8">
+      <div class="card-body">
+        <h2 class="card-title text-xl">Kind hinzufügen</h2>
+        <form method="POST" action={`/api/groups/${groupId}/children/add`} class="space-y-4">
+          <div class="form-control">
+            <label class="label" for="name">
+              <span class="label-text">Name</span>
+            </label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              placeholder="z.B. Max"
+              class="input input-bordered w-full"
+              required
+            />
+          </div>
+
+          <div class="form-control">
+            <label class="label">
+              <span class="label-text">Farbe</span>
+            </label>
+            <div class="flex flex-wrap gap-2">
+              {CHILD_COLORS.map((color, index) => (
+                <label class="cursor-pointer">
+                  <input
+                    type="radio"
+                    name="color"
+                    value={color.value}
+                    class="hidden peer"
+                    required
+                    checked={index === 0}
+                  />
+                  <div
+                    class="w-10 h-10 rounded-full border-4 border-transparent peer-checked:border-base-content transition-all"
+                    style={`background-color: ${color.value};`}
+                    title={color.name}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary">
+            Hinzufügen
+          </button>
+        </form>
+      </div>
+    </div>
+
+    {/* Children list */}
+    {children.length === 0 ? (
+      <div class="text-center py-12 bg-base-200 rounded-xl">
+        <p class="text-xl text-base-content/70">
+          Noch keine Kinder hinzugefügt.
+        </p>
+      </div>
+    ) : (
+      <ul class="space-y-3">
+        {children.map((child) => (
+          <li class="flex items-center justify-between p-4 bg-base-200 rounded-xl">
+            <div class="flex items-center gap-4">
+              <ColoredInitials name={child.name} color={child.color} size="md" />
+              <span class="text-xl font-medium">{child.name}</span>
+            </div>
+            <div class="flex gap-2">
+              <form method="POST" action={`/api/groups/${groupId}/children/${child.id}/delete`}>
+                <button
+                  type="submit"
+                  class="btn btn-error btn-outline btn-sm"
+                  onclick="return confirm('Bist du sicher? Alle Aufgaben dieses Kindes werden ebenfalls gelöscht.')"
+                >
+                  Löschen
+                </button>
+              </form>
+            </div>
+          </li>
+        ))}
+      </ul>
+    )}
+  </div>
+</Layout>
