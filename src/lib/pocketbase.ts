@@ -7,6 +7,7 @@
 import PocketBase from 'pocketbase'
 
 const POCKETBASE_URL =
+  process.env.POCKETBASE_URL ||
   import.meta.env.POCKETBASE_URL ||
   import.meta.env.SERVICE_URL_POCKETBASE ||
   'http://localhost:8090'
@@ -28,4 +29,11 @@ export function getPocketBase(): PocketBase {
     _pb = createPocketBase()
   }
   return _pb
+}
+
+/**
+ * Reset the singleton (useful for testing)
+ */
+export function resetPocketBase(): void {
+  _pb = null
 }

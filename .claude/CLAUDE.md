@@ -49,27 +49,77 @@ npm run test:bare
 - `npm test` → Wraps in Docker Compose, runs in container with network access
 - `npm run test:bare` → Runs directly (use when already in Docker network)
 
-Example:
+**Example: Testing an Astro Page with Container API**
+
 ```typescript
-// src/features/kiosk.integration.test.ts
+// src/pages/stats.integration.test.ts
+import { experimental_AstroContainer as AstroContainer } from 'astro/container'
+import { describe, expect, it, beforeAll, afterAll } from 'vitest'
 import PocketBase from 'pocketbase'
-import { describe, expect, it, beforeAll } from 'vitest'
+import StatsPage from './stats.astro'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
-describe('Kiosk Tasks', () => {
+describe('Stats Page', () => {
   let pb: PocketBase
+  let container: AstroContainer
+  let testDataIds: string[] = []
 
   beforeAll(async () => {
+    // 1. Setup PocketBase client and auth
     pb = new PocketBase(POCKETBASE_URL)
     await pb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
+
+    // 2. Create test data in PocketBase
+    const task = await pb.collection('kiosk_tasks').create({ title: 'Test Task', ... })
+    testDataIds.push(task.id)
+
+    // 3. Create Astro container for rendering pages
+    container = await AstroContainer.create()
   })
 
-  it('should fetch tasks for a child', async () => {
-    // Test real API behavior - no mocks!
+  afterAll(async () => {
+    // Clean up test data
+    for (const id of testDataIds) {
+      try { await pb.collection('kiosk_tasks').delete(id) } catch {}
+    }
+  })
+
+  it('should render the page with data from PocketBase', async () => {
+    // Render the Astro page to HTML string
+    const html = await container.renderToString(StatsPage)
+
+    // Assert on the rendered HTML
+    expect(html).toContain('data-testid="stats-page"')
+    expect(html).toContain('Total tasks:')
   })
 })
 ```
+
+**Key Points:**
+1. Import the page directly: `import StatsPage from './stats.astro'`
+2. Create container: `container = await AstroContainer.create()`
+3. Render to string: `await container.renderToString(StatsPage)`
+4. Assert on the HTML output
+
+**Required: vitest.config.ts must use Astro's getViteConfig:**
+```typescript
+import { getViteConfig } from 'astro/config'
+
+export default getViteConfig({
+  test: {
+    include: ['src/**/*.test.ts', 'src/**/*.integration.test.ts'],
+    // ... other config
+  },
+})
+```
+This enables Vitest to parse `.astro` files.
+
+**Database Reset:** The `tests/setup.integration.ts` file runs `beforeEach` to:
+1. Reset the PocketBase singleton (ensures correct URL)
+2. Clear all records from all collections (respecting FK order)
+
+This ensures each test starts with a clean database.
 
 ### E2E Tests (`*.e2e.test.ts`) - NOT NEEDED NOW
 

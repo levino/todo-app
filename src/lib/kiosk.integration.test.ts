@@ -1,5 +1,5 @@
 import PocketBase from 'pocketbase'
-import { describe, expect, it, beforeAll, afterAll } from 'vitest'
+import { describe, expect, it, beforeEach } from 'vitest'
 
 const POCKETBASE_URL =
   process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
@@ -10,19 +10,18 @@ describe('Kiosk Mode - Task List', () => {
   let childId: string
   let taskIds: string[] = []
 
-  beforeAll(async () => {
+  beforeEach(async () => {
     pb = new PocketBase(POCKETBASE_URL)
     await pb
       .collection('_superusers')
       .authWithPassword('admin@test.local', 'testtest123')
 
-    // Create a test group
+    // Create fresh test data for each test
     const group = await pb.collection('groups').create({
       name: 'Test Family',
     })
     groupId = group.id
 
-    // Create a test child
     const child = await pb.collection('children').create({
       name: 'Max',
       group: groupId,
@@ -30,7 +29,6 @@ describe('Kiosk Mode - Task List', () => {
     })
     childId = child.id
 
-    // Create test tasks for the child
     const task1 = await pb.collection('kiosk_tasks').create({
       title: 'Zähne putzen',
       child: childId,
@@ -46,47 +44,22 @@ describe('Kiosk Mode - Task List', () => {
     taskIds = [task1.id, task2.id]
   })
 
-  afterAll(async () => {
-    // Clean up test data
-    for (const taskId of taskIds) {
-      try {
-        await pb.collection('kiosk_tasks').delete(taskId)
-      } catch {
-        // Ignore if already deleted
-      }
-    }
-    try {
-      await pb.collection('children').delete(childId)
-    } catch {
-      // Ignore
-    }
-    try {
-      await pb.collection('groups').delete(groupId)
-    } catch {
-      // Ignore
-    }
-  })
-
   it('should fetch all siblings (children in the same group)', async () => {
     // Create a second child in the same group
-    const sibling = await pb.collection('children').create({
+    await pb.collection('children').create({
       name: 'Lisa',
       group: groupId,
       avatar: '👧',
     })
 
-    try {
-      const result = await pb.collection('children').getList(1, 100, {
-        filter: `group = "${groupId}"`,
-        sort: 'name',
-      })
+    const result = await pb.collection('children').getList(1, 100, {
+      filter: `group = "${groupId}"`,
+      sort: 'name',
+    })
 
-      expect(result.items.length).toBe(2)
-      expect(result.items[0].name).toBe('Lisa')
-      expect(result.items[1].name).toBe('Max')
-    } finally {
-      await pb.collection('children').delete(sibling.id)
-    }
+    expect(result.items.length).toBe(2)
+    expect(result.items[0].name).toBe('Lisa')
+    expect(result.items[1].name).toBe('Max')
   })
 
   it('should fetch tasks for a specific child', async () => {
@@ -113,12 +86,6 @@ describe('Kiosk Mode - Task List', () => {
 
     expect(result.items.length).toBe(1)
     expect(result.items[0].title).toBe('Zimmer aufräumen')
-
-    // Restore the task for other tests
-    await pb.collection('kiosk_tasks').update(taskIds[0], {
-      completed: false,
-      completedAt: null,
-    })
   })
 
   it('should fetch children for a group', async () => {
@@ -135,22 +102,14 @@ describe('Kiosk Mode - Task List', () => {
     const taskId = taskIds[0]
     const beforeComplete = new Date()
 
-    // Complete the task
     await pb.collection('kiosk_tasks').update(taskId, {
       completed: true,
       completedAt: new Date().toISOString(),
     })
 
-    // Verify task is completed
     const task = await pb.collection('kiosk_tasks').getOne(taskId)
     expect(task.completed).toBe(true)
     expect(task.completedAt).toBeDefined()
     expect(new Date(task.completedAt).getTime()).toBeGreaterThanOrEqual(beforeComplete.getTime())
-
-    // Restore for other tests
-    await pb.collection('kiosk_tasks').update(taskId, {
-      completed: false,
-      completedAt: null,
-    })
   })
 })

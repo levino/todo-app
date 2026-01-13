@@ -1,0 +1,29 @@
+---
+import { getPocketBase } from '@/lib/pocketbase'
+
+let totalTasks = 0
+let error = ''
+
+try {
+  const pb = getPocketBase()
+  const result = await pb.collection('kiosk_tasks').getList(1, 1)
+  totalTasks = result.totalItems
+} catch (e) {
+  error = 'Failed to load stats'
+}
+---
+
+<html>
+  <head>
+    <title>Stats</title>
+  </head>
+  <body>
+    <div data-testid="stats-page">
+      {error ? (
+        <p data-testid="error">{error}</p>
+      ) : (
+        <p data-testid="total-tasks">Total tasks: {totalTasks}</p>
+      )}
+    </div>
+  </body>
+</html>
