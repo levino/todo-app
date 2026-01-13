@@ -23,18 +23,14 @@ services:
     volumes:
       - pb_data_test:/pb_data
       - ./pocketbase/pb_migrations:/pb_migrations
-    command: ["--migrationsDir=/pb_migrations"]
+    command: ["--automigrate", "--migrationsDir=/pb_migrations"]
 
   runner:
     image: node:22
     working_dir: /app
-    environment:
-      - POCKETBASE_URL=http://pocketbase-dev:8090
     volumes:
       - .:/app
       - node_modules:/app/node_modules
-    depends_on:
-      - pocketbase-dev
 
   playwright:
     image: mcr.microsoft.com/playwright:v1.57.0-noble

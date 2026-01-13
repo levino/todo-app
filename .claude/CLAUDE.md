@@ -38,9 +38,16 @@ This applies to all bug fixes and new features.
 - Test the full stack: page rendering → API calls → database
 
 ```bash
-# Run integration tests (inside Docker Compose network)
-docker compose run --rm playwright npm run test:bare -- --run
+# Run tests (starts Docker Compose, runs inside container where pocketbase-test is accessible)
+npm test
+
+# Or if already inside Docker network:
+npm run test:bare
 ```
+
+**Script naming convention:**
+- `npm test` → Wraps in Docker Compose, runs in container with network access
+- `npm run test:bare` → Runs directly (use when already in Docker network)
 
 Example:
 ```typescript
