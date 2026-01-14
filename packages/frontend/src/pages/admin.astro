@@ -1,0 +1,61 @@
+---
+import Layout from '@levino/shipyard-base/layouts/Page.astro'
+
+const { pb, user } = Astro.locals
+
+if (!user) {
+  return Astro.redirect('/login')
+}
+
+const mcpBaseUrl = import.meta.env.PUBLIC_MCP_URL || 'http://localhost:3001/mcp'
+const mcpUrl = `${mcpBaseUrl}?token=${pb.authStore.token}`
+---
+
+<Layout title="MCP Verbindung">
+  <div class="container mx-auto px-4 py-8 max-w-3xl">
+    <h1 class="text-3xl font-bold mb-8">MCP Server Verbindung</h1>
+
+    <div class="prose max-w-none mb-8">
+      <p>
+        Kopiere diese URL und füge sie in deinen KI-Assistenten (Claude, ChatGPT) als MCP Server hinzu.
+      </p>
+    </div>
+
+    <div class="card bg-base-200 mb-6">
+      <div class="card-body">
+        <h2 class="card-title">MCP Server URL</h2>
+        <div class="bg-base-300 p-4 rounded-lg font-mono text-sm break-all select-all">
+          {mcpUrl}
+        </div>
+        <button
+          class="btn btn-primary mt-4"
+          onclick={`navigator.clipboard.writeText('${mcpUrl}')`}
+        >
+          URL kopieren
+        </button>
+        <p class="text-sm text-warning mt-4">
+          Diese URL enthält deinen persönlichen Token. Teile sie nicht.
+        </p>
+      </div>
+    </div>
+
+    <div class="card bg-base-200">
+      <div class="card-body">
+        <h2 class="card-title">Beispiel Befehle</h2>
+        <p class="text-sm text-base-content/70 mb-4">
+          Was du deinem KI-Assistenten sagen kannst:
+        </p>
+        <ul class="list-disc list-inside space-y-2 text-sm">
+          <li>"Erstelle eine Gruppe namens 'Familie Müller'"</li>
+          <li>"Füge ein Kind namens Max mit blauer Farbe hinzu"</li>
+          <li>"Erstelle eine Aufgabe 'Zähne putzen' für Max"</li>
+          <li>"Zeige mir alle Aufgaben von Max"</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="mt-8">
+      <a href="/" class="btn btn-ghost">← Zurück</a>
+    </div>
+  </div>
+</Layout>

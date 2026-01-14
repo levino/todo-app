@@ -1,0 +1,85 @@
+---
+import Layout from '@levino/shipyard-base/layouts/Page.astro'
+import ColoredInitials from '@/components/ColoredInitials.astro'
+
+interface Child {
+  id: string
+  name: string
+  color: string
+  group: string
+}
+
+const { groupId } = Astro.params
+const { pb, user } = Astro.locals
+
+if (!user || !groupId) {
+  return Astro.redirect('/login')
+}
+
+let children: Child[] = []
+let groupName = ''
+let error = ''
+
+try {
+  // Fetch group info
+  const group = await pb.collection('groups').getOne(groupId)
+  groupName = group.name
+
+  // Fetch children in this group
+  const result = await pb.collection('children').getList<Child>(1, 100, {
+    filter: `group = "${groupId}"`,
+    sort: 'name',
+  })
+  children = result.items
+} catch (e) {
+  console.error('Failed to load children:', e)
+  error = 'Fehler beim Laden der Kinder.'
+}
+---
+
+<Layout title={`${groupName} - Aufgaben`}>
+  <div class="min-h-screen bg-base-100 p-4 md:p-8">
+    <div class="max-w-3xl mx-auto">
+      <header class="mb-8">
+        <h1 class="text-3xl font-bold">{groupName}</h1>
+        <p class="text-base-content/70">Wähle ein Kind aus</p>
+      </header>
+
+      {error && (
+        <div class="alert alert-error mb-6">
+          <span>{error}</span>
+        </div>
+      )}
+
+      {children.length === 0 && !error && (
+        <div class="text-center py-16">
+          <p class="text-xl text-base-content/70 mb-4">Noch keine Kinder angelegt.</p>
+          <p class="text-base-content/50">Verwende den MCP Server, um Kinder hinzuzufügen.</p>
+          <a href="/admin" class="btn btn-primary mt-4">
+            MCP Verbindung
+          </a>
+        </div>
+      )}
+
+      {children.length > 0 && (
+        <div class="grid gap-4 sm:grid-cols-2">
+          {children.map((child) => (
+            <a
+              href={`/group/${groupId}/tasks/${child.id}`}
+              class="flex items-center gap-4 p-6 bg-base-200 rounded-xl hover:bg-base-300 transition-colors"
+            >
+              <ColoredInitials name={child.name} color={child.color} size="lg" />
+              <span class="text-2xl font-medium">{child.name}</span>
+            </a>
+          ))}
+        </div>
+      )}
+
+      <div class="mt-8 pt-8 border-t border-base-300">
+        <a href="/admin" class="btn btn-ghost btn-sm">
+          ← MCP Verbindung
+        </a>
+      </div>
+    </div>
+  </div>
+</Layout>

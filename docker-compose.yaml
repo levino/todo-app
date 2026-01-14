@@ -1,6 +1,6 @@
 # Development Docker Compose
 # Run: docker compose up -d pocketbase-dev
-# Then: npm run dev:bare
+# Then: npm run dev
 
 services:
   pocketbase-dev:
@@ -11,9 +11,9 @@ services:
       - PB_ADMIN_EMAIL=admin@test.local
       - PB_ADMIN_PASSWORD=testtest123
     volumes:
-      - ./pocketbase/pb_data:/pb_data
-      - ./pocketbase/pb_migrations:/pb_migrations
-    command: ["--automigrate", "--migrationsDir=/pb_migrations"]
+      - ./packages/api/pocketbase/pb_data:/pb_data
+      - ./packages/api/pocketbase/pb_migrations:/pb_migrations
+    command: ["--migrationsDir=/pb_migrations"]
 
   pocketbase-test:
     image: ghcr.io/muchobien/pocketbase:latest
@@ -22,11 +22,12 @@ services:
       - PB_ADMIN_PASSWORD=testtest123
     volumes:
       - pb_data_test:/pb_data
-      - ./pocketbase/pb_migrations:/pb_migrations
-    command: ["--automigrate", "--migrationsDir=/pb_migrations"]
+      - ./packages/api/pocketbase/pb_migrations:/pb_migrations
+    command: ["--migrationsDir=/pb_migrations"]
 
   runner:
     image: node:22
+    user: "node"
     working_dir: /app
     environment:
       - POCKETBASE_URL=http://pocketbase-test:8090
@@ -38,6 +39,7 @@ services:
 
   playwright:
     image: mcr.microsoft.com/playwright:v1.57.0-noble
+    user: "1000:1000"
     working_dir: /app
     environment:
       - POCKETBASE_URL=http://pocketbase-test:8090

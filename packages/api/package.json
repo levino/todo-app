@@ -1,0 +1,10 @@
+{
+  "name": "@family-todo/api",
+  "version": "1.0.0",
+  "description": "PocketBase backend and migrations for Family Todo App",
+  "scripts": {
+    "dev": "echo 'Start PocketBase via docker-compose'",
+    "migrate": "echo 'Migrations are auto-applied by PocketBase'"
+  },
+  "dependencies": {}
+}

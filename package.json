@@ -1,47 +1,33 @@
 {
-  "name": "shipyard-pocketbase-template",
-  "version": "0.1.0",
+  "name": "family-todo-app",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Template repository for Shipyard + PocketBase applications",
+  "description": "Family Todo App - MCP-powered task management for families",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "dockerWithPorts": "docker compose run --rm -e POCKETBASE_URL=http://pocketbase-dev:8090 -p 4321:4321 runner",
-    "docker": "docker compose run --rm -e POCKETBASE_URL=http://pocketbase-dev:8090 runner",
-    "dev:bare": "astro dev --host",
-    "dev": "npm run dockerWithPorts npm run dev:bare",
-    "start": "astro dev --host",
-    "build": "astro build",
-    "preview": "astro preview",
-    "typecheck": "astro check && tsc --noEmit",
+    "dev": "docker compose run --rm -p 4321:4321 -p 3001:3001 -e POCKETBASE_URL=http://pocketbase-dev:8090 runner npm run dev:all",
+    "dev:all": "npm run dev -w @family-todo/frontend & npm run dev -w @family-todo/mcp & wait",
+    "build": "npm run build -w @family-todo/frontend && npm run build -w @family-todo/mcp",
+    "build:frontend": "npm run build -w @family-todo/frontend",
+    "build:mcp": "npm run build -w @family-todo/mcp",
+    "typecheck": "npm run typecheck -w @family-todo/frontend",
+    "test": "npm run test -w @family-todo/mcp && npm run test -w @family-todo/frontend",
+    "test:mcp": "npm run test -w @family-todo/mcp",
+    "test:frontend": "npm run test -w @family-todo/frontend",
     "docker:reset-test-db": "docker compose down pocketbase-test && docker volume rm -f levino-todo-app_pb_data_test && docker compose up -d pocketbase-test && sleep 2",
-    "docker:test": "npm run docker:reset-test-db && docker compose run --rm -e POCKETBASE_URL=http://pocketbase-test:8090 runner",
-    "docker:e2e": "docker compose run --rm playwright",
-    "test:playwright:bare": "npx playwright test",
-    "test:playwright": "npm run docker:e2e npm run test:playwright:bare",
-    "test:bare": "vitest",
-    "test": "npm run docker:test npm run test:bare",
+    "docker:test": "npm run docker:reset-test-db && docker compose run --rm runner npm test",
+    "docker:test:mcp": "npm run docker:reset-test-db && docker compose run --rm runner npm run test:mcp",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write ."
   },
-  "dependencies": {
-    "@astrojs/check": "^0.9.6",
-    "@astrojs/node": "^9.0.0",
-    "@astrojs/tailwind": "^6.0.2",
-    "@levino/shipyard-base": "*",
-    "@tailwindcss/typography": "^0.5.15",
-    "astro": "^5.16.0",
-    "daisyui": "^4.12.0",
-    "pocketbase": "^0.26.5",
-    "tailwindcss": "^3.4.0"
-  },
   "devDependencies": {
     "@biomejs/biome": "2.3.11",
     "@playwright/test": "^1.57.0",
-    "@vitest/coverage-v8": "^4.0.16",
-    "baseline-browser-mapping": "^2.9.14",
-    "typescript": "^5.8.2",
-    "vitest": "^4.0.16"
+    "typescript": "^5.8.2"
   },
   "engines": {
     "node": ">=22.0"

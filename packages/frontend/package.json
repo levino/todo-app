@@ -1,0 +1,30 @@
+{
+  "name": "@family-todo/frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev --host",
+    "build": "astro build",
+    "preview": "astro preview",
+    "typecheck": "astro check && tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.6",
+    "@astrojs/node": "^9.0.0",
+    "@astrojs/tailwind": "^6.0.2",
+    "@levino/shipyard-base": "*",
+    "@tailwindcss/typography": "^0.5.15",
+    "astro": "^5.16.0",
+    "daisyui": "^4.12.0",
+    "pocketbase": "^0.26.5",
+    "tailwindcss": "^3.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@vitest/coverage-v8": "^4.0.16",
+    "typescript": "^5.8.2",
+    "vitest": "^4.0.16"
+  }
+}

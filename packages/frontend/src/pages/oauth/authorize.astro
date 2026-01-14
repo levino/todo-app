@@ -1,0 +1,141 @@
+---
+/**
+ * OAuth 2.0 Authorization Endpoint
+ *
+ * Handles user consent for OAuth clients (e.g., Claude).
+ * Generates authorization codes after user approval.
+ */
+
+import Layout from '@levino/shipyard-base/layouts/Page.astro'
+
+const { pb, user } = Astro.locals
+
+// Get OAuth parameters from query string
+const url = new URL(Astro.request.url)
+const clientId = url.searchParams.get('client_id')
+const redirectUri = url.searchParams.get('redirect_uri')
+const responseType = url.searchParams.get('response_type')
+const codeChallenge = url.searchParams.get('code_challenge')
+const codeChallengeMethod = url.searchParams.get('code_challenge_method')
+const state = url.searchParams.get('state')
+
+// Validate required parameters
+let error = ''
+if (!clientId) {
+  error = 'Missing required parameter: client_id'
+} else if (!redirectUri) {
+  error = 'Missing required parameter: redirect_uri'
+} else if (responseType !== 'code') {
+  error = 'Invalid response_type. Only "code" is supported.'
+} else if (!codeChallenge) {
+  error = 'Missing required parameter: code_challenge (PKCE required)'
+} else if (codeChallengeMethod && codeChallengeMethod !== 'S256') {
+  error = 'Invalid code_challenge_method. Only "S256" is supported.'
+}
+
+// Redirect to login if not authenticated
+if (!user && !error) {
+  const returnUrl = encodeURIComponent(Astro.request.url)
+  return Astro.redirect(`/login?next=${returnUrl}`)
+}
+
+// Fetch client info from MCP server
+let clientName = ''
+let clientError = ''
+const mcpUrl = import.meta.env.MCP_INTERNAL_URL || 'http://localhost:3001'
+
+if (!error && clientId) {
+  try {
+    const response = await fetch(`${mcpUrl}/oauth/client/${clientId}`)
+    if (response.ok) {
+      const client = await response.json()
+      clientName = client.client_name || 'Unknown Application'
+
+      // Verify redirect_uri is registered
+      if (!client.redirect_uris.includes(redirectUri)) {
+        error = 'Invalid redirect_uri for this client'
+      }
+    } else {
+      clientError = 'Unknown client application'
+    }
+  } catch (e) {
+    console.error('Failed to fetch client info:', e)
+    clientError = 'Failed to verify client application'
+  }
+}
+
+// Handle form submission (consent approval)
+let authError = ''
+if (Astro.request.method === 'POST' && user && !error && !clientError) {
+  try {
+    const response = await fetch(`${mcpUrl}/oauth/authorize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        code_challenge: codeChallenge,
+        user_id: user.id,
+        state: state || undefined,
+      }),
+    })
+
+    if (response.ok) {
+      const result = await response.json()
+      return Astro.redirect(result.redirect_url)
+    } else {
+      const err = await response.json()
+      authError = err.error_description || 'Failed to authorize'
+    }
+  } catch (e) {
+    console.error('Failed to generate auth code:', e)
+    authError = 'Failed to process authorization'
+  }
+}
+---
+
+<Layout title="Zugriff autorisieren">
+  <div class="min-h-screen flex items-center justify-center p-4">
+    <div class="card bg-base-200 w-full max-w-md">
+      <div class="card-body">
+        {error || clientError ? (
+          <>
+            <h2 class="card-title text-error">Fehler</h2>
+            <p class="text-error">{error || clientError}</p>
+            <div class="card-actions mt-4">
+              <a href="/" class="btn btn-ghost">Zur Startseite</a>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2 class="card-title">Zugriff autorisieren</h2>
+            <div class="py-4">
+              <p class="mb-4">
+                <strong class="text-lg">{clientName}</strong> möchte auf dein Konto zugreifen.
+              </p>
+              <div class="bg-base-300 p-4 rounded-lg mb-4">
+                <p class="text-sm font-medium mb-2">Diese App kann:</p>
+                <ul class="list-disc list-inside text-sm space-y-1">
+                  <li>Deine Gruppen und Kinder sehen</li>
+                  <li>Aufgaben erstellen und verwalten</li>
+                  <li>Mitglieder zu Gruppen hinzufügen</li>
+                </ul>
+              </div>
+              {authError && (
+                <div class="alert alert-error mb-4">
+                  <span>{authError}</span>
+                </div>
+              )}
+            </div>
+            <form method="POST" class="card-actions justify-end gap-2">
+              <a href="/" class="btn btn-ghost">Abbrechen</a>
+              <button type="submit" class="btn btn-primary">
+                Zugriff erlauben
+              </button>
+            </form>
+          </>
+        )}
+      </div>
+    </div>
+  </div>
+</Layout>

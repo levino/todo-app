@@ -1,0 +1,20 @@
+---
+import { getUserGroups } from '@/lib/groups'
+
+const { pb, user } = Astro.locals
+
+if (!user) {
+  return Astro.redirect('/login')
+}
+
+// Get user's groups and redirect to first one, or to settings if none
+const groups = await getUserGroups(pb, user.id)
+
+if (groups.length === 0) {
+  // No groups yet - redirect to admin page to set up MCP
+  return Astro.redirect('/admin')
+}
+
+// Redirect to first group's tasks
+return Astro.redirect(`/group/${groups[0].id}/tasks`)
+---

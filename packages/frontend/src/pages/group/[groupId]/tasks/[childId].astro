@@ -1,0 +1,162 @@
+---
+import Layout from '@levino/shipyard-base/layouts/Page.astro'
+import ColoredInitials from '@/components/ColoredInitials.astro'
+
+interface Child {
+  id: string
+  name: string
+  color: string
+  group: string
+}
+
+interface KioskTask {
+  id: string
+  title: string
+  child: string
+  priority: number | null
+  completed: boolean
+  completedAt: string | null
+}
+
+const { groupId, childId } = Astro.params
+const { pb, user } = Astro.locals
+
+if (!user || !groupId || !childId) {
+  return Astro.redirect('/login')
+}
+
+let child: Child | null = null
+let siblings: Child[] = []
+let tasks: KioskTask[] = []
+let error = ''
+
+try {
+  // Fetch the child
+  child = await pb.collection('children').getOne<Child>(childId)
+
+  // Verify child belongs to this group
+  if (child.group !== groupId) {
+    return Astro.redirect(`/group/${groupId}/tasks`)
+  }
+
+  // Fetch all siblings (children in the same group)
+  try {
+    const siblingsResult = await pb.collection('children').getList<Child>(1, 100, {
+      filter: `group = "${groupId}"`,
+      sort: 'name',
+    })
+    siblings = siblingsResult.items
+  } catch (siblingsError) {
+    console.error('Siblings fetch error:', siblingsError)
+  }
+
+  // Fetch incomplete tasks for this child
+  try {
+    const result = await pb.collection('kiosk_tasks').getList<KioskTask>(1, 100, {
+      filter: `child = "${childId}" && completed = false`,
+    })
+    // Sort tasks: prioritized tasks first (lower number = higher priority),
+    // 0/null/undefined priority treated as lowest (infinity)
+    tasks = result.items.sort((a, b) => {
+      const priorityA = (a.priority === null || a.priority === undefined || a.priority === 0) ? Infinity : a.priority
+      const priorityB = (b.priority === null || b.priority === undefined || b.priority === 0) ? Infinity : b.priority
+      return priorityA - priorityB
+    })
+  } catch (tasksError) {
+    console.error('Tasks fetch error:', tasksError)
+  }
+} catch (e) {
+  console.error('Child fetch error:', e)
+  error = `Fehler beim Laden der Aufgaben. (${childId})`
+}
+
+const showSwitcher = siblings.length > 1
+---
+
+<Layout title={child ? `${child.name} - Aufgaben` : 'Aufgaben'}>
+  <div class="min-h-screen bg-base-100 p-4 md:p-8">
+    {error && (
+      <div class="alert alert-error mb-6">
+        <span>{error}</span>
+      </div>
+    )}
+
+    {child && (
+      <div class="max-w-3xl mx-auto">
+        {/* Child switcher - only show if multiple children */}
+        {showSwitcher && (
+          <nav data-testid="child-switcher" class="flex gap-2 mb-6 overflow-x-auto pb-2">
+            {siblings.map((sibling) => (
+              <a
+                href={`/group/${groupId}/tasks/${sibling.id}`}
+                data-testid="child-tab"
+                class:list={[
+                  'flex items-center gap-2 px-4 py-3 rounded-xl min-h-[56px] min-w-[120px] transition-colors',
+                  sibling.id === childId
+                    ? 'bg-primary text-primary-content font-bold'
+                    : 'bg-base-200 hover:bg-base-300',
+                ]}
+              >
+                <ColoredInitials name={sibling.name} color={sibling.color} size="sm" />
+                <span class="text-lg">{sibling.name}</span>
+              </a>
+            ))}
+          </nav>
+        )}
+
+        {/* Child header */}
+        <header class="flex items-center gap-4 mb-8">
+          <ColoredInitials name={child.name} color={child.color} size="lg" />
+          <h1 class="text-3xl md:text-4xl font-bold">{child.name}</h1>
+        </header>
+
+        {/* Task list or celebration */}
+        {tasks.length === 0 ? (
+          <div data-testid="celebration" class="text-center py-16">
+            <div data-testid="celebration-emoji" class="text-8xl mb-6">🌟</div>
+            <h2 class="text-3xl md:text-4xl font-bold text-success mb-4">Super gemacht!</h2>
+            <p class="text-xl md:text-2xl text-base-content/70">
+              Alle Aufgaben erledigt!
+            </p>
+          </div>
+        ) : (
+          <ul class="space-y-3">
+            {tasks.map((task) => (
+              <li
+                data-testid="task-item"
+                class="flex items-center gap-4 p-4 bg-base-200 rounded-xl min-h-[56px]"
+              >
+                <form method="POST" action={`/api/groups/${groupId}/tasks/${task.id}/complete`}>
+                  <input type="hidden" name="childId" value={childId} />
+                  <button
+                    type="submit"
+                    data-testid="complete-button"
+                    class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px]"
+                    aria-label={`${task.title} erledigen`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                </form>
+                <span class="text-xl md:text-2xl flex-1">{task.title}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div class="mt-8 pt-8 border-t border-base-300">
+          <a href={`/group/${groupId}/tasks`} class="btn btn-ghost btn-sm">
+            ← Zurück zur Übersicht
+          </a>
+        </div>
+      </div>
+    )}
+
+    {!child && !error && (
+      <div class="text-center py-16">
+        <p class="text-2xl text-gray-500">Kind nicht gefunden.</p>
+      </div>
+    )}
+  </div>
+</Layout>
