@@ -12,8 +12,11 @@ import { dirname } from 'node:path'
 const ALGORITHM = 'RS256'
 const KEY_ID = 'oauth-key-1'
 
-let privateKey: jose.KeyLike | null = null
-let publicKey: jose.KeyLike | null = null
+// jose v6 uses CryptoKey, not KeyLike
+type JWTKey = CryptoKey
+
+let privateKey: JWTKey | null = null
+let publicKey: JWTKey | null = null
 let publicKeyJWK: jose.JWK | null = null
 
 export interface AccessTokenPayload {
@@ -106,7 +109,7 @@ async function derivePublicKeyPEM(privatePem: string): Promise<string> {
   delete jwk.dq
   delete jwk.qi
   const publicKeyObj = await jose.importJWK(jwk, ALGORITHM)
-  return jose.exportSPKI(publicKeyObj as jose.KeyLike)
+  return jose.exportSPKI(publicKeyObj as JWTKey)
 }
 
 /**

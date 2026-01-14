@@ -16,6 +16,9 @@ RUN ARCH=${TARGETARCH:-amd64} && \
     && rm pocketbase_${POCKETBASE_VERSION}_linux_${ARCH}.zip \
     && chmod +x /usr/local/bin/pocketbase
 
+# Copy migrations
+COPY pb_migrations /pb_migrations
+
 EXPOSE 8090
 
-CMD ["pocketbase", "serve", "--http=0.0.0.0:8090"]
+CMD ["pocketbase", "serve", "--http=:8090", "--migrationsDir=/pb_migrations"]

@@ -1,31 +1,91 @@
 # Production Docker Compose for Coolify/Shipyard Deployment
 #
-# Coolify automatically provides SERVICE_URL_POCKETBASE for internal communication.
-# Configure AUTH_POCKETBASE_URL to point to your auth provider.
+# Services:
+# - frontend: Astro SSR app (port 3000)
+# - mcp: MCP server for Claude integration (port 3001)
+# - pocketbase: Database and auth (port 8090)
+#
+# First-time setup:
+# 1. Deploy with pocketbase service only
+# 2. Open PocketBase admin URL (check logs for setup link)
+# 3. Create admin user via the web UI
+# 4. Set POCKETBASE_ADMIN_EMAIL and POCKETBASE_ADMIN_PASSWORD in Coolify
+# 5. Deploy full stack
+#
+# Required environment variables:
+# - POCKETBASE_ADMIN_EMAIL: Admin email created in PocketBase UI
+# - POCKETBASE_ADMIN_PASSWORD: Admin password created in PocketBase UI
+#
+# Optional (Coolify auto-provides SERVICE_URL_* as fallbacks):
+# - PUBLIC_MCP_URL: Public URL of MCP server (defaults to SERVICE_URL_MCP)
+# - FRONTEND_URL: Public URL of frontend (defaults to SERVICE_URL_FRONTEND)
+# - OAUTH_ISSUER: OAuth issuer URL (defaults to SERVICE_URL_MCP)
+# - OAUTH_RSA_PRIVATE_KEY: RSA private key in PEM format (auto-generated if not set)
 
 services:
-  astro:
+  frontend:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: packages/frontend/Dockerfile
     depends_on:
-      - pocketbase
+      pocketbase:
+        condition: service_healthy
+      mcp:
+        condition: service_started
     environment:
-      # SERVICE_URL_POCKETBASE is injected by Coolify automatically
-      # Configure your auth provider URL here
-      - AUTH_POCKETBASE_URL=${AUTH_POCKETBASE_URL:-http://pocketbase:8090}
-      - AUTH_POCKETBASE_GROUP=${AUTH_POCKETBASE_GROUP:-default}
-    # No ports mapping needed - Coolify uses EXPOSE from Dockerfile
+      - NODE_ENV=production
+      - POCKETBASE_URL=${POCKETBASE_URL:-http://pocketbase:8090}
+      - MCP_INTERNAL_URL=${MCP_INTERNAL_URL:-http://mcp:3001}
+      - PUBLIC_MCP_URL=${PUBLIC_MCP_URL:-${SERVICE_URL_MCP}}
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  mcp:
+    build:
+      context: .
+      dockerfile: packages/mcp/Dockerfile
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=production
+      - POCKETBASE_URL=${POCKETBASE_URL:-http://pocketbase:8090}
+      - POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL}
+      - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD}
+      - OAUTH_ISSUER=${OAUTH_ISSUER:-${SERVICE_URL_MCP}}
+      - FRONTEND_URL=${FRONTEND_URL:-${SERVICE_URL_FRONTEND}}
+    volumes:
+      - mcp_data:/app/data
+    expose:
+      - "3001"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/.well-known/oauth-authorization-server"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   pocketbase:
     build:
-      context: ./pocketbase
+      context: ./packages/api/pocketbase
       dockerfile: Dockerfile
-    # No ports mapping - Coolify uses EXPOSE from Dockerfile
     volumes:
       - pb_data:/pb_data
+    expose:
+      - "8090"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8090/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
 
 volumes:
   pb_data:
-    # Docker-managed volume for PocketBase data persistence
-    # This survives container restarts and redeployments
+  mcp_data:

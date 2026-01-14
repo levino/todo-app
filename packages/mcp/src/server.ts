@@ -31,6 +31,27 @@ if (!POCKETBASE_URL) {
 
 const PORT = parseInt(process.env.PORT || '3001', 10)
 
+// PocketBase record types
+interface ChildRecord {
+  id: string
+  name: string
+  color: string
+  group: string
+  collectionId: string
+  collectionName: string
+}
+
+interface TaskRecord {
+  id: string
+  title: string
+  priority: number | null
+  completed: boolean
+  completedAt: string | null
+  child: string
+  collectionId: string
+  collectionName: string
+}
+
 // Available colors for children
 export const CHILD_COLORS = [
   { name: 'Rot', value: '#FF6B6B' },
@@ -152,18 +173,12 @@ function registerTools() {
     handler: async (args, pb) => {
       const { groupId } = args as { groupId: string }
 
-      const children = await pb.collection('children').getList(1, 100, {
+      const children = await pb.collection<ChildRecord>('children').getList(1, 100, {
         filter: `group = "${groupId}"`,
         sort: 'name',
       })
 
-      interface Child {
-        id: string
-        name: string
-        color: string
-      }
-
-      const result = children.items.map((c: Child) => ({
+      const result = children.items.map((c) => ({
         id: c.id,
         name: c.name,
         color: c.color,
@@ -251,17 +266,9 @@ function registerTools() {
         ? `child = "${childId}"`
         : `child = "${childId}" && completed = false`
 
-      const tasks = await pb.collection('kiosk_tasks').getList(1, 100, { filter })
+      const tasks = await pb.collection<TaskRecord>('kiosk_tasks').getList(1, 100, { filter })
 
-      interface Task {
-        id: string
-        title: string
-        priority: number | null
-        completed: boolean
-        completedAt: string | null
-      }
-
-      const result = tasks.items.map((t: Task) => ({
+      const result = tasks.items.map((t) => ({
         id: t.id,
         title: t.title,
         priority: t.priority,
@@ -596,8 +603,8 @@ export async function initOAuth(): Promise<void> {
 // Start server (only when run directly)
 if (process.env.NODE_ENV !== 'test') {
   initOAuth().then(() => {
-    app.listen(PORT, () => {
-      console.log(`Family Todo MCP server listening on port ${PORT}`)
+    app.listen(PORT, '::', () => {
+      console.log(`Family Todo MCP server listening on port ${PORT} (IPv4 + IPv6)`)
       console.log(`Health check: http://localhost:${PORT}/health`)
       console.log(`MCP endpoint: http://localhost:${PORT}/mcp`)
       console.log(`OAuth discovery: http://localhost:${PORT}/.well-known/oauth-authorization-server`)

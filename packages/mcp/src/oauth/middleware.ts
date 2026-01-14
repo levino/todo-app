@@ -43,7 +43,9 @@ async function impersonateUser(userId: string): Promise<PocketBase> {
 
   // Create new PocketBase instance with impersonated token
   const userPb = new PocketBase(POCKETBASE_URL)
-  userPb.authStore.save(impersonateResult.token, impersonateResult.record)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const result = impersonateResult as any
+  userPb.authStore.save(result.token, result.record)
 
   return userPb
 }
@@ -125,7 +127,8 @@ export async function authenticateFlexible(
   if (queryToken) {
     const pb = new PocketBase(POCKETBASE_URL)
     try {
-      pb.authStore.save(queryToken, { id: '', email: '' })
+      // Save token temporarily, authRefresh will populate the record
+      pb.authStore.save(queryToken, null)
       await pb.collection('users').authRefresh()
       req.pb = pb
       next()
