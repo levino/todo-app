@@ -10,6 +10,18 @@ import type { Request, Response, NextFunction } from 'express'
 import PocketBase from 'pocketbase'
 import { verifyAccessToken } from './jwt.js'
 
+// Debug logging - enable via DEBUG_MCP=true
+const DEBUG = process.env.DEBUG_MCP === 'true'
+
+function debugLog(category: string, message: string, data?: unknown) {
+  if (!DEBUG) return
+  const timestamp = new Date().toISOString()
+  console.log(`[${timestamp}] [DEBUG:${category}] ${message}`)
+  if (data !== undefined) {
+    console.log(JSON.stringify(data, null, 2))
+  }
+}
+
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://localhost:8090'
 
 // Singleton admin PocketBase client
@@ -62,9 +74,14 @@ export async function authenticateJWT(
 ): Promise<void> {
   const authHeader = req.headers.authorization
   console.log(`[OAuth] Auth header: ${authHeader ? authHeader.substring(0, 50) + '...' : 'MISSING'}`)
+  debugLog('AUTH', 'JWT auth attempt', {
+    authHeaderPresent: !!authHeader,
+    authHeaderPrefix: authHeader?.substring(0, 20),
+  })
 
   if (!authHeader?.startsWith('Bearer ')) {
     console.log(`[OAuth] Invalid auth header format`)
+    debugLog('AUTH', 'Invalid auth header format', { authHeader })
     res.status(401).json({
       jsonrpc: '2.0',
       error: {
@@ -80,11 +97,18 @@ export async function authenticateJWT(
   const audience = 'family-todo-mcp'
 
   console.log(`[OAuth] Verifying JWT, issuer=${issuer}`)
+  debugLog('AUTH', 'Verifying JWT', {
+    tokenLength: token.length,
+    tokenPrefix: token.substring(0, 50),
+    issuer,
+    audience,
+  })
 
   // Verify JWT
   const claims = await verifyAccessToken(token, issuer, audience)
   if (!claims) {
     console.log(`[OAuth] JWT verification failed`)
+    debugLog('AUTH', 'JWT verification FAILED', { tokenPrefix: token.substring(0, 100) })
     res.status(401).json({
       jsonrpc: '2.0',
       error: {
@@ -96,15 +120,22 @@ export async function authenticateJWT(
   }
 
   console.log(`[OAuth] JWT verified, sub=${claims.sub}`)
+  debugLog('AUTH', 'JWT verified successfully', { claims })
 
   try {
     // Impersonate the user
     const userPb = await impersonateUser(claims.sub)
     req.pb = userPb
     console.log(`[OAuth] Request authenticated for user ${claims.sub}`)
+    debugLog('AUTH', 'User impersonated successfully', {
+      userId: claims.sub,
+      authStoreValid: userPb.authStore.isValid,
+      authStoreRecordId: userPb.authStore.record?.id,
+    })
     next()
   } catch (error) {
     console.error('Failed to impersonate user:', error)
+    debugLog('AUTH', 'Impersonation FAILED', { error: String(error), userId: claims.sub })
     res.status(500).json({
       jsonrpc: '2.0',
       error: {
@@ -176,17 +207,27 @@ export async function authenticateFlexible(
   const authHeader = req.headers.authorization
   const queryToken = req.query.token as string | undefined
 
+  debugLog('AUTH', 'Flexible auth check', {
+    hasBearerToken: authHeader?.startsWith('Bearer '),
+    hasQueryToken: !!queryToken,
+    path: req.path,
+    method: req.method,
+  })
+
   // Check for Bearer token first (OAuth JWT)
   if (authHeader?.startsWith('Bearer ')) {
+    debugLog('AUTH', 'Using Bearer token (OAuth JWT)')
     return authenticateJWT(req, res, next)
   }
 
   // Fall back to query param token (PocketBase)
   if (queryToken) {
+    debugLog('AUTH', 'Using query param token (PocketBase)')
     return authenticatePocketBase(req, res, next)
   }
 
   // No authentication provided
+  debugLog('AUTH', 'No authentication provided')
   res.status(401).json({
     jsonrpc: '2.0',
     error: {

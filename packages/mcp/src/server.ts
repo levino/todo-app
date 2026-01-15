@@ -9,10 +9,22 @@
  */
 
 import express from 'express'
-import type { Request, Response } from 'express'
+import type { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import PocketBase from 'pocketbase'
 import { z } from 'zod'
+
+// Debug logging - enable via DEBUG_MCP=true
+const DEBUG = process.env.DEBUG_MCP === 'true'
+
+function debugLog(category: string, message: string, data?: unknown) {
+  if (!DEBUG) return
+  const timestamp = new Date().toISOString()
+  console.log(`[${timestamp}] [DEBUG:${category}] ${message}`)
+  if (data !== undefined) {
+    console.log(JSON.stringify(data, null, 2))
+  }
+}
 
 // OAuth modules
 import { initOAuthDb } from './oauth/db.js'
@@ -499,14 +511,34 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }))
 
-// Request logging
-app.use((req, _res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`)
-  next()
-})
-
 app.use(express.json())
 app.use(express.urlencoded({ extended: true })) // For OAuth token endpoint
+
+// Request logging (after body parsers so we can log the body)
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const timestamp = new Date().toISOString()
+  console.log(`[${timestamp}] ${req.method} ${req.path}`)
+
+  if (DEBUG) {
+    debugLog('REQUEST', `${req.method} ${req.originalUrl}`, {
+      headers: req.headers,
+      query: req.query,
+      body: req.body,
+    })
+
+    // Capture response
+    const originalSend = res.send.bind(res)
+    res.send = function(body: unknown) {
+      debugLog('RESPONSE', `${req.method} ${req.originalUrl} -> ${res.statusCode}`, {
+        statusCode: res.statusCode,
+        body: typeof body === 'string' ? (() => { try { return JSON.parse(body) } catch { return body } })() : body,
+      })
+      return originalSend(body)
+    }
+  }
+
+  next()
+})
 
 // Health check
 app.get('/health', (_req, res) => {
