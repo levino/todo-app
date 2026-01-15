@@ -16,6 +16,7 @@ jobs:
         run: |
           docker run -d --name pocketbase \
             -p 8090:8090 \
+            -v ${{ github.workspace }}/packages/api/pocketbase/pb_migrations:/pb_migrations \
             -e PB_ADMIN_EMAIL=admin@test.local \
             -e PB_ADMIN_PASSWORD=testtest123 \
             ghcr.io/muchobien/pocketbase:latest
@@ -31,15 +32,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup PocketBase collections
-        run: npm run db:setup
-        env:
-          POCKETBASE_URL: http://localhost:8090
-          PB_ADMIN_EMAIL: admin@test.local
-          PB_ADMIN_PASSWORD: testtest123
-
       - name: Run integration tests
-        run: npm run test:bare
+        run: npm test
         env:
           POCKETBASE_URL: http://localhost:8090
 
@@ -56,6 +50,7 @@ jobs:
         run: |
           docker run -d --name pocketbase \
             -p 8090:8090 \
+            -v ${{ github.workspace }}/packages/api/pocketbase/pb_migrations:/pb_migrations \
             -e PB_ADMIN_EMAIL=admin@test.local \
             -e PB_ADMIN_PASSWORD=testtest123 \
             ghcr.io/muchobien/pocketbase:latest
@@ -71,13 +66,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup PocketBase collections
-        run: npm run db:setup
-        env:
-          POCKETBASE_URL: http://localhost:8090
-          PB_ADMIN_EMAIL: admin@test.local
-          PB_ADMIN_PASSWORD: testtest123
-
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
@@ -87,7 +75,7 @@ jobs:
           POCKETBASE_URL: http://localhost:8090
 
       - name: Run Playwright tests
-        run: npm run test:playwright:bare
+        run: npx playwright test
         env:
           POCKETBASE_URL: http://localhost:8090
           DISABLE_AUTH: 'true'

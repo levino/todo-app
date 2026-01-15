@@ -33,3 +33,9 @@ coverage/
 
 # Astro
 .astro/
+
+# MCP OAuth data (secrets and local state)
+packages/mcp/data/
+
+# Nested package-lock.json (monorepo uses root lock file)
+packages/*/package-lock.json

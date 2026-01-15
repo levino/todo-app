@@ -7,6 +7,8 @@
 
 import Database from 'better-sqlite3'
 import { randomUUID, randomBytes } from 'node:crypto'
+import { mkdirSync, existsSync } from 'node:fs'
+import { dirname } from 'node:path'
 import bcrypt from 'bcryptjs'
 
 let db: Database.Database | null = null
@@ -59,6 +61,12 @@ interface AuthorizationCodeRow {
 export function initOAuthDb(dbPath: string = './data/oauth.db'): Database.Database {
   if (db) {
     return db
+  }
+
+  // Ensure the directory exists
+  const dir = dirname(dbPath)
+  if (dir && dir !== '.' && !existsSync(dir)) {
+    mkdirSync(dir, { recursive: true })
   }
 
   db = new Database(dbPath)
