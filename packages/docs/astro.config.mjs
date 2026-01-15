@@ -20,8 +20,6 @@ export default defineConfig({
       github: 'https://github.com/levino/todo-app',
       navigation: {
         docs: { label: 'Dokumentation', href: '/docs' },
-        app: { label: 'Zur App', href: 'https://todos.levinkeller.de', external: true },
-        github: { label: 'GitHub', href: 'https://github.com/levino/todo-app', external: true },
       },
       scripts: [
         'https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js',
