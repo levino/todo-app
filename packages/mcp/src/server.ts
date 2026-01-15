@@ -603,8 +603,8 @@ export async function initOAuth(): Promise<void> {
 // Start server (only when run directly)
 if (process.env.NODE_ENV !== 'test') {
   initOAuth().then(() => {
-    app.listen(PORT, '::', () => {
-      console.log(`Family Todo MCP server listening on port ${PORT} (IPv4 + IPv6)`)
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Family Todo MCP server listening on port ${PORT}`)
       console.log(`Health check: http://localhost:${PORT}/health`)
       console.log(`MCP endpoint: http://localhost:${PORT}/mcp`)
       console.log(`OAuth discovery: http://localhost:${PORT}/.well-known/oauth-authorization-server`)
