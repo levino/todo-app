@@ -6,12 +6,6 @@ import { defineConfig } from 'astro/config'
 export default defineConfig({
   site: 'https://docs.todos.levinkeller.de',
   output: 'static',
-  redirects: {
-    '/': '/de/docs/',
-    '/docs': '/de/docs/',
-    '/en': '/en/docs/',
-    '/de': '/de/docs/',
-  },
   integrations: [
     tailwind({ applyBaseStyles: false }),
     shipyard({

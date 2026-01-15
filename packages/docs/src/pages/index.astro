@@ -1,0 +1,57 @@
+---
+// Simple welcome page
+---
+
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Family Todo - Dokumentation</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@4/dist/full.min.css">
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-base-100">
+  <main class="container mx-auto px-4 py-16 max-w-4xl">
+    <div class="text-center space-y-8">
+      <h1 class="text-5xl font-bold text-primary">Willkommen!</h1>
+      <p class="text-xl opacity-70">
+        Die Dokumentation zur Family Todo App - der ersten App, die ausschließlich mit KI administriert wird.
+      </p>
+
+      <div class="flex flex-wrap justify-center gap-4 mt-8">
+        <a href="/de/docs/" class="btn btn-primary btn-lg">
+          Dokumentation (DE)
+        </a>
+        <a href="/en/docs/" class="btn btn-outline btn-lg">
+          Documentation (EN)
+        </a>
+      </div>
+
+      <div class="divider my-12"></div>
+
+      <div class="grid md:grid-cols-2 gap-8 text-left">
+        <div class="card bg-base-200 shadow-xl">
+          <div class="card-body">
+            <h2 class="card-title">Zur App</h2>
+            <p>Starte direkt mit Family Todo und verwalte die Aufgaben deiner Familie.</p>
+            <div class="card-actions justify-end">
+              <a href="https://todos.levinkeller.de" class="btn btn-sm btn-primary">App starten</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="card bg-base-200 shadow-xl">
+          <div class="card-body">
+            <h2 class="card-title">Open Source</h2>
+            <p>Family Todo ist Open Source. Schau dir den Code auf GitHub an.</p>
+            <div class="card-actions justify-end">
+              <a href="https://github.com/levino/todo-app" class="btn btn-sm btn-outline">GitHub</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>
