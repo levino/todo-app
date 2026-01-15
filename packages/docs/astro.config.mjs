@@ -6,6 +6,11 @@ import { defineConfig } from 'astro/config'
 export default defineConfig({
   site: 'https://docs.todos.levinkeller.de',
   output: 'static',
+  markdown: {
+    syntaxHighlight: {
+      excludeLangs: ['mermaid'],
+    },
+  },
   integrations: [
     tailwind({ applyBaseStyles: false }),
     shipyard({
