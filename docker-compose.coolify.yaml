@@ -35,7 +35,7 @@ services:
       - HOST=0.0.0.0
       - POCKETBASE_URL=http://pocketbase:8090
       - MCP_INTERNAL_URL=http://mcp:3001
-      - PUBLIC_MCP_URL=${SERVICE_URL_MCP}
+      - PUBLIC_MCP_URL=${SERVICE_URL_MCP}/mcp
     expose:
       - "3000"
     healthcheck:
