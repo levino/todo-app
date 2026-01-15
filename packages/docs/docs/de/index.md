@@ -1,61 +1,112 @@
 ---
-title: Family Todo
-description: Die erste App, die ausschließlich mit KI administriert wird
+title: So funktioniert Family Todo
+description: Eine einfache Anleitung für Eltern und Familien
 ---
 
-# Family Todo: Eine neue Art von App
+# So funktioniert Family Todo
 
-**Family Todo ist ein Showcase für eine radikal neue Art von Anwendung – eine, die ausschließlich mit KI administriert wird.**
+Family Todo ist eine Aufgaben-App für Familien mit einem besonderen Ansatz: **Du verwaltest alles durch Gespräche mit Claude**, der KI von Anthropic. Keine komplizierten Menüs, keine Einstellungen zum Suchen – einfach sagen, was du möchtest.
 
-## Die Vision
+## Für wen ist die App?
 
-Traditionelle Apps haben komplexe Benutzeroberflächen mit Menüs, Formularen und unzähligen Einstellungen. Benutzer müssen lernen, wie die App funktioniert, wo welche Funktion zu finden ist und wie sie ihre Daten verwalten.
+Family Todo ist perfekt für Familien, die:
+- Kindern helfen wollen, ihre täglichen Aufgaben zu erledigen
+- Eine einfache Übersicht über Pflichten im Haushalt brauchen
+- Keine Lust auf komplizierte Apps haben
 
-**Family Todo geht einen anderen Weg.**
+## Die zwei Ansichten
 
-Statt einer klassischen Admin-Oberfläche gibt es nur eine einfache Kiosk-Ansicht für die Kinder und eine KI-Schnittstelle für die Eltern. Eltern verwalten Aufgaben, Kinder und Familien ausschließlich durch natürliche Sprache mit Claude.
+### 1. Die Kiosk-Ansicht (für Kinder)
 
-## Das Konzept
+Das ist, was deine Kinder sehen – eine einfache Liste ihrer Aufgaben:
 
-```mermaid
-flowchart LR
-    subgraph Kinder["👧 Kinder"]
-        K1[Aufgaben sehen]
-        K2[Aufgaben abhaken]
-    end
+- **Aufgaben ansehen**: Jedes Kind sieht nur seine eigenen Aufgaben
+- **Aufgaben abhaken**: Ein Tippen genügt, um eine Aufgabe als erledigt zu markieren
+- **Keine Ablenkung**: Kein Login, keine Einstellungen, keine Werbung
 
-    subgraph Eltern["👨‍👩‍👧‍👦 Eltern"]
-        E1[Aufgaben erstellen]
-        E2[Kinder verwalten]
-        E3[Fortschritt prüfen]
-    end
+Die Kiosk-Ansicht kannst du auf einem Tablet im Kinderzimmer laufen lassen oder als Startseite auf dem Familien-Computer einrichten.
 
-    Kinder -->|Kiosk-Ansicht| App[(Family Todo)]
-    Eltern -->|Claude AI| App
-```
+### 2. Die Claude-Ansicht (für Eltern)
 
-## Warum AI-First?
+Als Elternteil verwaltest du alles über Claude. Du brauchst dafür:
+1. Ein Claude-Konto bei [claude.ai](https://claude.ai)
+2. Die Family Todo App mit deinem Claude-Konto verbinden
 
-1. **Natürliche Interaktion**: Statt sich durch Menüs zu klicken, beschreiben Eltern einfach, was sie wollen: *"Erstelle für Max die Aufgabe 'Hausaufgaben machen' mit hoher Priorität"*
+Dann kannst du Claude einfach sagen, was du möchtest:
 
-2. **Keine Lernkurve**: Die App muss nicht "gelernt" werden. Wer mit Claude sprechen kann, kann die App bedienen.
+> *"Erstelle eine neue Aufgabe 'Zimmer aufräumen' für Lisa"*
 
-3. **Flexibilität**: Komplexe Anfragen werden möglich: *"Zeige mir alle unerledigten Aufgaben von dieser Woche und erstelle einen Bericht"*
+> *"Zeig mir alle Aufgaben von Max für heute"*
 
-4. **Zukunftssicher**: Mit fortschreitender KI-Entwicklung wird die App automatisch besser, ohne UI-Änderungen.
+> *"Lösche die Aufgabe 'Müll rausbringen' bei Tom"*
 
-## Case Study
+> *"Erstelle für alle Kinder die Aufgabe 'Zähne putzen' mit hoher Priorität"*
 
-Family Todo dient als Proof of Concept für:
+## Was kann ich alles machen?
 
-- **MCP (Model Context Protocol)**: Sichere Integration von KI in Anwendungen
-- **OAuth 2.0 für KI**: Authentifizierung von KI-Agenten
-- **AI-Native UX**: Design für KI-first Anwendungen
+### Familien verwalten
 
-Diese Dokumentation beschreibt sowohl die Benutzung als auch die technischen Details der Implementation.
+- **Familie erstellen**: *"Erstelle eine neue Familie namens 'Müller'"*
+- **Familien anzeigen**: *"Zeig mir meine Familien"*
+- **Familie löschen**: *"Lösche die Familie 'Müller'"*
 
-## Nächste Schritte
+### Kinder verwalten
 
-- [Erste Schritte](/docs/de/getting-started) – App einrichten und mit Claude verbinden
-- [Claude Integration](/docs/de/claude-integration) – Wie die KI-Anbindung funktioniert
-- [Roadmap](/docs/de/roadmap) – Geplante Features
+- **Kind hinzufügen**: *"Füge ein Kind namens 'Emma' zur Familie hinzu"*
+- **Avatar setzen**: *"Gib Emma einen Stern als Avatar"*
+- **Kind entfernen**: *"Entferne Max aus der Familie"*
+
+### Aufgaben verwalten
+
+- **Aufgabe erstellen**: *"Erstelle für Lisa die Aufgabe 'Hausaufgaben machen'"*
+- **Priorität setzen**: *"Mach die Aufgabe 'Zimmer aufräumen' bei Max zur Top-Priorität"*
+- **Aufgabe löschen**: *"Lösche die Aufgabe 'Einkaufen' bei Emma"*
+- **Aufgabe zurücksetzen**: *"Setze die Aufgabe 'Zähne putzen' bei Lisa zurück auf unerledigt"*
+
+### Übersicht bekommen
+
+- **Alle Aufgaben**: *"Zeig mir alle Aufgaben von heute"*
+- **Erledigte Aufgaben**: *"Was hat Max heute schon alles geschafft?"*
+- **Offene Aufgaben**: *"Welche Aufgaben sind noch offen?"*
+
+## Typischer Ablauf
+
+### Morgens
+1. Du sagst Claude: *"Erstelle für alle Kinder die Morgen-Aufgaben: Zähne putzen, Anziehen, Frühstücken"*
+2. Die Kinder sehen ihre Aufgaben auf dem Tablet
+3. Sie haken ab, was sie erledigt haben
+
+### Abends
+1. Du fragst Claude: *"Wie war der Tag? Was haben die Kinder erledigt?"*
+2. Claude zeigt dir eine Zusammenfassung
+3. Du kannst die Aufgaben für den nächsten Tag vorbereiten
+
+## Vorteile für dich
+
+### Keine App-Kenntnisse nötig
+Du musst nichts lernen. Wenn du mit jemandem sprechen kannst, kannst du die App bedienen.
+
+### Flexibel
+Egal ob du eine einzelne Aufgabe erstellen oder einen kompletten Wochenplan aufstellen willst – beschreib einfach, was du brauchst.
+
+### Immer erreichbar
+Claude ist 24/7 verfügbar. Du kannst die Aufgaben für morgen noch spät abends einrichten.
+
+### Keine Werbung, kein Schnickschnack
+Family Todo ist Open Source und kostenlos. Es geht nur um eine Sache: Aufgaben für deine Familie.
+
+## Erste Schritte
+
+Bereit loszulegen? In der Anleitung [Erste Schritte](/de/docs/getting-started) erfährst du:
+- Wie du ein Konto erstellst
+- Wie du Claude mit Family Todo verbindest
+- Wie du deine erste Familie und Aufgaben anlegst
+
+## Fragen?
+
+Falls etwas unklar ist, frag einfach Claude! Du kannst jederzeit fragen:
+- *"Wie erstelle ich eine neue Aufgabe?"*
+- *"Was kann ich mit Family Todo machen?"*
+- *"Hilf mir, einen Aufgabenplan für die Woche zu erstellen"*
+
+Claude kennt die App und hilft dir gerne weiter.

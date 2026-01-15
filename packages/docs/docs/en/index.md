@@ -1,61 +1,112 @@
 ---
-title: Family Todo
-description: The first app administered exclusively via AI
+title: How Family Todo Works
+description: A simple guide for parents and families
 ---
 
-# Family Todo: A New Kind of App
+# How Family Todo Works
 
-**Family Todo is a showcase for a radically new type of application – one that is administered exclusively via AI.**
+Family Todo is a task management app for families with a unique approach: **You manage everything through conversations with Claude**, Anthropic's AI. No complicated menus, no settings to search through – just say what you want.
 
-## The Vision
+## Who is this app for?
 
-Traditional apps have complex user interfaces with menus, forms, and countless settings. Users must learn how the app works, where each function is located, and how to manage their data.
+Family Todo is perfect for families who:
+- Want to help their children complete daily tasks
+- Need a simple overview of household chores
+- Don't want to deal with complicated apps
 
-**Family Todo takes a different approach.**
+## The Two Views
 
-Instead of a classic admin interface, there's only a simple kiosk view for children and an AI interface for parents. Parents manage tasks, children, and families exclusively through natural language with Claude.
+### 1. The Kiosk View (for Children)
 
-## The Concept
+This is what your children see – a simple list of their tasks:
 
-```mermaid
-flowchart LR
-    subgraph Children["👧 Children"]
-        K1[View tasks]
-        K2[Check off tasks]
-    end
+- **View tasks**: Each child only sees their own tasks
+- **Check off tasks**: One tap is all it takes to mark a task as done
+- **No distractions**: No login, no settings, no ads
 
-    subgraph Parents["👨‍👩‍👧‍👦 Parents"]
-        E1[Create tasks]
-        E2[Manage children]
-        E3[Check progress]
-    end
+You can run the kiosk view on a tablet in the children's room or set it as the homepage on the family computer.
 
-    Children -->|Kiosk View| App[(Family Todo)]
-    Parents -->|Claude AI| App
-```
+### 2. The Claude View (for Parents)
 
-## Why AI-First?
+As a parent, you manage everything through Claude. You'll need:
+1. A Claude account at [claude.ai](https://claude.ai)
+2. Connect the Family Todo app with your Claude account
 
-1. **Natural Interaction**: Instead of clicking through menus, parents simply describe what they want: *"Create a task 'Do homework' with high priority for Max"*
+Then you can simply tell Claude what you want:
 
-2. **No Learning Curve**: The app doesn't need to be "learned". Anyone who can talk to Claude can use the app.
+> *"Create a new task 'Clean room' for Lisa"*
 
-3. **Flexibility**: Complex requests become possible: *"Show me all incomplete tasks from this week and create a report"*
+> *"Show me all of Max's tasks for today"*
 
-4. **Future-Proof**: As AI improves, the app automatically gets better without UI changes.
+> *"Delete the task 'Take out trash' for Tom"*
 
-## Case Study
+> *"Create the task 'Brush teeth' with high priority for all children"*
 
-Family Todo serves as a proof of concept for:
+## What can I do?
 
-- **MCP (Model Context Protocol)**: Secure integration of AI into applications
-- **OAuth 2.0 for AI**: Authentication of AI agents
-- **AI-Native UX**: Design for AI-first applications
+### Manage Families
 
-This documentation describes both the usage and technical details of the implementation.
+- **Create family**: *"Create a new family called 'Smith'"*
+- **View families**: *"Show me my families"*
+- **Delete family**: *"Delete the 'Smith' family"*
 
-## Next Steps
+### Manage Children
 
-- [Getting Started](/docs/en/getting-started) – Set up the app and connect with Claude
-- [Claude Integration](/docs/en/claude-integration) – How the AI connection works
-- [Roadmap](/docs/en/roadmap) – Planned features
+- **Add child**: *"Add a child named 'Emma' to the family"*
+- **Set avatar**: *"Give Emma a star as her avatar"*
+- **Remove child**: *"Remove Max from the family"*
+
+### Manage Tasks
+
+- **Create task**: *"Create the task 'Do homework' for Lisa"*
+- **Set priority**: *"Make 'Clean room' a top priority for Max"*
+- **Delete task**: *"Delete the 'Go shopping' task for Emma"*
+- **Reset task**: *"Reset Lisa's 'Brush teeth' task to incomplete"*
+
+### Get Overview
+
+- **All tasks**: *"Show me all tasks for today"*
+- **Completed tasks**: *"What has Max accomplished today?"*
+- **Open tasks**: *"Which tasks are still open?"*
+
+## Typical Daily Flow
+
+### Morning
+1. Tell Claude: *"Create morning tasks for all children: Brush teeth, Get dressed, Eat breakfast"*
+2. The children see their tasks on the tablet
+3. They check off what they've completed
+
+### Evening
+1. Ask Claude: *"How was the day? What did the children complete?"*
+2. Claude shows you a summary
+3. You can prepare tasks for the next day
+
+## Benefits for You
+
+### No App Knowledge Required
+You don't need to learn anything. If you can talk to someone, you can use the app.
+
+### Flexible
+Whether you want to create a single task or set up a complete weekly plan – just describe what you need.
+
+### Always Available
+Claude is available 24/7. You can set up tomorrow's tasks late in the evening.
+
+### No Ads, No Clutter
+Family Todo is open source and free. It's only about one thing: tasks for your family.
+
+## Getting Started
+
+Ready to begin? In the [Getting Started](/en/docs/getting-started) guide you'll learn:
+- How to create an account
+- How to connect Claude with Family Todo
+- How to create your first family and tasks
+
+## Questions?
+
+If something is unclear, just ask Claude! You can always ask:
+- *"How do I create a new task?"*
+- *"What can I do with Family Todo?"*
+- *"Help me create a task plan for the week"*
+
+Claude knows the app and is happy to help.

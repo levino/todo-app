@@ -23,6 +23,10 @@ export default defineConfig({
         app: { label: 'Zur App', href: 'https://todos.levinkeller.de', external: true },
         github: { label: 'GitHub', href: 'https://github.com/levino/todo-app', external: true },
       },
+      scripts: [
+        'https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js',
+        '/scripts/mermaid-init.js',
+      ],
     }),
     shipyardDocs({
       editLink: {
