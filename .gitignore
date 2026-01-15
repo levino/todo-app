@@ -5,7 +5,7 @@ node_modules/
 dist/
 
 # PocketBase data (development only)
-pocketbase/pb_data/
+**/pb_data/
 
 # Environment files
 .env

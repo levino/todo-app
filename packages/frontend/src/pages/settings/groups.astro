@@ -1,0 +1,50 @@
+---
+import Layout from '@levino/shipyard-base/layouts/Page.astro'
+import { getUserGroups } from '@/lib/groups'
+
+const { pb, user } = Astro.locals
+
+if (!user) {
+  return Astro.redirect('/login')
+}
+
+const groups = await getUserGroups(pb, user.id)
+---
+
+<Layout title="Gruppen">
+  <div class="container mx-auto p-4 max-w-2xl">
+    <h1 class="text-2xl font-bold mb-6">Gruppen</h1>
+
+    {groups.length === 0 ? (
+      <div class="card bg-base-200 p-6">
+        <p class="mb-4">Du bist noch keiner Gruppe beigetreten.</p>
+        <p class="text-sm text-gray-500 mb-4">
+          Gruppen ermöglichen es dir, Aufgaben für deine Familie zu verwalten.
+          Erstelle eine neue Gruppe oder nutze Claude, um eine Gruppe zu erstellen.
+        </p>
+        <a href="/admin" class="btn btn-primary">
+          Gruppe erstellen (via Claude)
+        </a>
+      </div>
+    ) : (
+      <div class="space-y-4">
+        {groups.map((group) => (
+          <div class="card bg-base-200 p-4">
+            <div class="flex justify-between items-center">
+              <h2 class="text-lg font-semibold">{group.name}</h2>
+              <a href={`/group/${group.id}/tasks`} class="btn btn-sm btn-primary">
+                Aufgaben
+              </a>
+            </div>
+          </div>
+        ))}
+
+        <div class="mt-6">
+          <a href="/admin" class="btn btn-outline">
+            Weitere Gruppe erstellen
+          </a>
+        </div>
+      </div>
+    )}
+  </div>
+</Layout>
