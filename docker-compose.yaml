@@ -1,54 +1,27 @@
-# Development Docker Compose
-# Run: docker compose up -d pocketbase-dev
-# Then: npm run dev
+# Docker Compose files for this project:
+#
+# Development: docker compose -f docker-compose.dev.yaml up
+# Testing:     docker compose -f docker-compose.test.yaml up -d pocketbase
+# Production:  docker compose -f docker-compose.coolify.yaml up
 
+# Default: alias for dev
 services:
-  pocketbase-dev:
-    image: ghcr.io/muchobien/pocketbase:latest
-    ports:
-      - "8090:8090"
-    environment:
-      - PB_ADMIN_EMAIL=admin@test.local
-      - PB_ADMIN_PASSWORD=testtest123
-    volumes:
-      - ./packages/api/pocketbase/pb_data:/pb_data
-      - ./packages/api/pocketbase/pb_migrations:/pb_migrations
-    command: ["--migrationsDir=/pb_migrations"]
+  pocketbase:
+    extends:
+      file: docker-compose.dev.yaml
+      service: pocketbase
 
-  pocketbase-test:
-    image: ghcr.io/muchobien/pocketbase:latest
-    environment:
-      - PB_ADMIN_EMAIL=admin@test.local
-      - PB_ADMIN_PASSWORD=testtest123
-    volumes:
-      - pb_data_test:/pb_data
-      - ./packages/api/pocketbase/pb_migrations:/pb_migrations
-    command: ["--migrationsDir=/pb_migrations"]
+  frontend:
+    extends:
+      file: docker-compose.dev.yaml
+      service: frontend
 
-  runner:
-    image: node:22
-    user: "node"
-    working_dir: /app
-    environment:
-      - POCKETBASE_URL=http://pocketbase-test:8090
-    volumes:
-      - .:/app
-      - node_modules:/app/node_modules
-    depends_on:
-      - pocketbase-test
-
-  playwright:
-    image: mcr.microsoft.com/playwright:v1.57.0-noble
-    user: "1000:1000"
-    working_dir: /app
-    environment:
-      - POCKETBASE_URL=http://pocketbase-test:8090
-    volumes:
-      - .:/app
-      - node_modules:/app/node_modules
-    depends_on:
-      - pocketbase-test
+  mcp:
+    extends:
+      file: docker-compose.dev.yaml
+      service: mcp
 
 volumes:
-  node_modules:
-  pb_data_test:
+  frontend_node_modules:
+  mcp_node_modules:
+  mcp_data:

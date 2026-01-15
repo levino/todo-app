@@ -10,22 +10,24 @@ import { verifyAccessToken } from './jwt.js'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://localhost:8090'
 
-// Admin PocketBase client (initialized lazily)
+// Singleton admin PocketBase client
 let adminPb: PocketBase | null = null
 
 /**
- * Get or create authenticated admin PocketBase client.
+ * Get authenticated admin PocketBase client.
+ * Creates once and reuses. Only re-authenticates if token is invalid.
  */
 async function getAdminPb(): Promise<PocketBase> {
-  if (adminPb?.authStore.isValid) {
-    return adminPb
+  if (!adminPb) {
+    adminPb = new PocketBase(POCKETBASE_URL)
   }
 
-  const email = process.env.POCKETBASE_ADMIN_EMAIL || 'admin@test.local'
-  const password = process.env.POCKETBASE_ADMIN_PASSWORD || 'testtest123'
-
-  adminPb = new PocketBase(POCKETBASE_URL)
-  await adminPb.collection('_superusers').authWithPassword(email, password)
+  if (!adminPb.authStore.isValid) {
+    const email = process.env.POCKETBASE_ADMIN_EMAIL || 'admin@test.local'
+    const password = process.env.POCKETBASE_ADMIN_PASSWORD || 'testtest123'
+    await adminPb.collection('_superusers').authWithPassword(email, password)
+    console.log('[OAuth] Admin authenticated')
+  }
 
   return adminPb
 }
@@ -107,50 +109,7 @@ export async function authenticateJWT(
 }
 
 /**
- * Combined middleware that accepts either:
- * - Bearer JWT token (OAuth 2.0)
- * - Query parameter token (legacy PocketBase token)
+ * Middleware that requires OAuth Bearer token authentication.
+ * Legacy query parameter auth has been removed.
  */
-export async function authenticateFlexible(
-  req: Request & { pb?: PocketBase },
-  res: Response,
-  next: NextFunction
-): Promise<void> {
-  // Try Bearer token first
-  const authHeader = req.headers.authorization
-  if (authHeader?.startsWith('Bearer ')) {
-    return authenticateJWT(req, res, next)
-  }
-
-  // Fall back to query parameter (legacy)
-  const queryToken = req.query.token as string | undefined
-  if (queryToken) {
-    const pb = new PocketBase(POCKETBASE_URL)
-    try {
-      // Save token temporarily, authRefresh will populate the record
-      pb.authStore.save(queryToken, null)
-      await pb.collection('users').authRefresh()
-      req.pb = pb
-      next()
-      return
-    } catch {
-      res.status(401).json({
-        jsonrpc: '2.0',
-        error: {
-          code: -32600,
-          message: 'Invalid authentication token',
-        },
-      })
-      return
-    }
-  }
-
-  // No authentication provided
-  res.status(401).json({
-    jsonrpc: '2.0',
-    error: {
-      code: -32600,
-      message: 'Missing authentication. Use Bearer token or ?token= query parameter',
-    },
-  })
-}
+export const authenticateFlexible = authenticateJWT

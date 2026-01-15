@@ -54,4 +54,21 @@ router.get('/jwks.json', (_req, res) => {
   res.json(jwks)
 })
 
+/**
+ * GET /.well-known/oauth-protected-resource
+ *
+ * Returns OAuth 2.0 Protected Resource Metadata (RFC 8707)
+ * This tells clients where to find the authorization server.
+ */
+router.get('/oauth-protected-resource', (_req, res) => {
+  const { issuer } = getConfig()
+
+  res.json({
+    resource: issuer,
+    authorization_servers: [issuer],
+    scopes_supported: ['mcp:tools'],
+    bearer_methods_supported: ['header'],
+  })
+})
+
 export default router

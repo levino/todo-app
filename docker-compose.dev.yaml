@@ -1,0 +1,61 @@
+# Development Docker Compose
+# Run: docker compose -f docker-compose.dev.yaml up
+
+services:
+  pocketbase:
+    image: ghcr.io/muchobien/pocketbase:latest
+    ports:
+      - "8090:8090"
+    environment:
+      - PB_ADMIN_EMAIL=admin@test.local
+      - PB_ADMIN_PASSWORD=testtest123
+    volumes:
+      - ./packages/api/pocketbase/pb_data:/pb_data
+      - ./packages/api/pocketbase/pb_migrations:/pb_migrations
+    command: ["--migrationsDir=/pb_migrations"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8090/api/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+  frontend:
+    image: node:22
+    working_dir: /app
+    ports:
+      - "4321:4321"
+    environment:
+      - POCKETBASE_URL=http://pocketbase:8090
+      - MCP_INTERNAL_URL=http://mcp:3001
+    volumes:
+      - ./packages/frontend:/app
+      - frontend_node_modules:/app/node_modules
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    command: sh -c "chown -R node:node /app/node_modules && su node -c 'npm install && npm run dev'"
+
+  mcp:
+    image: node:22
+    working_dir: /app
+    ports:
+      - "3001:3001"
+    environment:
+      - POCKETBASE_URL=http://pocketbase:8090
+      - POCKETBASE_ADMIN_EMAIL=admin@test.local
+      - POCKETBASE_ADMIN_PASSWORD=testtest123
+      - OAUTH_ISSUER=${OAUTH_ISSUER:-http://localhost:3001}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:4321}
+    volumes:
+      - ./packages/mcp:/app
+      - mcp_node_modules:/app/node_modules
+      - mcp_data:/app/data
+    depends_on:
+      pocketbase:
+        condition: service_healthy
+    command: sh -c "chown -R node:node /app/node_modules /app/data && su node -c 'npm install && npx tsx --watch src/server.ts'"
+
+volumes:
+  frontend_node_modules:
+  mcp_node_modules:
+  mcp_data:

@@ -7,8 +7,7 @@ if (!user) {
   return Astro.redirect('/login')
 }
 
-const mcpBaseUrl = import.meta.env.PUBLIC_MCP_URL || 'http://localhost:3001/mcp'
-const mcpUrl = `${mcpBaseUrl}?token=${pb.authStore.token}`
+const mcpUrl = import.meta.env.PUBLIC_MCP_URL || 'http://localhost:3001/mcp'
 ---
 
 <Layout title="MCP Verbindung">
@@ -33,8 +32,8 @@ const mcpUrl = `${mcpBaseUrl}?token=${pb.authStore.token}`
         >
           URL kopieren
         </button>
-        <p class="text-sm text-warning mt-4">
-          Diese URL enthält deinen persönlichen Token. Teile sie nicht.
+        <p class="text-sm text-base-content/70 mt-4">
+          Der MCP Server verwendet OAuth für die Authentifizierung. Du wirst bei der ersten Verbindung zur Anmeldung aufgefordert.
         </p>
       </div>
     </div>

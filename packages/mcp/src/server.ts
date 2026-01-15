@@ -499,6 +499,12 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }))
 
+// Request logging
+app.use((req, _res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`)
+  next()
+})
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: true })) // For OAuth token endpoint
 
@@ -518,6 +524,7 @@ app.use('/oauth/authorize', authorizeRouter)
 app.post('/mcp', authenticateFlexible, async (req: Request, res: Response) => {
   const pb = (req as Request & { pb: PocketBase }).pb
   const { jsonrpc, method, params, id } = req.body
+  console.log(`[MCP] Request: method=${method}, id=${id}`)
 
   if (jsonrpc !== '2.0') {
     res.status(400).json({
@@ -529,7 +536,30 @@ app.post('/mcp', authenticateFlexible, async (req: Request, res: Response) => {
   }
 
   try {
-    if (method === 'tools/list') {
+    if (method === 'initialize') {
+      // MCP initialization - return server capabilities
+      res.json({
+        jsonrpc: '2.0',
+        result: {
+          protocolVersion: '2024-11-05',
+          serverInfo: {
+            name: 'family-todo-mcp',
+            version: '1.0.0',
+          },
+          capabilities: {
+            tools: {},
+          },
+        },
+        id,
+      })
+    } else if (method === 'notifications/initialized') {
+      // Client acknowledges initialization - just return success
+      res.json({
+        jsonrpc: '2.0',
+        result: {},
+        id,
+      })
+    } else if (method === 'tools/list') {
       // Return list of available tools
       const toolList = Array.from(tools.entries()).map(([name, tool]) => ({
         name,
@@ -591,6 +621,15 @@ app.post('/mcp', authenticateFlexible, async (req: Request, res: Response) => {
       id,
     })
   }
+})
+
+// Handle GET /mcp - Claude might be checking for SSE or metadata
+app.get('/mcp', (req, res) => {
+  console.log(`[MCP] GET request - headers: ${JSON.stringify(req.headers.accept)}`)
+  res.status(405).json({
+    jsonrpc: '2.0',
+    error: { code: -32600, message: 'Method not allowed. Use POST for MCP calls.' },
+  })
 })
 
 // Initialize OAuth (database and keys)
