@@ -18,6 +18,7 @@
 #
 # Optional:
 # - OAUTH_RSA_PRIVATE_KEY: RSA private key in PEM format (auto-generated if not set)
+# - DEBUG_MCP: Set to 'true' for verbose request/response logging
 
 services:
   frontend:
@@ -58,6 +59,7 @@ services:
       - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD}
       - OAUTH_ISSUER=${SERVICE_URL_MCP}
       - FRONTEND_URL=${SERVICE_URL_FRONTEND}
+      - DEBUG_MCP=${DEBUG_MCP:-false}
     volumes:
       - mcp_data:/app/data
     expose:
