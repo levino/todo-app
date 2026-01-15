@@ -9,7 +9,6 @@
     "deploy": "astro build && wrangler pages deploy dist"
   },
   "dependencies": {
-    "@astrojs/cloudflare": "^12.0.1",
     "@astrojs/tailwind": "^6.0.2",
     "@levino/shipyard-base": "^0.5.0",
     "@levino/shipyard-docs": "^0.5.0",

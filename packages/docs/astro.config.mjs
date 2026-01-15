@@ -1,4 +1,3 @@
-import cloudflare from '@astrojs/cloudflare'
 import tailwind from '@astrojs/tailwind'
 import shipyard from '@levino/shipyard-base'
 import shipyardDocs from '@levino/shipyard-docs'
@@ -7,7 +6,6 @@ import { defineConfig } from 'astro/config'
 export default defineConfig({
   site: 'https://docs.todos.levinkeller.de',
   output: 'static',
-  adapter: cloudflare(),
   integrations: [
     tailwind({ applyBaseStyles: false }),
     shipyard({
