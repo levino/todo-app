@@ -459,4 +459,433 @@ describe('OAuth 2.0 Integration', () => {
       expect(res.status).toBe(200)
     })
   })
+
+  describe('Bearer Token - Complete MCP Flow', () => {
+    let accessToken: string
+
+    beforeEach(async () => {
+      // Register client and get access token
+      const registerRes = await request(app)
+        .post('/oauth/register')
+        .send({
+          client_name: 'MCP Full Test',
+          redirect_uris: ['https://example.com/callback'],
+        })
+
+      const codeVerifier = 'test-code-verifier-that-is-at-least-43-characters-long'
+      const codeChallenge = await generateCodeChallenge(codeVerifier)
+
+      const authRes = await request(app)
+        .post('/oauth/authorize')
+        .send({
+          client_id: registerRes.body.client_id,
+          redirect_uri: 'https://example.com/callback',
+          code_challenge: codeChallenge,
+          user_id: testUserId,
+        })
+
+      const tokenRes = await request(app)
+        .post('/oauth/token')
+        .send({
+          grant_type: 'authorization_code',
+          code: authRes.body.code,
+          redirect_uri: 'https://example.com/callback',
+          code_verifier: codeVerifier,
+          client_id: registerRes.body.client_id,
+          client_secret: registerRes.body.client_secret,
+        })
+
+      accessToken = tokenRes.body.access_token
+    })
+
+    it('should handle MCP initialize', async () => {
+      const res = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'initialize',
+          id: 1,
+        })
+
+      expect(res.status).toBe(200)
+      expect(res.body.result.protocolVersion).toBe('2024-11-05')
+      expect(res.body.result.serverInfo.name).toBe('family-todo-mcp')
+      expect(res.body.result.capabilities.tools).toBeDefined()
+    })
+
+    it('should handle notifications/initialized', async () => {
+      const res = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'notifications/initialized',
+          id: 1,
+        })
+
+      expect(res.status).toBe(200)
+      expect(res.body.result).toEqual({})
+    })
+
+    it('should list all available tools', async () => {
+      const res = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/list',
+          id: 1,
+        })
+
+      expect(res.status).toBe(200)
+      expect(res.body.result.tools).toBeInstanceOf(Array)
+
+      const toolNames = res.body.result.tools.map((t: { name: string }) => t.name)
+      expect(toolNames).toContain('create_group')
+      expect(toolNames).toContain('list_groups')
+      expect(toolNames).toContain('create_child')
+      expect(toolNames).toContain('list_children')
+      expect(toolNames).toContain('create_task')
+      expect(toolNames).toContain('list_tasks')
+      expect(toolNames).toContain('update_task')
+      expect(toolNames).toContain('delete_task')
+    })
+
+    it('should create and list groups with Bearer token', async () => {
+      // Create a group
+      const createRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'create_group',
+            arguments: { name: 'OAuth Test Family' },
+          },
+          id: 1,
+        })
+
+      expect(createRes.status).toBe(200)
+      expect(createRes.body.result.content[0].text).toContain('Created group')
+      expect(createRes.body.result.content[0].text).toContain('OAuth Test Family')
+
+      // List groups
+      const listRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'list_groups',
+            arguments: {},
+          },
+          id: 2,
+        })
+
+      expect(listRes.status).toBe(200)
+      const groups = JSON.parse(listRes.body.result.content[0].text)
+      expect(groups).toHaveLength(1)
+      expect(groups[0].name).toBe('OAuth Test Family')
+    })
+
+    it('should create and manage children with Bearer token', async () => {
+      // Create a group first
+      const groupRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'create_group',
+            arguments: { name: 'Child Test Family' },
+          },
+          id: 1,
+        })
+
+      const groupId = groupRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+      // Create a child
+      const createRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'create_child',
+            arguments: {
+              groupId,
+              name: 'Emma',
+              color: '#FF6B6B',
+            },
+          },
+          id: 2,
+        })
+
+      expect(createRes.status).toBe(200)
+      expect(createRes.body.result.content[0].text).toContain('Created child')
+      expect(createRes.body.result.content[0].text).toContain('Emma')
+
+      // List children
+      const listRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'list_children',
+            arguments: { groupId },
+          },
+          id: 3,
+        })
+
+      expect(listRes.status).toBe(200)
+      const children = JSON.parse(listRes.body.result.content[0].text)
+      expect(children).toHaveLength(1)
+      expect(children[0].name).toBe('Emma')
+      expect(children[0].color).toBe('#FF6B6B')
+    })
+
+    it('should create and manage tasks with Bearer token', async () => {
+      // Create group
+      const groupRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'create_group',
+            arguments: { name: 'Task Test Family' },
+          },
+          id: 1,
+        })
+
+      const groupId = groupRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+      // Create child
+      const childRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'create_child',
+            arguments: { groupId, name: 'Max', color: '#4DABF7' },
+          },
+          id: 2,
+        })
+
+      const childId = childRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+      // Create task
+      const createRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'create_task',
+            arguments: {
+              childId,
+              title: 'Brush teeth',
+              priority: 1,
+            },
+          },
+          id: 3,
+        })
+
+      expect(createRes.status).toBe(200)
+      expect(createRes.body.result.content[0].text).toContain('Created task')
+      expect(createRes.body.result.content[0].text).toContain('Brush teeth')
+
+      const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+      // List tasks
+      const listRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'list_tasks',
+            arguments: { childId },
+          },
+          id: 4,
+        })
+
+      expect(listRes.status).toBe(200)
+      const tasks = JSON.parse(listRes.body.result.content[0].text)
+      expect(tasks).toHaveLength(1)
+      expect(tasks[0].title).toBe('Brush teeth')
+
+      // Update task
+      const updateRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'update_task',
+            arguments: { taskId, title: 'Brush teeth twice' },
+          },
+          id: 5,
+        })
+
+      expect(updateRes.status).toBe(200)
+      expect(updateRes.body.result.content[0].text).toContain('Updated task')
+
+      // Delete task
+      const deleteRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'delete_task',
+            arguments: { taskId },
+          },
+          id: 6,
+        })
+
+      expect(deleteRes.status).toBe(200)
+      expect(deleteRes.body.result.content[0].text).toContain('Deleted task')
+
+      // Verify deletion
+      const verifyRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'list_tasks',
+            arguments: { childId },
+          },
+          id: 7,
+        })
+
+      const remainingTasks = JSON.parse(verifyRes.body.result.content[0].text)
+      expect(remainingTasks).toHaveLength(0)
+    })
+
+    it('should handle full Claude-like workflow', async () => {
+      // This simulates the exact flow Claude would use
+
+      // 1. Initialize
+      const initRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ jsonrpc: '2.0', method: 'initialize', id: 1 })
+      expect(initRes.status).toBe(200)
+
+      // 2. Acknowledge initialization
+      const initAckRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ jsonrpc: '2.0', method: 'notifications/initialized', id: 2 })
+      expect(initAckRes.status).toBe(200)
+
+      // 3. List tools
+      const toolsRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ jsonrpc: '2.0', method: 'tools/list', id: 3 })
+      expect(toolsRes.status).toBe(200)
+      expect(toolsRes.body.result.tools.length).toBeGreaterThan(0)
+
+      // 4. Create a group
+      const createGroupRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'create_group',
+            arguments: { name: 'Meine Familie' },
+          },
+          id: 4,
+        })
+      expect(createGroupRes.status).toBe(200)
+      expect(createGroupRes.body.result.isError).toBeUndefined()
+
+      const groupId = createGroupRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+      // 5. Create children
+      const createChild1Res = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'create_child',
+            arguments: { groupId, name: 'Anna', color: '#F783AC' },
+          },
+          id: 5,
+        })
+      expect(createChild1Res.status).toBe(200)
+
+      const child1Id = createChild1Res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+      // 6. Create tasks for the child
+      const createTask1Res = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'create_task',
+            arguments: { childId: child1Id, title: 'Hausaufgaben machen', priority: 1 },
+          },
+          id: 6,
+        })
+      expect(createTask1Res.status).toBe(200)
+
+      const createTask2Res = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'create_task',
+            arguments: { childId: child1Id, title: 'Zimmer aufräumen', priority: 2 },
+          },
+          id: 7,
+        })
+      expect(createTask2Res.status).toBe(200)
+
+      // 7. List all tasks
+      const listTasksRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: {
+            name: 'list_tasks',
+            arguments: { childId: child1Id },
+          },
+          id: 8,
+        })
+      expect(listTasksRes.status).toBe(200)
+      const tasks = JSON.parse(listTasksRes.body.result.content[0].text)
+      expect(tasks).toHaveLength(2)
+      expect(tasks.some((t: { title: string }) => t.title === 'Hausaufgaben machen')).toBe(true)
+      expect(tasks.some((t: { title: string }) => t.title === 'Zimmer aufräumen')).toBe(true)
+    })
+  })
 })

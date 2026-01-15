@@ -7,5 +7,6 @@ export default defineConfig({
     testTimeout: 30000,
     hookTimeout: 30000,
     fileParallelism: false, // Run tests sequentially to avoid DB conflicts
+    setupFiles: ['./vitest.setup.ts'],
   },
 })
