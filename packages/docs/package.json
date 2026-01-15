@@ -1,0 +1,24 @@
+{
+  "name": "@family-todo/docs",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "deploy": "astro build && wrangler pages deploy dist"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^12.0.1",
+    "@astrojs/tailwind": "^6.0.2",
+    "@levino/shipyard-base": "^0.5.0",
+    "@levino/shipyard-docs": "^0.5.0",
+    "@tailwindcss/typography": "^0.5.16",
+    "astro": "^5.6.1",
+    "daisyui": "^4.12.0",
+    "tailwindcss": "^4.1.4"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
