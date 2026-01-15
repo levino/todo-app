@@ -12,14 +12,11 @@
 # 4. Set POCKETBASE_ADMIN_EMAIL and POCKETBASE_ADMIN_PASSWORD in Coolify
 # 5. Deploy full stack
 #
-# Required environment variables:
+# Required environment variables (set in Coolify):
 # - POCKETBASE_ADMIN_EMAIL: Admin email created in PocketBase UI
 # - POCKETBASE_ADMIN_PASSWORD: Admin password created in PocketBase UI
 #
-# Optional (Coolify auto-provides SERVICE_URL_* as fallbacks):
-# - PUBLIC_MCP_URL: Public URL of MCP server (defaults to SERVICE_URL_MCP)
-# - FRONTEND_URL: Public URL of frontend (defaults to SERVICE_URL_FRONTEND)
-# - OAUTH_ISSUER: OAuth issuer URL (defaults to SERVICE_URL_MCP)
+# Optional:
 # - OAUTH_RSA_PRIVATE_KEY: RSA private key in PEM format (auto-generated if not set)
 
 services:
@@ -34,9 +31,9 @@ services:
         condition: service_started
     environment:
       - NODE_ENV=production
-      - POCKETBASE_URL=${POCKETBASE_URL:-http://pocketbase:8090}
-      - MCP_INTERNAL_URL=${MCP_INTERNAL_URL:-http://mcp:3001}
-      - PUBLIC_MCP_URL=${PUBLIC_MCP_URL:-${SERVICE_URL_MCP}}
+      - POCKETBASE_URL=http://pocketbase:8090
+      - MCP_INTERNAL_URL=http://mcp:3001
+      - PUBLIC_MCP_URL=${SERVICE_URL_MCP}
     expose:
       - "3000"
     healthcheck:
@@ -55,11 +52,11 @@ services:
         condition: service_healthy
     environment:
       - NODE_ENV=production
-      - POCKETBASE_URL=${POCKETBASE_URL:-http://pocketbase:8090}
+      - POCKETBASE_URL=http://pocketbase:8090
       - POCKETBASE_ADMIN_EMAIL=${POCKETBASE_ADMIN_EMAIL}
       - POCKETBASE_ADMIN_PASSWORD=${POCKETBASE_ADMIN_PASSWORD}
-      - OAUTH_ISSUER=${OAUTH_ISSUER:-${SERVICE_URL_MCP}}
-      - FRONTEND_URL=${FRONTEND_URL:-${SERVICE_URL_FRONTEND}}
+      - OAUTH_ISSUER=${SERVICE_URL_MCP}
+      - FRONTEND_URL=${SERVICE_URL_FRONTEND}
     volumes:
       - mcp_data:/app/data
     expose:
