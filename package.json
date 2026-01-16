@@ -13,6 +13,7 @@
     "build": "npm run build -w @family-todo/frontend && npm run build -w @family-todo/mcp",
     "build:frontend": "npm run build -w @family-todo/frontend",
     "build:mcp": "npm run build -w @family-todo/mcp",
+    "preview": "npm run preview -w @family-todo/frontend",
     "typecheck": "npm run typecheck -w @family-todo/frontend",
     "test": "npm run test -w @family-todo/mcp && npm run test -w @family-todo/frontend",
     "test:mcp": "npm run test -w @family-todo/mcp",
