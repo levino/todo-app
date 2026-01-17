@@ -7,29 +7,17 @@ description: Geplante Features und Entwicklung
 
 Family Todo wird aktiv weiterentwickelt. Hier sind die geplanten Features.
 
-## Phase 1: Wiederkehrende Aufgaben ✅
+## Phase 1: Wiederkehrende Aufgaben ⏳
 
-**Status: Implementiert**
+**Status: In Planung**
 
 Viele Aufgaben wiederholen sich täglich oder wöchentlich. Mit wiederkehrenden Aufgaben müssen diese nur einmal definiert werden.
 
-### Features
+### Geplante Features
 
-- **Tägliche Aufgaben**: Automatisches Zurücksetzen um Mitternacht. Heute erledigt, morgen wieder da!
-- **Wöchentliche Aufgaben**: Bestimmte Tage auswählen (z.B. nur Schultage Mo-Fr)
-- **Intelligentes Zurücksetzen**: Nutze das `reset_recurring_tasks` MCP Tool um alle wiederkehrenden Aufgaben zurückzusetzen
-
-### MCP Tools
-
-```
-create_task - Unterstützt jetzt recurrence und daysOfWeek Parameter
-  - recurrence: "none" | "daily" | "weekly"
-  - daysOfWeek: [0-6] Array (0=Sonntag, 6=Samstag)
-
-reset_recurring_tasks - Setzt alle erledigten wiederkehrenden Aufgaben zurück
-  - Setzt tägliche Aufgaben zurück, die vor heute erledigt wurden
-  - Setzt wöchentliche Aufgaben an ihren geplanten Tagen zurück
-```
+- **Tägliche Aufgaben**: Automatisches Zurücksetzen um Mitternacht
+- **Wöchentliche Aufgaben**: Bestimmte Tage auswählen (z.B. nur Schultage)
+- **Automatische Erstellung**: Aufgaben erscheinen automatisch zur definierten Zeit
 
 ### Beispiel-Interaktion
 
@@ -37,47 +25,49 @@ reset_recurring_tasks - Setzt alle erledigten wiederkehrenden Aufgaben zurück
 
 > "Lisa soll jeden Montag und Mittwoch 'Klavier üben' als Aufgabe haben"
 
-> "Setze alle wiederkehrenden Aufgaben für die Familie zurück"
-
 ---
 
-## Phase 2: Tageszeiträume ✅
+## Phase 2: Tageszeiträume 🌅
 
-**Status: Implementiert**
+**Status: In Planung**
 
-Aufgaben zu bestimmten Tageszeiten – Morgens, Nachmittags, Abends.
+Aufgaben zu bestimmten Tageszeiten – Morgens, Mittags, Abends.
 
-### Features
+### Konzept
 
-- **Drei Zeiträume**: Morgens (6-12), Nachmittags (12-18), Abends (18-22)
-- **Visuelle Gruppierung**: Kiosk-Ansicht zeigt Aufgaben nach Tageszeit gruppiert mit Icons
-- **Flexible Anzeige**: Aufgaben ohne Zeitraum erscheinen im "Ganztägig"-Bereich
+```mermaid
+flowchart TB
+    subgraph Morgens["🌅 Morgens (6:00 - 12:00)"]
+        M1["☐ Zähne putzen"]
+        M2["☐ Anziehen"]
+        M3["☐ Frühstücken"]
+    end
 
-### Tageszeitraum-Icons
+    subgraph Mittags["☀️ Mittags (12:00 - 18:00)"]
+        N1["☐ Hausaufgaben"]
+        N2["☐ Zimmer aufräumen"]
+    end
 
+    subgraph Abends["🌙 Abends (18:00 - 22:00)"]
+        A1["☐ Abendessen helfen"]
+        A2["☐ Zähne putzen"]
+        A3["☐ Pyjama anziehen"]
+    end
+
+    Morgens --> Mittags --> Abends
 ```
-🌅 Morgen - 6:00 - 12:00 Uhr
-☀️ Nachmittag - 12:00 - 18:00 Uhr
-🌙 Abend - 18:00 - 22:00 Uhr
-📋 Ganztägig - Keine bestimmte Zeit
-```
 
-### MCP Tools
+### Geplante Features
 
-```
-create_task - Unterstützt jetzt timePeriod Parameter
-  - timePeriod: "morning" | "afternoon" | "evening" | "" (leer = ganztägig)
-
-list_tasks - Unterstützt jetzt Filterung nach timePeriod und recurrence
-```
+- **Drei Zeiträume**: Morgens, Mittags, Abends (konfigurierbar)
+- **Visuelle Gruppierung**: Kiosk-Ansicht zeigt Aufgaben nach Tageszeit gruppiert
+- **Automatische Filterung**: Nur relevante Aufgaben für die aktuelle Tageszeit
 
 ### Beispiel-Interaktion
 
 > "Zeige mir nur die Morgen-Aufgaben von Max"
 
-> "Füge 'Hausaufgaben' als Nachmittags-Aufgabe für Lisa hinzu"
-
-> "Erstelle eine Abend-Aufgabe 'Pyjama anziehen' für alle Kinder"
+> "Füge 'Hausaufgaben' als Mittags-Aufgabe für Lisa hinzu"
 
 ---
 
@@ -132,12 +122,6 @@ Hast du Ideen oder Wünsche?
 - Oder frag Claude: *"Welche Features wünschst du dir für Family Todo?"* 😉
 
 ## Changelog
-
-### v1.1.0 (Januar 2026)
-- **Wiederkehrende Aufgaben**: Tägliche und wöchentliche Wiederholung mit automatischem Zurücksetzen
-- **Tageszeiträume**: Aufgaben können Morgen, Nachmittag oder Abend zugeordnet werden
-- **Visuelle Gruppierung**: Kiosk-Ansicht gruppiert Aufgaben nach Tageszeit mit Icons
-- **Neue MCP Tools**: `reset_recurring_tasks`, erweiterte `create_task` und `list_tasks`
 
 ### v1.0.0 (Januar 2026)
 - Erste öffentliche Version

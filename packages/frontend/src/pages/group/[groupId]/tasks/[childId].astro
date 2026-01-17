@@ -16,35 +16,6 @@ interface KioskTask {
   priority: number | null
   completed: boolean
   completedAt: string | null
-  recurrence?: 'none' | 'daily' | 'weekly'
-  daysOfWeek?: number[]
-  timePeriod?: 'morning' | 'afternoon' | 'evening' | ''
-}
-
-type TimePeriod = 'morning' | 'afternoon' | 'evening' | ''
-
-// Time period display info
-const TIME_PERIOD_INFO: Record<TimePeriod, { label: string; emoji: string }> = {
-  morning: { label: 'Morgen', emoji: '🌅' },
-  afternoon: { label: 'Nachmittag', emoji: '☀️' },
-  evening: { label: 'Abend', emoji: '🌙' },
-  '': { label: 'Ganztägig', emoji: '📋' },
-}
-
-// Check if a weekly task is active today
-function isWeeklyTaskActiveToday(daysOfWeek: number[] | undefined): boolean {
-  if (!daysOfWeek || daysOfWeek.length === 0) return true
-  const today = new Date().getDay()
-  return daysOfWeek.includes(today)
-}
-
-// Sort tasks by priority
-function sortByPriority(tasks: KioskTask[]): KioskTask[] {
-  return [...tasks].sort((a, b) => {
-    const priorityA = (a.priority === null || a.priority === undefined || a.priority === 0) ? Infinity : a.priority
-    const priorityB = (b.priority === null || b.priority === undefined || b.priority === 0) ? Infinity : b.priority
-    return priorityA - priorityB
-  })
 }
 
 const { groupId, childId } = Astro.params
@@ -58,14 +29,6 @@ let child: Child | null = null
 let siblings: Child[] = []
 let tasks: KioskTask[] = []
 let error = ''
-
-// Group tasks by time period
-let tasksByPeriod: Record<TimePeriod, KioskTask[]> = {
-  morning: [],
-  afternoon: [],
-  evening: [],
-  '': [],
-}
 
 try {
   // Fetch the child
@@ -92,22 +55,13 @@ try {
     const result = await pb.collection('kiosk_tasks').getList<KioskTask>(1, 100, {
       filter: `child = "${childId}" && completed = false`,
     })
-
-    // Filter out weekly tasks not active today, then sort by priority
-    const filteredTasks = result.items.filter((task) => {
-      if (task.recurrence === 'weekly') {
-        return isWeeklyTaskActiveToday(task.daysOfWeek)
-      }
-      return true
+    // Sort tasks: prioritized tasks first (lower number = higher priority),
+    // 0/null/undefined priority treated as lowest (infinity)
+    tasks = result.items.sort((a, b) => {
+      const priorityA = (a.priority === null || a.priority === undefined || a.priority === 0) ? Infinity : a.priority
+      const priorityB = (b.priority === null || b.priority === undefined || b.priority === 0) ? Infinity : b.priority
+      return priorityA - priorityB
     })
-
-    tasks = sortByPriority(filteredTasks)
-
-    // Group tasks by time period
-    for (const task of tasks) {
-      const period: TimePeriod = task.timePeriod || ''
-      tasksByPeriod[period].push(task)
-    }
   } catch (tasksError) {
     console.error('Tasks fetch error:', tasksError)
   }
@@ -117,12 +71,6 @@ try {
 }
 
 const showSwitcher = siblings.length > 1
-
-// Check if we have tasks in multiple time periods (to decide whether to show grouping)
-const periodsWithTasks = (['morning', 'afternoon', 'evening', ''] as TimePeriod[]).filter(
-  (period) => tasksByPeriod[period].length > 0
-)
-const showTimePeriodGroups = periodsWithTasks.length > 1 || (periodsWithTasks.length === 1 && periodsWithTasks[0] !== '')
 ---
 
 <Layout title={child ? `${child.name} - Aufgaben` : 'Aufgaben'}>
@@ -171,49 +119,7 @@ const showTimePeriodGroups = periodsWithTasks.length > 1 || (periodsWithTasks.le
               Alle Aufgaben erledigt!
             </p>
           </div>
-        ) : showTimePeriodGroups ? (
-          /* Grouped by time period */
-          <div class="space-y-8">
-            {(['morning', 'afternoon', 'evening', ''] as TimePeriod[]).map((period) => {
-              const periodTasks = tasksByPeriod[period]
-              if (periodTasks.length === 0) return null
-              const info = TIME_PERIOD_INFO[period]
-              return (
-                <section data-testid={`period-${period || 'allday'}`}>
-                  <h2 class="flex items-center gap-2 text-xl font-semibold mb-4 text-base-content/80">
-                    <span class="text-2xl">{info.emoji}</span>
-                    <span>{info.label}</span>
-                    <span class="badge badge-ghost">{periodTasks.length}</span>
-                  </h2>
-                  <ul class="space-y-3">
-                    {periodTasks.map((task) => (
-                      <li
-                        data-testid="task-item"
-                        class="flex items-center gap-4 p-4 bg-base-200 rounded-xl min-h-[56px]"
-                      >
-                        <form method="POST" action={`/api/groups/${groupId}/tasks/${task.id}/complete`}>
-                          <input type="hidden" name="childId" value={childId} />
-                          <button
-                            type="submit"
-                            data-testid="complete-button"
-                            class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px]"
-                            aria-label={`${task.title} erledigen`}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                            </svg>
-                          </button>
-                        </form>
-                        <span class="text-xl md:text-2xl flex-1">{task.title}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )
-            })}
-          </div>
         ) : (
-          /* Simple list (no time periods) */
           <ul class="space-y-3">
             {tasks.map((task) => (
               <li
