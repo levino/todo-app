@@ -16,6 +16,18 @@ interface KioskTask {
   priority: number | null
   completed: boolean
   completedAt: string | null
+  schedule?: string
+  generatedAt?: string | null
+}
+
+
+// Sort tasks by priority
+function sortByPriority(tasks: KioskTask[]): KioskTask[] {
+  return [...tasks].sort((a, b) => {
+    const priorityA = (a.priority === null || a.priority === undefined || a.priority === 0) ? Infinity : a.priority
+    const priorityB = (b.priority === null || b.priority === undefined || b.priority === 0) ? Infinity : b.priority
+    return priorityA - priorityB
+  })
 }
 
 const { groupId, childId } = Astro.params
@@ -29,6 +41,7 @@ let child: Child | null = null
 let siblings: Child[] = []
 let tasks: KioskTask[] = []
 let error = ''
+
 
 try {
   // Fetch the child
@@ -55,13 +68,11 @@ try {
     const result = await pb.collection('kiosk_tasks').getList<KioskTask>(1, 100, {
       filter: `child = "${childId}" && completed = false`,
     })
-    // Sort tasks: prioritized tasks first (lower number = higher priority),
-    // 0/null/undefined priority treated as lowest (infinity)
-    tasks = result.items.sort((a, b) => {
-      const priorityA = (a.priority === null || a.priority === undefined || a.priority === 0) ? Infinity : a.priority
-      const priorityB = (b.priority === null || b.priority === undefined || b.priority === 0) ? Infinity : b.priority
-      return priorityA - priorityB
-    })
+
+    // Sort tasks by priority
+    tasks = sortByPriority(result.items)
+
+    // Tasks are now simply fetched and sorted by priority
   } catch (tasksError) {
     console.error('Tasks fetch error:', tasksError)
   }
@@ -120,6 +131,7 @@ const showSwitcher = siblings.length > 1
             </p>
           </div>
         ) : (
+          /* Simple list */
           <ul class="space-y-3">
             {tasks.map((task) => (
               <li

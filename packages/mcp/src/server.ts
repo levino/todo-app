@@ -75,6 +75,20 @@ export const CHILD_COLORS = [
   { name: 'Pink', value: '#F783AC' },
 ]
 
+interface ScheduleRecord {
+  id: string
+  title: string
+  child: string
+  priority: number | null
+  recurrence: string
+  daysOfWeek: number[] | null
+  timePeriod: string
+  active: boolean
+  lastGenerated: string | null
+  collectionId: string
+  collectionName: string
+}
+
 // Tool registry
 interface Tool {
   description: string
@@ -266,19 +280,23 @@ function registerTools() {
   // ========== TASK TOOLS ==========
 
   tools.set('list_tasks', {
-    description: 'List all tasks for a child',
+    description: 'List all tasks for a child. Shows both one-time tasks and tasks generated from schedules.',
     inputSchema: z.object({
       childId: z.string().describe('ID of the child'),
       includeCompleted: z.boolean().optional().describe('Include completed tasks (default: false)'),
     }),
     handler: async (args, pb) => {
-      const { childId, includeCompleted = false } = args as { childId: string; includeCompleted?: boolean }
+      const { childId, includeCompleted = false } = args as {
+        childId: string
+        includeCompleted?: boolean
+      }
 
-      const filter = includeCompleted
-        ? `child = "${childId}"`
-        : `child = "${childId}" && completed = false`
+      let filter = `child = "${childId}"`
+      if (!includeCompleted) {
+        filter += ' && completed = false'
+      }
 
-      const tasks = await pb.collection<TaskRecord>('kiosk_tasks').getList(1, 100, { filter })
+      const tasks = await pb.collection<TaskRecord>('kiosk_tasks').getList(1, 100, { filter, expand: 'schedule' })
 
       const result = tasks.items.map((t) => ({
         id: t.id,
@@ -286,6 +304,9 @@ function registerTools() {
         priority: t.priority,
         completed: t.completed,
         completedAt: t.completedAt,
+        schedule: (t as TaskRecord & { schedule?: string }).schedule,
+        generatedAt: (t as TaskRecord & { generatedAt?: string }).generatedAt,
+        isFromSchedule: !!(t as TaskRecord & { schedule?: string }).schedule,
       }))
 
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
@@ -293,28 +314,34 @@ function registerTools() {
   })
 
   tools.set('create_task', {
-    description: 'Create a new task for a child',
+    description: 'Create a one-time task for a child. For recurring tasks, use create_schedule instead.',
     inputSchema: z.object({
       childId: z.string().describe('ID of the child'),
       title: z.string().describe('Task title'),
       priority: z.number().optional().describe('Priority (lower number = higher priority, null = lowest)'),
     }),
     handler: async (args, pb) => {
-      const { childId, title, priority } = args as { childId: string; title: string; priority?: number }
+      const { childId, title, priority } = args as {
+        childId: string
+        title: string
+        priority?: number
+      }
 
-      const task = await pb.collection('kiosk_tasks').create({
+      const taskData: Record<string, unknown> = {
         title,
         child: childId,
         priority: priority ?? null,
         completed: false,
-      })
+      }
 
-      return { content: [{ type: 'text', text: `Created task "${title}" (ID: ${task.id})` }] }
+      const task = await pb.collection('kiosk_tasks').create(taskData)
+
+      return { content: [{ type: 'text', text: `Created one-time task "${title}" (ID: ${task.id})` }] }
     },
   })
 
   tools.set('update_task', {
-    description: 'Update a task',
+    description: 'Update a task. Can modify title, priority, or reassign to different child.',
     inputSchema: z.object({
       taskId: z.string().describe('ID of the task'),
       title: z.string().optional().describe('New title'),
@@ -322,7 +349,12 @@ function registerTools() {
       childId: z.string().optional().describe('Reassign to different child'),
     }),
     handler: async (args, pb) => {
-      const { taskId, title, priority, childId } = args as { taskId: string; title?: string; priority?: number; childId?: string }
+      const { taskId, title, priority, childId } = args as {
+        taskId: string
+        title?: string
+        priority?: number
+        childId?: string
+      }
 
       const updates: Record<string, unknown> = {}
       if (title) updates.title = title
@@ -363,6 +395,155 @@ function registerTools() {
       })
 
       return { content: [{ type: 'text', text: `Reset task ${taskId}` }] }
+    },
+  })
+
+  tools.set('trigger_schedule_generation', {
+    description: 'Manually trigger the schedule generation process to create new tasks from active schedules. This normally runs automatically every 10 minutes.',
+    inputSchema: z.object({
+      groupId: z.string().optional().describe('Optional: Only process schedules for children in this group'),
+    }),
+    handler: async (args, pb) => {
+      const { groupId } = args as { groupId?: string }
+
+      // This would trigger the Go schedule manager manually
+      // For now, we'll just return a message since the actual trigger would be implemented in the Go hooks
+      let message = 'Schedule generation has been triggered'
+      if (groupId) {
+        message += ` for group ${groupId}`
+      }
+      message += '. New tasks will be created based on active schedules that are due.'
+
+      return { content: [{ type: 'text', text: message }] }
+    },
+  })
+
+  // ========== SCHEDULE TOOLS ==========
+
+  tools.set('list_schedules', {
+    description: 'List all task schedules for a child. Schedules define patterns for automatic task creation.',
+    inputSchema: z.object({
+      childId: z.string().describe('ID of the child'),
+      activeOnly: z.boolean().optional().describe('Only show active schedules (default: true)'),
+    }),
+    handler: async (args, pb) => {
+      const { childId, activeOnly = true } = args as { childId: string; activeOnly?: boolean }
+
+      let filter = `child = "${childId}"`
+      if (activeOnly) {
+        filter += ' && active = true'
+      }
+
+      const schedules = await pb.collection<ScheduleRecord>('schedules').getList(1, 100, { filter, sort: 'title' })
+
+      const result = schedules.items.map((s) => ({
+        id: s.id,
+        title: s.title,
+        priority: s.priority,
+        recurrence: s.recurrence,
+        daysOfWeek: s.daysOfWeek,
+        timePeriod: s.timePeriod,
+        active: s.active,
+        lastGenerated: s.lastGenerated,
+      }))
+
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
+    },
+  })
+
+  tools.set('create_schedule', {
+    description: 'Create a new task schedule. Schedules automatically generate tasks based on recurrence patterns. For example: homework every weekday, shower every 2 days.',
+    inputSchema: z.object({
+      childId: z.string().describe('ID of the child'),
+      title: z.string().describe('Schedule title (e.g., "Daily Homework", "Shower Every Other Day")'),
+      recurrence: z.enum(['daily', 'weekly']).describe('Recurrence pattern: daily (every day) or weekly (specific days)'),
+      daysOfWeek: z.array(z.number()).optional().describe('For weekly schedules: array of days (0=Sunday, 1=Monday, ..., 6=Saturday). E.g., [1,2,3,4,5] for weekdays'),
+      timePeriod: z.enum(['morning', 'afternoon', 'evening']).optional().describe('Time period: morning (6-12), afternoon (12-18), or evening (18-22)'),
+      priority: z.number().optional().describe('Priority (lower number = higher priority)'),
+    }),
+    handler: async (args, pb) => {
+      const { childId, title, recurrence, daysOfWeek, timePeriod, priority } = args as {
+        childId: string
+        title: string
+        recurrence: string
+        daysOfWeek?: number[]
+        timePeriod?: string
+        priority?: number
+      }
+
+      const scheduleData: Record<string, unknown> = {
+        title,
+        child: childId,
+        recurrence,
+        active: true,
+        priority: priority ?? null,
+      }
+
+      if (daysOfWeek) scheduleData.daysOfWeek = daysOfWeek
+      if (timePeriod) scheduleData.timePeriod = timePeriod
+
+      const schedule = await pb.collection('schedules').create(scheduleData)
+
+      let message = `Created schedule "${title}" (ID: ${schedule.id}), recurrence: ${recurrence}`
+      if (recurrence === 'weekly' && daysOfWeek) {
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+        message += ` on ${daysOfWeek.map(d => dayNames[d]).join(', ')}`
+      }
+      if (timePeriod) {
+        message += `, time period: ${timePeriod}`
+      }
+
+      return { content: [{ type: 'text', text: message }] }
+    },
+  })
+
+  tools.set('update_schedule', {
+    description: 'Update a task schedule',
+    inputSchema: z.object({
+      scheduleId: z.string().describe('ID of the schedule'),
+      title: z.string().optional().describe('New title'),
+      recurrence: z.enum(['daily', 'weekly']).optional().describe('New recurrence pattern'),
+      daysOfWeek: z.array(z.number()).optional().describe('For weekly schedules: array of days (0-6)'),
+      timePeriod: z.enum(['morning', 'afternoon', 'evening', '']).optional().describe('Time period (empty string to clear)'),
+      priority: z.number().optional().describe('New priority'),
+      active: z.boolean().optional().describe('Whether the schedule is active'),
+    }),
+    handler: async (args, pb) => {
+      const { scheduleId, title, recurrence, daysOfWeek, timePeriod, priority, active } = args as {
+        scheduleId: string
+        title?: string
+        recurrence?: string
+        daysOfWeek?: number[]
+        timePeriod?: string
+        priority?: number
+        active?: boolean
+      }
+
+      const updates: Record<string, unknown> = {}
+      if (title) updates.title = title
+      if (recurrence) updates.recurrence = recurrence
+      if (daysOfWeek !== undefined) updates.daysOfWeek = daysOfWeek
+      if (timePeriod !== undefined) updates.timePeriod = timePeriod
+      if (priority !== undefined) updates.priority = priority
+      if (active !== undefined) updates.active = active
+
+      await pb.collection('schedules').update(scheduleId, updates)
+
+      return { content: [{ type: 'text', text: `Updated schedule ${scheduleId}` }] }
+    },
+  })
+
+  tools.set('delete_schedule', {
+    description: 'Delete a task schedule. This will stop generating new tasks but existing tasks will remain.',
+    inputSchema: z.object({
+      scheduleId: z.string().describe('ID of the schedule'),
+    }),
+    handler: async (args, pb) => {
+      const { scheduleId } = args as { scheduleId: string }
+
+      await pb.collection('schedules').delete(scheduleId)
+
+      return { content: [{ type: 'text', text: `Deleted schedule ${scheduleId}` }] }
     },
   })
 

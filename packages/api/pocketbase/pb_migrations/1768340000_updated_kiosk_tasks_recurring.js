@@ -1,0 +1,53 @@
+/// <reference path="../pb_data/types.d.ts" />
+migrate((app) => {
+  const collection = app.findCollectionByNameOrId("pbc_2254914799")
+
+  // Add recurrence field (select: none, daily, weekly)
+  collection.fields.push(new Field({
+    "hidden": false,
+    "id": "select_recurrence",
+    "maxSelect": 1,
+    "name": "recurrence",
+    "presentable": false,
+    "required": false,
+    "system": false,
+    "type": "select",
+    "values": ["none", "daily", "weekly"]
+  }))
+
+  // Add daysOfWeek field (JSON array for weekly tasks)
+  collection.fields.push(new Field({
+    "hidden": false,
+    "id": "json_daysOfWeek",
+    "maxSize": 0,
+    "name": "daysOfWeek",
+    "presentable": false,
+    "required": false,
+    "system": false,
+    "type": "json"
+  }))
+
+  // Add timePeriod field (select: morning, afternoon, evening)
+  collection.fields.push(new Field({
+    "hidden": false,
+    "id": "select_timePeriod",
+    "maxSelect": 1,
+    "name": "timePeriod",
+    "presentable": false,
+    "required": false,
+    "system": false,
+    "type": "select",
+    "values": ["morning", "afternoon", "evening"]
+  }))
+
+  return app.save(collection)
+}, (app) => {
+  const collection = app.findCollectionByNameOrId("pbc_2254914799")
+
+  // Remove the added fields
+  collection.fields.removeById("select_recurrence")
+  collection.fields.removeById("json_daysOfWeek")
+  collection.fields.removeById("select_timePeriod")
+
+  return app.save(collection)
+})
