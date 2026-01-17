@@ -16,9 +16,9 @@ interface KioskTask {
   priority: number | null
   completed: boolean
   completedAt: string | null
-  recurrence?: 'none' | 'daily' | 'weekly'
-  daysOfWeek?: number[]
-  timePeriod?: 'morning' | 'afternoon' | 'evening' | ''
+  schedule?: string
+  generatedAt?: string | null
+  isFromSchedule: boolean
 }
 
 type TimePeriod = 'morning' | 'afternoon' | 'evening' | ''
