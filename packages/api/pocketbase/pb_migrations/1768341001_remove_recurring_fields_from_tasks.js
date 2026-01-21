@@ -24,12 +24,10 @@ migrate((app) => {
     "required": false,
     "presentable": false,
     "unique": false,
-    "options": {
-      "collectionId": schedulesCollection.id,
-      "cascadeDelete": false,
-      "minSelect": null,
-      "maxSelect": 1
-    }
+    "collectionId": schedulesCollection.id,
+    "cascadeDelete": false,
+    "minSelect": null,
+    "maxSelect": 1
   }))
 
   // Add generatedAt field to track when the task was created from a schedule
@@ -41,8 +39,7 @@ migrate((app) => {
     "system": false,
     "required": false,
     "presentable": false,
-    "unique": false,
-    "options": {}
+    "unique": false
   }))
 
   return app.save(collection)
