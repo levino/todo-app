@@ -1,6 +1,6 @@
 /// <reference path="../pb_data/types.d.ts" />
 migrate((app) => {
-  // Create schedules collection using individual field approach for proper ID generation
+  // Create schedules collection
   const collection = new Collection({
     "name": "schedules",
     "type": "base",
@@ -15,8 +15,9 @@ migrate((app) => {
     "options": {}
   })
 
-  // Add fields individually to ensure proper ID handling
+  // Add title field
   collection.fields.push(new Field({
+    "hidden": false,
     "id": "text_title",
     "name": "title",
     "type": "text",
@@ -24,10 +25,8 @@ migrate((app) => {
     "required": true,
     "presentable": false,
     "unique": false,
-    "options": {
-      "min": 1,
-      "max": 255
-    }
+    "min": 1,
+    "max": 255
   }))
 
   // Find children collection dynamically
@@ -36,7 +35,9 @@ migrate((app) => {
     throw new Error("Children collection not found")
   }
 
+  // Add child relation field  
   collection.fields.push(new Field({
+    "hidden": false,
     "id": "relation_child",
     "name": "child",
     "type": "relation",
@@ -44,15 +45,15 @@ migrate((app) => {
     "required": true,
     "presentable": false,
     "unique": false,
-    "options": {
-      "collectionId": childrenCollection.id,
-      "cascadeDelete": true,
-      "minSelect": null,
-      "maxSelect": 1
-    }
+    "collectionId": childrenCollection.id,
+    "cascadeDelete": true,
+    "minSelect": null,
+    "maxSelect": 1
   }))
 
+  // Add priority field
   collection.fields.push(new Field({
+    "hidden": false,
     "id": "number_priority",
     "name": "priority",
     "type": "number",
@@ -60,14 +61,14 @@ migrate((app) => {
     "required": false,
     "presentable": false,
     "unique": false,
-    "options": {
-      "min": null,
-      "max": null,
-      "noDecimal": true
-    }
+    "min": null,
+    "max": null,
+    "noDecimal": true
   }))
 
+  // Add recurrence field
   collection.fields.push(new Field({
+    "hidden": false,
     "id": "select_recurrence",
     "name": "recurrence",
     "type": "select",
@@ -75,16 +76,13 @@ migrate((app) => {
     "required": true,
     "presentable": false,
     "unique": false,
-    "options": {
-      "maxSelect": 1,
-      "values": [
-        "daily",
-        "weekly"
-      ]
-    }
+    "maxSelect": 1,
+    "values": ["daily", "weekly"]
   }))
 
+  // Add daysOfWeek field  
   collection.fields.push(new Field({
+    "hidden": false,
     "id": "json_daysOfWeek",
     "name": "daysOfWeek",
     "type": "json",
@@ -92,12 +90,12 @@ migrate((app) => {
     "required": false,
     "presentable": false,
     "unique": false,
-    "options": {
-      "maxSize": 0
-    }
+    "maxSize": 0
   }))
 
+  // Add timePeriod field
   collection.fields.push(new Field({
+    "hidden": false,
     "id": "select_timePeriod",
     "name": "timePeriod",
     "type": "select",
@@ -105,36 +103,32 @@ migrate((app) => {
     "required": false,
     "presentable": false,
     "unique": false,
-    "options": {
-      "maxSelect": 1,
-      "values": [
-        "morning",
-        "afternoon",
-        "evening"
-      ]
-    }
+    "maxSelect": 1,
+    "values": ["morning", "afternoon", "evening"]
   }))
 
+  // Add active field
   collection.fields.push(new Field({
+    "hidden": false,
     "id": "bool_active",
     "name": "active",
     "type": "bool",
     "system": false,
     "required": false,
     "presentable": false,
-    "unique": false,
-    "options": {}
+    "unique": false
   }))
 
+  // Add lastGenerated field
   collection.fields.push(new Field({
+    "hidden": false,
     "id": "datetime_lastGenerated",
     "name": "lastGenerated",
     "type": "date",
     "system": false,
     "required": false,
     "presentable": false,
-    "unique": false,
-    "options": {}
+    "unique": false
   }))
 
   return app.save(collection)
