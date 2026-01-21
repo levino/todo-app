@@ -313,7 +313,7 @@ describe('MCP Server', () => {
           })
 
         expect(res.status).toBe(200)
-        expect(res.body.result.content[0].text).toContain('Created task')
+        expect(res.body.result.content[0].text).toContain('Created one-time task')
         expect(res.body.result.content[0].text).toContain('Brush teeth')
       })
 

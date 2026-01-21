@@ -703,7 +703,7 @@ describe('OAuth 2.0 Integration', () => {
         })
 
       expect(createRes.status).toBe(200)
-      expect(createRes.body.result.content[0].text).toContain('Created task')
+      expect(createRes.body.result.content[0].text).toContain('Created one-time task')
       expect(createRes.body.result.content[0].text).toContain('Brush teeth')
 
       const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
