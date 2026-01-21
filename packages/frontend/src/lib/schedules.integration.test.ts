@@ -93,7 +93,7 @@ describe('Schedule Management', () => {
       expect(task.child).toBe(childId)
       expect(task.completed).toBe(false)
       expect(task.schedule).toBeFalsy() // PocketBase returns empty string for null relations
-      expect(task.generatedAt).toBeUndefined()
+      expect(task.generatedAt).toBeFalsy() // PocketBase returns empty string for null date fields
     })
 
     it('should allow creating tasks generated from schedules', async () => {
