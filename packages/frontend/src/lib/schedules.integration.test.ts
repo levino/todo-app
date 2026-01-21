@@ -92,7 +92,7 @@ describe('Schedule Management', () => {
       expect(task.title).toBe('One-time cleanup')
       expect(task.child).toBe(childId)
       expect(task.completed).toBe(false)
-      expect(task.schedule).toBeUndefined()
+      expect(task.schedule).toBeFalsy() // PocketBase returns empty string for null relations
       expect(task.generatedAt).toBeUndefined()
     })
 
