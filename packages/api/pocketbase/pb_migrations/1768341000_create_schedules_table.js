@@ -2,7 +2,6 @@
 migrate((app) => {
   // Create schedules collection
   const collection = new Collection({
-    "id": "pbc_schedules",
     "name": "schedules",
     "type": "base",
     "system": false,
@@ -29,7 +28,7 @@ migrate((app) => {
         "presentable": false,
         "unique": false,
         "options": {
-          "collectionId": "pbc_2254914799",
+          "collectionId": "pbc_3789154723",
           "cascadeDelete": true,
           "minSelect": null,
           "maxSelect": 1
@@ -119,6 +118,6 @@ migrate((app) => {
 
   return app.save(collection)
 }, (app) => {
-  const collection = app.findCollectionByNameOrId("pbc_schedules")
+  const collection = app.findCollectionByNameOrId("schedules")
   return app.delete(collection)
 })

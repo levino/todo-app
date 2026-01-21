@@ -3,6 +3,12 @@ migrate((app) => {
   // Remove recurring fields from kiosk_tasks since they now belong to schedules
   const collection = app.findCollectionByNameOrId("pbc_2254914799")
 
+  // Find schedules collection by name
+  const schedulesCollection = app.findCollectionByNameOrId("schedules")
+  if (!schedulesCollection) {
+    throw new Error("Schedules collection not found. Make sure 1768341000_create_schedules_table.js ran first.")
+  }
+
   // Remove the recurring fields
   collection.fields.removeById("select_recurrence")
   collection.fields.removeById("json_daysOfWeek")
@@ -19,7 +25,7 @@ migrate((app) => {
     "presentable": false,
     "unique": false,
     "options": {
-      "collectionId": "pbc_schedules",
+      "collectionId": schedulesCollection.id,
       "cascadeDelete": false,
       "minSelect": null,
       "maxSelect": 1
