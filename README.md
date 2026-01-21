@@ -63,9 +63,16 @@ Default credentials:
 └── docker-compose.coolify.yaml  # Production deployment
 ```
 
-## Database Schema Changes
+## 🚨 Database Schema Changes - CRITICAL RULES
 
-Never write migrations by hand. Use the PocketBase SDK:
+**NEVER EDIT MIGRATION FILES MANUALLY** - See `CLAUDE.md` for full details.
+
+**STRICTLY FORBIDDEN**:
+- ❌ Editing any file in `packages/api/pocketbase/pb_migrations/`
+- ❌ Creating migration files by hand
+- ❌ Modifying existing migrations after creation
+
+**REQUIRED WORKFLOW** - Use the PocketBase SDK:
 
 ```javascript
 // temp-collection.js
