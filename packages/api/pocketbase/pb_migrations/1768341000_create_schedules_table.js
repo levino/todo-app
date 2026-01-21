@@ -30,6 +30,12 @@ migrate((app) => {
     }
   }))
 
+  // Find children collection dynamically
+  const childrenCollection = app.findCollectionByNameOrId("children")
+  if (!childrenCollection) {
+    throw new Error("Children collection not found")
+  }
+
   collection.fields.push(new Field({
     "id": "relation_child",
     "name": "child",
@@ -39,7 +45,7 @@ migrate((app) => {
     "presentable": false,
     "unique": false,
     "options": {
-      "collectionId": "pbc_3789154723",
+      "collectionId": childrenCollection.id,
       "cascadeDelete": true,
       "minSelect": null,
       "maxSelect": 1
@@ -71,7 +77,10 @@ migrate((app) => {
     "unique": false,
     "options": {
       "maxSelect": 1,
-      "values": ["daily", "weekly"]
+      "values": [
+        "daily",
+        "weekly"
+      ]
     }
   }))
 
@@ -98,7 +107,11 @@ migrate((app) => {
     "unique": false,
     "options": {
       "maxSelect": 1,
-      "values": ["morning", "afternoon", "evening"]
+      "values": [
+        "morning",
+        "afternoon",
+        "evening"
+      ]
     }
   }))
 
