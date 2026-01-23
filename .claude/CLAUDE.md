@@ -70,7 +70,7 @@ describe('Stats Page', () => {
     await pb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     // 2. Create test data in PocketBase
-    const task = await pb.collection('kiosk_tasks').create({ title: 'Test Task', ... })
+    const task = await pb.collection('tasks').create({ title: 'Test Task', ... })
     testDataIds.push(task.id)
 
     // 3. Create Astro container for rendering pages
@@ -80,7 +80,7 @@ describe('Stats Page', () => {
   afterAll(async () => {
     // Clean up test data
     for (const id of testDataIds) {
-      try { await pb.collection('kiosk_tasks').delete(id) } catch {}
+      try { await pb.collection('tasks').delete(id) } catch {}
     }
   })
 

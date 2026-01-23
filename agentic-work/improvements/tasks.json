@@ -70,7 +70,11 @@
       "id": "mcp-tools-time-periods",
       "title": "MCP Tools fuer neue Schedule-Struktur anpassen",
       "description": "**Aenderungen:**\n- `create_schedule` Tool: cron/time entfernen, timePeriod/daysOfWeek hinzufuegen\n- `list_schedules` Tool: neue Felder zurueckgeben\n- Tool-Beschreibungen aktualisieren fuer Claude\n\n**Acceptance Criteria:**\n- Claude kann Schedules mit timePeriod und daysOfWeek erstellen\n- Claude kann Schedules mit timePeriod und intervalDays erstellen\n- Validierung: entweder daysOfWeek ODER intervalDays, nicht beides\n- Validierung: timePeriod ist required",
-      "status": "pending",
+      "status": "completed",
+      "completedAt": "2026-01-23T22:00:00Z",
+      "notes": [
+        "Wurde als Teil von replace-cron-with-time-periods erledigt"
+      ],
       "createdAt": "2026-01-23T20:00:00Z",
       "notes": []
     },
@@ -102,7 +106,8 @@
       "id": "purge-kiosk-terminology",
       "title": "Kiosk-Begriff aus der App entfernen",
       "description": "**Problem:** Der Begriff 'Kiosk' stellt die App falsch dar. Es ist einfach eine Aufgabenliste zum Abarbeiten.\n\n**Aenderungen:**\n- Testdateien umbenennen (kiosk.integration.test.ts)\n- Dokumentation aktualisieren\n- agentic-work/kiosk-mode Ordner aufräumen oder umbenennen\n- Kommentare und Variablennamen anpassen\n\n**Hinweis:** Migrations koennen nicht geaendert werden, aber Collection-Namen koennen per neuer Migration umbenannt werden falls noetig.",
-      "status": "pending",
+      "status": "completed",
+      "completedAt": "2026-01-23T22:30:00Z",
       "createdAt": "2026-01-23T20:15:00Z",
       "notes": [
         "24 Dateien betroffen",

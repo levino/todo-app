@@ -87,3 +87,24 @@ Tasks angelegt fuer:
 - Alle 87 MCP Tests pass
 - Alle 76 Frontend Tests pass
 - Schedules nutzen jetzt Tageszeiten statt praeziser Uhrzeiten
+
+## 2026-01-23 - Kiosk-Terminologie entfernt
+
+**Task:** `purge-kiosk-terminology`
+**Status:** COMPLETED
+
+### Aenderungen
+- `kiosk.integration.test.ts` umbenannt zu `tasks.integration.test.ts`
+- Test-Beschreibung von "Kiosk Mode - Task List" zu "Task List" geaendert
+- `KioskTask` Interface umbenannt zu `Task` in [childId].astro
+- `agentic-work/kiosk-mode/` Ordner geloescht (obsolet)
+- CLAUDE.md Beispiele aktualisiert (`kiosk_tasks` -> `tasks`)
+
+### Nicht geaendert
+- Alte PocketBase Migrations (duerfen nie editiert werden)
+- Collection ist bereits "tasks" (nicht "kiosk_tasks")
+
+### Ergebnis
+- Alle 87 MCP Tests pass
+- Alle 76 Frontend Tests pass
+- Kein "kiosk" mehr in aktiven Code-Dateien

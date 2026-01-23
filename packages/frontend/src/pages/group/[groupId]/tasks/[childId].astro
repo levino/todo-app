@@ -1,6 +1,9 @@
 ---
 import Layout from '@levino/shipyard-base/layouts/Page.astro'
 import ColoredInitials from '@/components/ColoredInitials.astro'
+import DevSchedulerButton from '@/components/DevSchedulerButton.astro'
+import TaskSubscription from '@/components/TaskSubscription.astro'
+import { getPublicPocketBaseUrl } from '@/lib/pocketbase'
 
 interface Child {
   id: string
@@ -9,7 +12,7 @@ interface Child {
   group: string
 }
 
-interface KioskTask {
+interface Task {
   id: string
   title: string
   child: string
@@ -22,7 +25,7 @@ interface KioskTask {
 
 
 // Sort tasks by priority
-function sortByPriority(tasks: KioskTask[]): KioskTask[] {
+function sortByPriority(tasks: Task[]): Task[] {
   return [...tasks].sort((a, b) => {
     const priorityA = (a.priority === null || a.priority === undefined || a.priority === 0) ? Infinity : a.priority
     const priorityB = (b.priority === null || b.priority === undefined || b.priority === 0) ? Infinity : b.priority
@@ -39,7 +42,7 @@ if (!user || !groupId || !childId) {
 
 let child: Child | null = null
 let siblings: Child[] = []
-let tasks: KioskTask[] = []
+let tasks: Task[] = []
 let error = ''
 
 
@@ -65,7 +68,7 @@ try {
 
   // Fetch incomplete tasks for this child
   try {
-    const result = await pb.collection('kiosk_tasks').getList<KioskTask>(1, 100, {
+    const result = await pb.collection('tasks').getList<Task>(1, 100, {
       filter: `child = "${childId}" && completed = false`,
     })
 
@@ -94,6 +97,11 @@ const showSwitcher = siblings.length > 1
 
     {child && (
       <div class="max-w-3xl mx-auto">
+        <TaskSubscription
+          childId={childId}
+          pocketbaseUrl={getPublicPocketBaseUrl()}
+          authToken={pb.authStore.token}
+        />
         {/* Child switcher - only show if multiple children */}
         {showSwitcher && (
           <nav data-testid="child-switcher" class="flex gap-2 mb-6 overflow-x-auto pb-2">
@@ -157,10 +165,11 @@ const showSwitcher = siblings.length > 1
           </ul>
         )}
 
-        <div class="mt-8 pt-8 border-t border-base-300">
+        <div class="mt-8 pt-8 border-t border-base-300 flex justify-between items-center">
           <a href={`/group/${groupId}/tasks`} class="btn btn-ghost btn-sm">
             ← Zurück zur Übersicht
           </a>
+          <DevSchedulerButton />
         </div>
       </div>
     )}
