@@ -150,13 +150,15 @@ const showSwitcher = siblings.length > 1
           </div>
         ) : (
           /* Simple list */
-          <ul class="space-y-3">
+          <ul class="space-y-3" id="task-list">
             {tasks.map((task) => (
               <li
                 data-testid="task-item"
-                class="flex items-center gap-4 p-4 bg-base-200 rounded-xl min-h-[56px]"
+                data-task-id={task.id}
+                class="task-item flex items-center gap-4 p-4 bg-base-200 rounded-xl min-h-[56px]"
+                style="transform: translateX(0); opacity: 1; transition: transform 400ms ease-out, opacity 300ms ease-out;"
               >
-                <form method="POST" action={`/api/groups/${groupId}/tasks/${task.id}/complete`}>
+                <form method="POST" action={`/api/groups/${groupId}/tasks/${task.id}/complete`} class="complete-form">
                   <input type="hidden" name="childId" value={childId} />
                   <button
                     type="submit"
@@ -190,4 +192,30 @@ const showSwitcher = siblings.length > 1
       </div>
     )}
   </div>
+
+  <script>
+    // Task completion animation script
+    // Handles form submission with slide-out animation before navigating
+    document.addEventListener('DOMContentLoaded', () => {
+      const forms = document.querySelectorAll<HTMLFormElement>('.complete-form')
+
+      forms.forEach((form) => {
+        form.addEventListener('submit', (e) => {
+          const taskItem = form.closest('.task-item') as HTMLElement | null
+          if (!taskItem) return // Fallback: let form submit normally
+
+          e.preventDefault()
+
+          // Start slide-out animation
+          taskItem.style.transform = 'translateX(100%)'
+          taskItem.style.opacity = '0'
+
+          // After animation completes, submit the form
+          setTimeout(() => {
+            form.submit()
+          }, 400) // Match transition duration
+        })
+      })
+    })
+  </script>
 </Layout>

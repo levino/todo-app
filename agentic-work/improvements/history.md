@@ -231,3 +231,30 @@ Tasks angelegt fuer:
 - Alle 87 MCP Tests pass
 - Alle 115 Frontend Tests pass
 - Aufgabenliste zeigt nur Tasks deren Tageszeit begonnen hat
+
+## 2026-01-23 - Task Completion Animation implementiert
+
+**Task:** `task-completion-animation`
+**Status:** COMPLETED
+
+### TDD Red Phase
+- 4 Integration Tests in `task-completion-animation.integration.test.ts`:
+  - CSS Klassen fuer Animation auf task items
+  - Animation styles (transform/translate) vorhanden
+  - JavaScript fuer Animation bei Complete
+  - Form Fallback fuer no-JS (graceful degradation)
+
+### TDD Green Phase
+- `[childId].astro`:
+  - Inline CSS transitions auf task items: `transform 400ms ease-out, opacity 300ms ease-out`
+  - Initiale Werte: `translateX(0)` und `opacity: 1`
+  - JavaScript Script am Ende der Page
+  - Event Listener auf `.complete-form` fuer submit
+  - Animation: `translateX(100%)` + `opacity: 0`
+  - Nach 400ms Animation: `form.submit()`
+  - Form bleibt fuer no-JS Fallback (POST mit Redirect)
+
+### Ergebnis
+- Alle 87 MCP Tests pass
+- Alle 119 Frontend Tests pass
+- Tasks sliden befriedigend nach rechts weg beim Abhaken

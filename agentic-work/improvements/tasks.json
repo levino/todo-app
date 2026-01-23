@@ -114,17 +114,32 @@
       "id": "integration-tests-time-periods",
       "title": "Integration Tests fuer Tageszeiten-Logik",
       "description": "**Test-Szenarien:**\n\n1. Schedule mit daysOfWeek erstellen\n2. Schedule mit intervalDays erstellen\n3. Task-Sichtbarkeit basierend auf Tageszeit\n4. User-spezifische Zeiteinstellungen\n5. Processor erstellt Tasks nur an gueltigen Tagen\n6. Processor berechnet visibleFrom korrekt\n7. Aufgabenliste filtert nach visibleFrom\n\n**Acceptance Criteria:**\n- Alle Tests laufen als normaler User (nicht Superuser)\n- Tests nutzen vi.setSystemTime() fuer Zeitreisen\n- Tests decken Edge Cases ab (Mitternacht, Tageswechsel)",
-      "status": "pending",
+      "status": "completed",
       "createdAt": "2026-01-23T20:00:00Z",
-      "notes": []
+      "completedAt": "2026-01-23T20:36:00Z",
+      "notes": [
+        "Alle Test-Szenarien wurden durch andere Tasks abgedeckt:",
+        "- schedules.integration.test.ts: Schedule-Erstellung",
+        "- schedule-day-filtering.integration.test.ts: daysOfWeek + intervalDays",
+        "- task-visibility.integration.test.ts: visibleFrom Berechnung",
+        "- timePeriods.integration.test.ts: User-Zeiteinstellungen",
+        "- task-visible-from-filter.integration.test.ts: UI-Filterung",
+        "Insgesamt 115 Frontend Tests (28 neue Tests fuer Tageszeiten-Logik)"
+      ]
     },
     {
       "id": "task-completion-animation",
       "title": "Animation beim Abhaken von Tasks",
       "description": "**User Story:** Als Kind will ich eine befriedigende Animation sehen wenn ich eine Aufgabe abhake, damit es sich gut anfuehlt.\n\n**Gewuenschtes Verhalten:**\n- Task slidet zur Seite weg wenn abgehakt\n- Restliche Tasks ruecken sanft nach\n\n**Technischer Ansatz:**\n- Astro View Transitions API nutzen\n- Oder: CSS transitions mit JavaScript trigger\n\n**Acceptance Criteria:**\n- WHEN Task abgehakt wird THEN slidet er nach rechts/links weg\n- Animation dauert ca. 300-500ms\n- Graceful degradation wenn Browser keine Animations unterstuetzt",
-      "status": "pending",
+      "status": "completed",
       "createdAt": "2026-01-23T20:20:00Z",
-      "notes": []
+      "completedAt": "2026-01-23T20:45:00Z",
+      "notes": [
+        "DONE: CSS transitions auf task-items (transform, opacity mit 400ms/300ms ease-out)",
+        "DONE: JavaScript interceptet form submit, animiert Task (translateX(100%) + opacity:0), dann submit",
+        "DONE: Form bleibt fuer no-JS Fallback (graceful degradation)",
+        "DONE: 4 Integration Tests fuer Animation-Setup, alle 119 Tests pass"
+      ]
     },
     {
       "id": "purge-kiosk-terminology",
