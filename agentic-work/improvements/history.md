@@ -108,3 +108,41 @@ Tasks angelegt fuer:
 - Alle 87 MCP Tests pass
 - Alle 76 Frontend Tests pass
 - Kein "kiosk" mehr in aktiven Code-Dateien
+
+## 2026-01-23 - User-konfigurierbare Tageszeiten implementiert
+
+**Task:** `user-configurable-time-periods`
+**Status:** COMPLETED
+
+### TDD Red Phase
+- 4 Integration Tests in `timePeriods.integration.test.ts`:
+  - Default-Einstellungen wenn User keine custom Settings hat
+  - Custom Settings werden korrekt geladen
+  - Defaults fuer ungesetzte Felder
+  - Defaults wenn User nicht gefunden
+
+### Migration
+- `1769198401_updated_users.js` erstellt via PocketBase SDK
+- Neue Felder in `users` Collection:
+  - `morningStart` (text, optional) - HH:MM Format
+  - `afternoonStart` (text, optional) - HH:MM Format
+  - `eveningStart` (text, optional) - HH:MM Format
+
+### TDD Green Phase
+- `timePeriods.ts` erstellt mit:
+  - `TimePeriod` Type ('morning' | 'afternoon' | 'evening')
+  - `UserTimePeriodSettings` Interface
+  - `DEFAULT_TIME_PERIODS` (06:00, 12:00, 18:00)
+  - `parseTime()` - HH:MM String zu {hours, minutes}
+  - `getTimePeriodStart()` - Start einer Tageszeit
+  - `getTimePeriodEnd()` - Ende einer Tageszeit
+  - `isTimeInPeriod()` - Ist Zeit in Tageszeit?
+  - `getCurrentTimePeriod()` - Aktuelle Tageszeit
+  - `getTimePeriodStartDateTime()` - Start-DateTime fuer Tageszeit
+  - `getUserTimePeriodSettings()` - Laedt User-Settings aus PocketBase
+- 15 Unit Tests in `timePeriods.test.ts`
+
+### Ergebnis
+- Alle 87 MCP Tests pass
+- Alle 99 Frontend Tests pass (15 unit + 4 integration fuer timePeriods)
+- User kann morningStart, afternoonStart, eveningStart konfigurieren

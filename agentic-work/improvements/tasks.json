@@ -44,10 +44,15 @@
       "id": "user-configurable-time-periods",
       "title": "Tageszeiten pro User konfigurierbar",
       "description": "**User Story:** Als Elternteil will ich einstellen koennen, wann fuer meine Familie 'morgens', 'nachmittags' und 'abends' ist.\n\n**Defaults:**\n- Morgens: 06:00 - 12:00\n- Nachmittags: 12:00 - 18:00\n- Abends: 18:00 - 00:00 (Mitternacht)\n\n**Acceptance Criteria:**\n- WHEN User keine Einstellungen hat THEN gelten die Defaults\n- WHEN User Zeiten aendert THEN werden diese fuer alle Schedules des Users verwendet\n- Zeiten werden in `users` Collection gespeichert (oder separate `user_settings`)\n- Abends geht bis Mitternacht, dann beginnt Morgens\n- Keine Luecken zwischen den Perioden",
-      "status": "pending",
+      "status": "completed",
       "createdAt": "2026-01-23T20:00:00Z",
+      "completedAt": "2026-01-23T20:05:00Z",
       "notes": [
-        "Felder z.B.: morningStart, afternoonStart, eveningStart (nur Start-Zeiten noetig)"
+        "Felder z.B.: morningStart, afternoonStart, eveningStart (nur Start-Zeiten noetig)",
+        "DONE: Migration 1769198401_updated_users.js - morningStart, afternoonStart, eveningStart Felder",
+        "DONE: timePeriods.ts mit Utility-Funktionen (parseTime, getTimePeriodStart, isTimeInPeriod, etc.)",
+        "DONE: getUserTimePeriodSettings() - laedt User-Einstellungen aus PocketBase",
+        "DONE: 15 Unit Tests + 4 Integration Tests, alle 99 Tests pass"
       ]
     },
     {
