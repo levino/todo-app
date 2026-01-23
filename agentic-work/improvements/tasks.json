@@ -59,9 +59,16 @@
       "id": "task-visibility-by-time-period",
       "title": "Tasks werden zur richtigen Tageszeit sichtbar",
       "description": "**Kern-Logik:**\n- Task fuer 'Abend' erstellt um 14:00 -> wird um 18:00 sichtbar (wenn Abend beginnt)\n- Task fuer 'Abend' erstellt um 19:00 -> sofort sichtbar (ist schon Abend)\n- Keine Tasks sichtbar = alle erledigt (NICHT weil keine Tageszeit)\n\n**Acceptance Criteria:**\n- WHEN Schedule erstellt wird UND aktuelle Zeit ist VOR der Tageszeit THEN Task wird erstellt aber nicht angezeigt bis Tageszeit beginnt\n- WHEN Schedule erstellt wird UND aktuelle Zeit ist IN der Tageszeit THEN Task ist sofort sichtbar\n- WHEN alle Tasks einer Tageszeit erledigt sind THEN zeigt die Liste 'Alles erledigt'\n- Task hat Feld `visibleFrom: datetime` das vom Processor gesetzt wird",
-      "status": "pending",
+      "status": "completed",
       "createdAt": "2026-01-23T20:00:00Z",
-      "notes": []
+      "completedAt": "2026-01-23T20:12:00Z",
+      "notes": [
+        "DONE: Migration 1769198905_updated_tasks.js - visibleFrom Feld (date, optional)",
+        "DONE: calculateVisibleFrom() in timePeriods.ts - berechnet wann Task sichtbar wird",
+        "DONE: scheduleProcessor.ts - setzt visibleFrom beim Task erstellen",
+        "DONE: getSettingsForSchedule() - laedt User-Einstellungen via child->group->user_groups->user",
+        "DONE: 6 Integration Tests fuer Visibility-Logik, alle 107 Tests pass"
+      ]
     },
     {
       "id": "schedule-processor-time-periods",

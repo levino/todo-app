@@ -146,3 +146,36 @@ Tasks angelegt fuer:
 - Alle 87 MCP Tests pass
 - Alle 99 Frontend Tests pass (15 unit + 4 integration fuer timePeriods)
 - User kann morningStart, afternoonStart, eveningStart konfigurieren
+
+## 2026-01-23 - Task-Sichtbarkeit nach Tageszeit
+
+**Task:** `task-visibility-by-time-period`
+**Status:** COMPLETED
+
+### TDD Red Phase
+- 6 Integration Tests in `task-visibility.integration.test.ts`:
+  - Evening Task erstellt am Morgen -> visibleFrom = 18:00
+  - Evening Task erstellt am Abend -> sofort sichtbar
+  - Afternoon Task erstellt am Morgen -> visibleFrom = 12:00
+  - Morning Task erstellt am Abend -> visibleFrom = 06:00 naechster Tag
+  - Morning Task erstellt am Morgen -> sofort sichtbar
+  - Custom User Settings werden beruecksichtigt
+
+### Migration
+- `1769198905_updated_tasks.js` - visibleFrom Feld (date, optional)
+
+### TDD Green Phase
+- `timePeriods.ts`:
+  - `calculateVisibleFrom()` - berechnet wann Task sichtbar wird basierend auf:
+    - Aktuelle Tageszeit vs Ziel-Tageszeit
+    - Wenn in Ziel-Tageszeit: sofort sichtbar
+    - Wenn Ziel-Tageszeit spaeter heute: visibleFrom = Start der Tageszeit
+    - Wenn Ziel-Tageszeit frueher im Tag: visibleFrom = Start naechster Tag
+- `scheduleProcessor.ts`:
+  - `getSettingsForSchedule()` - laedt User-Settings via child->group->user_groups->user
+  - `processSchedules()` - setzt visibleFrom beim Task erstellen
+
+### Ergebnis
+- Alle 87 MCP Tests pass
+- Alle 107 Frontend Tests pass
+- Tasks werden mit korrektem visibleFrom erstellt

@@ -1,6 +1,10 @@
 import PocketBase from 'pocketbase'
-
-type TimePeriod = 'morning' | 'afternoon' | 'evening'
+import {
+  type TimePeriod,
+  type UserTimePeriodSettings,
+  DEFAULT_TIME_PERIODS,
+  calculateVisibleFrom,
+} from './timePeriods'
 
 interface Schedule {
   id: string
@@ -12,6 +16,58 @@ interface Schedule {
   intervalDays: number | null
   active: boolean
   lastGenerated: string | null
+}
+
+interface Child {
+  id: string
+  group: string
+}
+
+interface UserGroup {
+  id: string
+  user: string
+  group: string
+}
+
+interface User {
+  id: string
+  morningStart?: string
+  afternoonStart?: string
+  eveningStart?: string
+}
+
+/**
+ * Get time period settings for a schedule by looking up the user who owns the child's group.
+ */
+async function getSettingsForSchedule(
+  pb: PocketBase,
+  childId: string
+): Promise<UserTimePeriodSettings> {
+  try {
+    // Get the child to find their group
+    const child = await pb.collection('children').getOne<Child>(childId)
+
+    // Find a user who belongs to this group
+    const userGroups = await pb.collection('user_groups').getFullList<UserGroup>({
+      filter: `group = "${child.group}"`,
+      limit: 1,
+    })
+
+    if (userGroups.length === 0) {
+      return { ...DEFAULT_TIME_PERIODS }
+    }
+
+    // Get the user's settings
+    const user = await pb.collection('users').getOne<User>(userGroups[0].user)
+
+    return {
+      morningStart: user.morningStart || DEFAULT_TIME_PERIODS.morningStart,
+      afternoonStart: user.afternoonStart || DEFAULT_TIME_PERIODS.afternoonStart,
+      eveningStart: user.eveningStart || DEFAULT_TIME_PERIODS.eveningStart,
+    }
+  } catch {
+    return { ...DEFAULT_TIME_PERIODS }
+  }
 }
 
 /**
@@ -36,8 +92,12 @@ export async function processSchedules(pb: PocketBase): Promise<void> {
       continue
     }
 
-    // TODO: Check cron or intervalDays to see if a task should be created
-    // For now, just create a task if none exists
+    // Get user's time period settings
+    const settings = await getSettingsForSchedule(pb, schedule.child)
+
+    // Calculate when this task should become visible
+    const now = new Date()
+    const visibleFrom = calculateVisibleFrom(now, schedule.timePeriod, settings)
 
     await pb.collection('tasks').create({
       title: schedule.title,
@@ -46,6 +106,7 @@ export async function processSchedules(pb: PocketBase): Promise<void> {
       completed: false,
       schedule: schedule.id,
       generatedAt: new Date().toISOString(),
+      visibleFrom: visibleFrom.toISOString(),
     })
   }
 }

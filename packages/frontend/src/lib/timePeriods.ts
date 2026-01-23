@@ -154,3 +154,42 @@ interface UserRecord {
   afternoonStart?: string
   eveningStart?: string
 }
+
+/**
+ * Calculate when a task should become visible based on its target time period.
+ *
+ * Logic:
+ * - If we're currently IN the target time period, return now (immediately visible)
+ * - If the target period is later today, return the start of that period today
+ * - If the target period is earlier in the day (already passed), return the start of that period tomorrow
+ */
+export function calculateVisibleFrom(
+  now: Date,
+  targetPeriod: TimePeriod,
+  settings: UserTimePeriodSettings = DEFAULT_TIME_PERIODS
+): Date {
+  const currentPeriod = getCurrentTimePeriod(now, settings)
+
+  // If we're in the target period, task is immediately visible
+  if (currentPeriod === targetPeriod) {
+    return new Date(now)
+  }
+
+  // Get the start time of the target period
+  const targetStart = getTimePeriodStartDateTime(now, targetPeriod, settings)
+
+  // Determine if the target period is later today or tomorrow
+  const periodOrder: TimePeriod[] = ['morning', 'afternoon', 'evening']
+  const currentIndex = periodOrder.indexOf(currentPeriod)
+  const targetIndex = periodOrder.indexOf(targetPeriod)
+
+  if (targetIndex > currentIndex) {
+    // Target period is later today
+    return targetStart
+  } else {
+    // Target period is earlier in the day (or same - already handled above)
+    // So it means tomorrow
+    targetStart.setDate(targetStart.getDate() + 1)
+    return targetStart
+  }
+}
