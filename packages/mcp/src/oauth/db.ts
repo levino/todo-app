@@ -434,3 +434,56 @@ export function cleanupExpiredRefreshTokens(): number {
 
   return result.changes
 }
+
+// Default inactive period: 30 days
+const DEFAULT_INACTIVE_DAYS = 30
+
+/**
+ * Clean up inactive OAuth clients.
+ * A client is considered inactive if:
+ * - It was created more than 30 days ago AND
+ * - It has no valid (non-expired, non-revoked) refresh tokens
+ *
+ * Should be called periodically (e.g., at server start).
+ * Returns the number of deleted clients.
+ */
+export function cleanupInactiveClients(inactiveDays: number = DEFAULT_INACTIVE_DAYS): number {
+  const database = getDb()
+  const now = Math.floor(Date.now() / 1000)
+  const cutoff = now - inactiveDays * 24 * 3600
+
+  // Find clients that are:
+  // 1. Older than the cutoff
+  // 2. Have no valid refresh tokens (no tokens, or all tokens are expired/revoked)
+  const inactiveClients = database.prepare<[], { client_id: string }>(`
+    SELECT c.client_id
+    FROM oauth_clients c
+    WHERE c.created_at < ?
+      AND NOT EXISTS (
+        SELECT 1 FROM oauth_refresh_tokens rt
+        WHERE rt.client_id = c.client_id
+          AND rt.expires_at > ?
+          AND rt.revoked_at IS NULL
+      )
+  `).all(cutoff, now)
+
+  // Delete each inactive client (this cascades to auth codes and refresh tokens)
+  let deletedCount = 0
+  for (const client of inactiveClients) {
+    if (deleteClient(client.client_id)) {
+      deletedCount++
+    }
+  }
+
+  return deletedCount
+}
+
+/**
+ * Backdate a client's created_at timestamp.
+ * Used for testing cleanup of old clients.
+ * @internal - Only exported for testing purposes
+ */
+export function backdateClient(clientId: string, createdAt: number): void {
+  const database = getDb()
+  database.prepare(`UPDATE oauth_clients SET created_at = ? WHERE client_id = ?`).run(createdAt, clientId)
+}

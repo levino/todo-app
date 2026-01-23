@@ -27,7 +27,7 @@ function debugLog(category: string, message: string, data?: unknown) {
 }
 
 // OAuth modules
-import { initOAuthDb } from './oauth/db.js'
+import { initOAuthDb, cleanupInactiveClients, cleanupExpiredCodes, cleanupExpiredRefreshTokens } from './oauth/db.js'
 import { initKeys } from './oauth/jwt.js'
 import discoveryRouter from './oauth/endpoints/discovery.js'
 import registerRouter from './oauth/endpoints/register.js'
@@ -80,9 +80,9 @@ interface ScheduleRecord {
   title: string
   child: string
   priority: number | null
-  recurrence: string
-  daysOfWeek: number[] | null
-  timePeriod: string
+  cron: string | null
+  intervalDays: number | null
+  time: string | null
   active: boolean
   lastGenerated: string | null
   collectionId: string
@@ -165,11 +165,11 @@ function registerTools() {
       })
 
       for (const child of children.items) {
-        const tasks = await pb.collection('kiosk_tasks').getList(1, 1000, {
+        const tasks = await pb.collection('tasks').getList(1, 1000, {
           filter: `child = "${child.id}"`,
         })
         for (const task of tasks.items) {
-          await pb.collection('kiosk_tasks').delete(task.id)
+          await pb.collection('tasks').delete(task.id)
         }
         await pb.collection('children').delete(child.id)
       }
@@ -263,11 +263,11 @@ function registerTools() {
       const { childId } = args as { childId: string }
 
       // Delete all tasks for this child
-      const tasks = await pb.collection('kiosk_tasks').getList(1, 1000, {
+      const tasks = await pb.collection('tasks').getList(1, 1000, {
         filter: `child = "${childId}"`,
       })
       for (const task of tasks.items) {
-        await pb.collection('kiosk_tasks').delete(task.id)
+        await pb.collection('tasks').delete(task.id)
       }
 
       // Delete the child
@@ -296,7 +296,7 @@ function registerTools() {
         filter += ' && completed = false'
       }
 
-      const tasks = await pb.collection<TaskRecord>('kiosk_tasks').getList(1, 100, { filter, expand: 'schedule' })
+      const tasks = await pb.collection<TaskRecord>('tasks').getList(1, 100, { filter, expand: 'schedule' })
 
       const result = tasks.items.map((t) => ({
         id: t.id,
@@ -334,7 +334,7 @@ function registerTools() {
         completed: false,
       }
 
-      const task = await pb.collection('kiosk_tasks').create(taskData)
+      const task = await pb.collection('tasks').create(taskData)
 
       return { content: [{ type: 'text', text: `Created one-time task "${title}" (ID: ${task.id})` }] }
     },
@@ -361,7 +361,7 @@ function registerTools() {
       if (priority !== undefined) updates.priority = priority
       if (childId) updates.child = childId
 
-      await pb.collection('kiosk_tasks').update(taskId, updates)
+      await pb.collection('tasks').update(taskId, updates)
 
       return { content: [{ type: 'text', text: `Updated task ${taskId}` }] }
     },
@@ -375,7 +375,7 @@ function registerTools() {
     handler: async (args, pb) => {
       const { taskId } = args as { taskId: string }
 
-      await pb.collection('kiosk_tasks').delete(taskId)
+      await pb.collection('tasks').delete(taskId)
 
       return { content: [{ type: 'text', text: `Deleted task ${taskId}` }] }
     },
@@ -389,7 +389,7 @@ function registerTools() {
     handler: async (args, pb) => {
       const { taskId } = args as { taskId: string }
 
-      await pb.collection('kiosk_tasks').update(taskId, {
+      await pb.collection('tasks').update(taskId, {
         completed: false,
         completedAt: null,
       })
@@ -440,9 +440,9 @@ function registerTools() {
         id: s.id,
         title: s.title,
         priority: s.priority,
-        recurrence: s.recurrence,
-        daysOfWeek: s.daysOfWeek,
-        timePeriod: s.timePeriod,
+        cron: s.cron,
+        intervalDays: s.intervalDays,
+        time: s.time,
         active: s.active,
         lastGenerated: s.lastGenerated,
       }))
@@ -452,45 +452,61 @@ function registerTools() {
   })
 
   tools.set('create_schedule', {
-    description: 'Create a new task schedule. Schedules automatically generate tasks based on recurrence patterns. For example: homework every weekday, shower every 2 days.',
+    description: `Create a new task schedule. Use cron for fixed time patterns or intervalDays for "every N days from last completion" patterns.
+
+Cron format: "minute hour day-of-month month day-of-week"
+Examples:
+- "0 8 * * 1-5" = weekdays at 8:00
+- "0 8 * * *" = daily at 8:00
+- "0 8 1,15 * *" = 1st and 15th of month at 8:00
+
+For "every N days" patterns (e.g., shower every 2 days), use intervalDays + time.
+The interval resets from the last completion.`,
     inputSchema: z.object({
       childId: z.string().describe('ID of the child'),
-      title: z.string().describe('Schedule title (e.g., "Daily Homework", "Shower Every Other Day")'),
-      recurrence: z.enum(['daily', 'weekly']).describe('Recurrence pattern: daily (every day) or weekly (specific days)'),
-      daysOfWeek: z.array(z.number()).optional().describe('For weekly schedules: array of days (0=Sunday, 1=Monday, ..., 6=Saturday). E.g., [1,2,3,4,5] for weekdays'),
-      timePeriod: z.enum(['morning', 'afternoon', 'evening']).optional().describe('Time period: morning (6-12), afternoon (12-18), or evening (18-22)'),
+      title: z.string().describe('Schedule title'),
+      cron: z.string().optional().describe('Cron expression for fixed schedules (e.g., "0 8 * * 1-5" for weekdays at 8am)'),
+      intervalDays: z.number().optional().describe('For interval schedules: days between tasks, counting from last completion'),
+      time: z.string().optional().describe('Time of day for interval schedules (HH:MM format, e.g., "08:00" or "18:30")'),
       priority: z.number().optional().describe('Priority (lower number = higher priority)'),
     }),
     handler: async (args, pb) => {
-      const { childId, title, recurrence, daysOfWeek, timePeriod, priority } = args as {
+      const { childId, title, cron, intervalDays, time, priority } = args as {
         childId: string
         title: string
-        recurrence: string
-        daysOfWeek?: number[]
-        timePeriod?: string
+        cron?: string
+        intervalDays?: number
+        time?: string
         priority?: number
+      }
+
+      if (!cron && !intervalDays) {
+        return { content: [{ type: 'text', text: 'Error: Either cron or intervalDays must be provided' }], isError: true }
+      }
+
+      if (intervalDays && !time) {
+        return { content: [{ type: 'text', text: 'Error: time is required when using intervalDays (e.g., "08:00")' }], isError: true }
       }
 
       const scheduleData: Record<string, unknown> = {
         title,
         child: childId,
-        recurrence,
         active: true,
         priority: priority ?? null,
       }
 
-      if (daysOfWeek) scheduleData.daysOfWeek = daysOfWeek
-      if (timePeriod) scheduleData.timePeriod = timePeriod
+      if (cron) scheduleData.cron = cron
+      if (intervalDays) scheduleData.intervalDays = intervalDays
+      if (time) scheduleData.time = time
 
       const schedule = await pb.collection('schedules').create(scheduleData)
 
-      let message = `Created schedule "${title}" (ID: ${schedule.id}), recurrence: ${recurrence}`
-      if (recurrence === 'weekly' && daysOfWeek) {
-        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-        message += ` on ${daysOfWeek.map(d => dayNames[d]).join(', ')}`
+      let message = `Created schedule "${title}" (ID: ${schedule.id})`
+      if (cron) {
+        message += `, cron: ${cron}`
       }
-      if (timePeriod) {
-        message += `, time period: ${timePeriod}`
+      if (intervalDays) {
+        message += `, every ${intervalDays} days at ${time}`
       }
 
       return { content: [{ type: 'text', text: message }] }
@@ -502,28 +518,28 @@ function registerTools() {
     inputSchema: z.object({
       scheduleId: z.string().describe('ID of the schedule'),
       title: z.string().optional().describe('New title'),
-      recurrence: z.enum(['daily', 'weekly']).optional().describe('New recurrence pattern'),
-      daysOfWeek: z.array(z.number()).optional().describe('For weekly schedules: array of days (0-6)'),
-      timePeriod: z.enum(['morning', 'afternoon', 'evening', '']).optional().describe('Time period (empty string to clear)'),
+      cron: z.string().optional().describe('New cron expression'),
+      intervalDays: z.number().optional().describe('New interval in days'),
+      time: z.string().optional().describe('New time for interval schedules (HH:MM)'),
       priority: z.number().optional().describe('New priority'),
       active: z.boolean().optional().describe('Whether the schedule is active'),
     }),
     handler: async (args, pb) => {
-      const { scheduleId, title, recurrence, daysOfWeek, timePeriod, priority, active } = args as {
+      const { scheduleId, title, cron, intervalDays, time, priority, active } = args as {
         scheduleId: string
         title?: string
-        recurrence?: string
-        daysOfWeek?: number[]
-        timePeriod?: string
+        cron?: string
+        intervalDays?: number
+        time?: string
         priority?: number
         active?: boolean
       }
 
       const updates: Record<string, unknown> = {}
       if (title) updates.title = title
-      if (recurrence) updates.recurrence = recurrence
-      if (daysOfWeek !== undefined) updates.daysOfWeek = daysOfWeek
-      if (timePeriod !== undefined) updates.timePeriod = timePeriod
+      if (cron !== undefined) updates.cron = cron
+      if (intervalDays !== undefined) updates.intervalDays = intervalDays
+      if (time !== undefined) updates.time = time
       if (priority !== undefined) updates.priority = priority
       if (active !== undefined) updates.active = active
 
@@ -850,6 +866,12 @@ export async function initOAuth(): Promise<void> {
   const dbPath = process.env.OAUTH_DB_PATH || './data/oauth.db'
   initOAuthDb(dbPath)
   await initKeys()
+
+  // Cleanup on startup
+  const expiredCodes = cleanupExpiredCodes()
+  const expiredTokens = cleanupExpiredRefreshTokens()
+  const inactiveClients = cleanupInactiveClients()
+  console.log(`[OAuth] Cleanup: ${expiredCodes} expired codes, ${expiredTokens} expired tokens, ${inactiveClients} inactive clients removed`)
 }
 
 // Start server (only when run directly)

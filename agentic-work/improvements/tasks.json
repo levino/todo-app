@@ -21,9 +21,15 @@
       "id": "cleanup-old-oauth-clients",
       "title": "Alte OAuth-Clients aufräumen",
       "description": "**Problem:** Jede Neu-Autorisierung erstellt einen neuen Client. Aktuell 12 Claude-Clients in der DB.\n\n**Loesung:** Alte/ungenutzte Clients automatisch loeschen.\n\n**Acceptance Criteria:**\n- Clients ohne Aktivitaet in den letzten 30 Tagen SOLLEN geloescht werden\n- Cleanup SOLL regelmaessig laufen (z.B. bei Server-Start)\n- Aktive Clients (mit gueltigen Refresh Tokens) SOLLEN nicht geloescht werden",
-      "status": "pending",
+      "status": "completed",
       "createdAt": "2026-01-23T19:30:00Z",
-      "notes": []
+      "completedAt": "2026-01-23T21:30:00Z",
+      "notes": [
+        "DONE: cleanupInactiveClients() - loescht Clients aelter als 30 Tage ohne valide Refresh Tokens",
+        "DONE: backdateClient() - Hilfsfunktion fuer Tests",
+        "DONE: Cleanup laeuft bei Server-Start in initOAuth()",
+        "DONE: 6 neue Tests, alle 87 MCP Tests pass"
+      ]
     },
     {
       "id": "replace-cron-with-time-periods",

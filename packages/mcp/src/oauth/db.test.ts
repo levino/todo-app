@@ -17,6 +17,8 @@ import {
   saveRefreshToken,
   consumeRefreshToken,
   cleanupExpiredRefreshTokens,
+  cleanupInactiveClients,
+  backdateClient,
 } from './db.js'
 
 const TEST_DB_PATH = './test-data/oauth-test.db'
@@ -310,6 +312,118 @@ describe('OAuth Database', () => {
       const expectedExpiry = Math.floor(Date.now() / 1000) + 30 * 24 * 3600
       expect(refreshToken!.expires_at).toBeGreaterThan(expectedExpiry - 60)
       expect(refreshToken!.expires_at).toBeLessThan(expectedExpiry + 60)
+    })
+  })
+
+  describe('Inactive Client Cleanup', () => {
+    it('should delete clients older than 30 days with no valid refresh tokens', () => {
+      // Create a client that was created 31 days ago
+      const oldClient = createClient('Old App', ['https://old.example.com/callback'])
+
+      // Manually backdate the client's created_at to 31 days ago
+      const thirtyOneDaysAgo = Math.floor(Date.now() / 1000) - 31 * 24 * 3600
+      backdateClient(oldClient.client_id, thirtyOneDaysAgo)
+
+      // Run cleanup
+      const deletedCount = cleanupInactiveClients()
+
+      // Client should be deleted
+      expect(deletedCount).toBe(1)
+      expect(getClient(oldClient.client_id)).toBeNull()
+    })
+
+    it('should NOT delete clients with valid refresh tokens even if old', () => {
+      // Create a client that was created 31 days ago
+      const oldClient = createClient('Old But Active', ['https://active.example.com/callback'])
+
+      // Backdate the client
+      const thirtyOneDaysAgo = Math.floor(Date.now() / 1000) - 31 * 24 * 3600
+      backdateClient(oldClient.client_id, thirtyOneDaysAgo)
+
+      // But give it a valid refresh token (not expired, not revoked)
+      saveRefreshToken(oldClient.client_id, 'user-123')
+
+      // Run cleanup
+      const deletedCount = cleanupInactiveClients()
+
+      // Client should NOT be deleted because it has an active refresh token
+      expect(deletedCount).toBe(0)
+      expect(getClient(oldClient.client_id)).not.toBeNull()
+    })
+
+    it('should NOT delete clients newer than 30 days', () => {
+      // Create a new client (created now)
+      const newClient = createClient('New App', ['https://new.example.com/callback'])
+
+      // Run cleanup
+      const deletedCount = cleanupInactiveClients()
+
+      // Client should NOT be deleted
+      expect(deletedCount).toBe(0)
+      expect(getClient(newClient.client_id)).not.toBeNull()
+    })
+
+    it('should delete old clients with only expired refresh tokens', () => {
+      // Create an old client
+      const oldClient = createClient('Old Expired', ['https://expired.example.com/callback'])
+
+      // Backdate the client
+      const thirtyOneDaysAgo = Math.floor(Date.now() / 1000) - 31 * 24 * 3600
+      backdateClient(oldClient.client_id, thirtyOneDaysAgo)
+
+      // Give it an expired refresh token (expires in the past)
+      saveRefreshToken(oldClient.client_id, 'user-123', -1) // Already expired
+
+      // Run cleanup
+      const deletedCount = cleanupInactiveClients()
+
+      // Client should be deleted because its only refresh token is expired
+      expect(deletedCount).toBe(1)
+      expect(getClient(oldClient.client_id)).toBeNull()
+    })
+
+    it('should delete old clients with only revoked refresh tokens', async () => {
+      // Create an old client
+      const oldClient = createClient('Old Revoked', ['https://revoked.example.com/callback'])
+
+      // Backdate the client
+      const thirtyOneDaysAgo = Math.floor(Date.now() / 1000) - 31 * 24 * 3600
+      backdateClient(oldClient.client_id, thirtyOneDaysAgo)
+
+      // Give it a refresh token and immediately consume it (which revokes it)
+      const token = saveRefreshToken(oldClient.client_id, 'user-123')
+      consumeRefreshToken(token)
+
+      // Run cleanup
+      const deletedCount = cleanupInactiveClients()
+
+      // Client should be deleted because its only refresh token is revoked
+      expect(deletedCount).toBe(1)
+      expect(getClient(oldClient.client_id)).toBeNull()
+    })
+
+    it('should handle mix of active and inactive clients', () => {
+      // Create multiple clients
+      const activeNew = createClient('Active New', ['https://a.com/callback'])
+      const activeOld = createClient('Active Old', ['https://b.com/callback'])
+      const inactiveOld = createClient('Inactive Old', ['https://c.com/callback'])
+
+      // Backdate two of them
+      const thirtyOneDaysAgo = Math.floor(Date.now() / 1000) - 31 * 24 * 3600
+      backdateClient(activeOld.client_id, thirtyOneDaysAgo)
+      backdateClient(inactiveOld.client_id, thirtyOneDaysAgo)
+
+      // Give activeOld a valid refresh token
+      saveRefreshToken(activeOld.client_id, 'user-123')
+
+      // Run cleanup
+      const deletedCount = cleanupInactiveClients()
+
+      // Only inactiveOld should be deleted
+      expect(deletedCount).toBe(1)
+      expect(getClient(activeNew.client_id)).not.toBeNull()
+      expect(getClient(activeOld.client_id)).not.toBeNull()
+      expect(getClient(inactiveOld.client_id)).toBeNull()
     })
   })
 })

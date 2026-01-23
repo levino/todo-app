@@ -33,3 +33,30 @@ Tasks angelegt fuer:
 - Alle 75 Frontend Tests pass
 - Refresh Tokens haben 30 Tage TTL
 - Access Tokens bleiben bei 1 Stunde TTL
+
+## 2026-01-23 - Inactive Client Cleanup Implementiert
+
+**Task:** `cleanup-old-oauth-clients`
+**Status:** COMPLETED
+
+### TDD Red Phase
+- 6 neue Tests in `db.test.ts` fuer Client-Cleanup-Logik
+- Tests prueften:
+  - Clients aelter als 30 Tage ohne Refresh Tokens werden geloescht
+  - Clients mit gueltigen Refresh Tokens bleiben (auch wenn alt)
+  - Neue Clients bleiben
+  - Clients mit nur abgelaufenen/revoked Tokens werden geloescht
+  - Mix von aktiven und inaktiven Clients
+
+### TDD Green Phase
+- `cleanupInactiveClients()` implementiert:
+  - Findet Clients aelter als 30 Tage
+  - Prueft ob gueltige (nicht abgelaufen, nicht revoked) Refresh Tokens existieren
+  - Loescht nur Clients ohne aktive Tokens
+- `backdateClient()` als Test-Helper hinzugefuegt
+- Cleanup bei Server-Start in `initOAuth()` integriert
+
+### Ergebnis
+- Alle 87 MCP Tests pass (31 db + 28 oauth + 14 server + 14 jwt)
+- Alle 75 Frontend Tests pass
+- Server loggt Cleanup-Ergebnis bei Start
