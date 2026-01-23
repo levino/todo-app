@@ -1,89 +1,139 @@
 import PocketBase from 'pocketbase'
 import { describe, expect, it, beforeEach } from 'vitest'
-
-const POCKETBASE_URL =
-  process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { createTestUser, createTestGroup, createTestChild, type TestContext } from '../../tests/helpers'
 
 /**
  * Schedule Management Integration Tests
  *
- * These tests verify the new schedule-based architecture:
- * - Creating schedules that define recurring patterns
- * - Tasks are generated automatically from schedules  
- * - Proper separation between schedules and tasks
+ * NEW SCHEMA (timePeriod + daysOfWeek):
+ * - timePeriod: required, 'morning' | 'afternoon' | 'evening'
+ * - daysOfWeek: optional, ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
+ * - intervalDays: optional, every N days from last completion
+ * - Either daysOfWeek OR intervalDays (not both)
+ *
+ * IMPORTANT: Tests run as regular users, not superusers, to catch permission issues.
  */
 describe('Schedule Management', () => {
-  let pb: PocketBase
+  let ctx: TestContext
   let groupId: string
   let childId: string
 
   beforeEach(async () => {
-    pb = new PocketBase(POCKETBASE_URL)
-    await pb
-      .collection('_superusers')
-      .authWithPassword('admin@test.local', 'testtest123')
-
-    // Create test group and child
-    const group = await pb.collection('groups').create({ name: 'Test Family' })
-    groupId = group.id
-
-    const child = await pb.collection('children').create({
-      name: 'Max',
-      group: groupId,
-      color: '#4DABF7',
-    })
-    childId = child.id
+    ctx = await createTestUser()
+    groupId = await createTestGroup(ctx.adminPb, ctx.userId)
+    childId = await createTestChild(ctx.adminPb, groupId)
   })
 
-  describe('Schedule Schema', () => {
-    it('should allow creating a daily schedule', async () => {
-      const schedule = await pb.collection('schedules').create({
+  describe('Schedule Schema (Time Periods)', () => {
+    it('should allow creating a weekday morning schedule', async () => {
+      const schedule = await ctx.userPb.collection('schedules').create({
         title: 'Daily Homework',
         child: childId,
-        recurrence: 'daily',
+        timePeriod: 'morning',
+        daysOfWeek: ['mon', 'tue', 'wed', 'thu', 'fri'],
         active: true,
         priority: 1,
       })
 
       expect(schedule.title).toBe('Daily Homework')
       expect(schedule.child).toBe(childId)
-      expect(schedule.recurrence).toBe('daily')
+      expect(schedule.timePeriod).toBe('morning')
+      expect(schedule.daysOfWeek).toEqual(['mon', 'tue', 'wed', 'thu', 'fri'])
       expect(schedule.active).toBe(true)
       expect(schedule.priority).toBe(1)
     })
 
-    it('should allow creating a weekly schedule with specific days', async () => {
-      const schedule = await pb.collection('schedules').create({
-        title: 'Weekday Cleanup',
+    it('should allow creating a daily evening schedule', async () => {
+      const schedule = await ctx.userPb.collection('schedules').create({
+        title: 'Evening Cleanup',
         child: childId,
-        recurrence: 'weekly',
-        daysOfWeek: [1, 2, 3, 4, 5], // Mon-Fri
         timePeriod: 'evening',
+        daysOfWeek: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
         active: true,
       })
 
-      expect(schedule.title).toBe('Weekday Cleanup')
-      expect(schedule.recurrence).toBe('weekly')
-      expect(schedule.daysOfWeek).toEqual([1, 2, 3, 4, 5])
+      expect(schedule.title).toBe('Evening Cleanup')
       expect(schedule.timePeriod).toBe('evening')
+      expect(schedule.daysOfWeek).toHaveLength(7)
+      expect(schedule.active).toBe(true)
+    })
+
+    it('should allow creating interval-based schedule with time period', async () => {
+      const schedule = await ctx.userPb.collection('schedules').create({
+        title: 'Shower',
+        child: childId,
+        timePeriod: 'evening',
+        intervalDays: 2, // Every 2 days
+        active: true,
+      })
+
+      expect(schedule.title).toBe('Shower')
+      expect(schedule.timePeriod).toBe('evening')
+      expect(schedule.intervalDays).toBe(2)
+      expect(schedule.daysOfWeek).toBeFalsy() // Should be empty/null when using intervalDays
       expect(schedule.active).toBe(true)
     })
 
     it('should allow creating inactive schedules', async () => {
-      const schedule = await pb.collection('schedules').create({
+      const schedule = await ctx.userPb.collection('schedules').create({
         title: 'Paused Schedule',
         child: childId,
-        recurrence: 'daily',
+        timePeriod: 'afternoon',
+        daysOfWeek: ['sat', 'sun'],
         active: false,
       })
 
       expect(schedule.active).toBe(false)
+      expect(schedule.timePeriod).toBe('afternoon')
+    })
+
+    it('should allow weekend-only schedules', async () => {
+      const schedule = await ctx.userPb.collection('schedules').create({
+        title: 'Weekend Chores',
+        child: childId,
+        timePeriod: 'morning',
+        daysOfWeek: ['sat', 'sun'],
+        active: true,
+      })
+
+      expect(schedule.timePeriod).toBe('morning')
+      expect(schedule.daysOfWeek).toEqual(['sat', 'sun'])
+    })
+
+    it('should support all three time periods', async () => {
+      const morning = await ctx.userPb.collection('schedules').create({
+        title: 'Morning Task',
+        child: childId,
+        timePeriod: 'morning',
+        daysOfWeek: ['mon'],
+        active: true,
+      })
+
+      const afternoon = await ctx.userPb.collection('schedules').create({
+        title: 'Afternoon Task',
+        child: childId,
+        timePeriod: 'afternoon',
+        daysOfWeek: ['tue'],
+        active: true,
+      })
+
+      const evening = await ctx.userPb.collection('schedules').create({
+        title: 'Evening Task',
+        child: childId,
+        timePeriod: 'evening',
+        daysOfWeek: ['wed'],
+        active: true,
+      })
+
+      expect(morning.timePeriod).toBe('morning')
+      expect(afternoon.timePeriod).toBe('afternoon')
+      expect(evening.timePeriod).toBe('evening')
     })
   })
 
   describe('Task Schema Updates', () => {
     it('should allow creating one-time tasks without schedule reference', async () => {
-      const task = await pb.collection('kiosk_tasks').create({
+      const task = await ctx.userPb.collection('tasks').create({
         title: 'One-time cleanup',
         child: childId,
         completed: false,
@@ -98,15 +148,16 @@ describe('Schedule Management', () => {
 
     it('should allow creating tasks generated from schedules', async () => {
       // First create a schedule
-      const schedule = await pb.collection('schedules').create({
+      const schedule = await ctx.userPb.collection('schedules').create({
         title: 'Daily Homework',
         child: childId,
-        recurrence: 'daily',
+        timePeriod: 'afternoon',
+        daysOfWeek: ['mon', 'tue', 'wed', 'thu', 'fri'],
         active: true,
       })
 
       // Then create a task from that schedule
-      const task = await pb.collection('kiosk_tasks').create({
+      const task = await ctx.userPb.collection('tasks').create({
         title: 'Daily Homework',
         child: childId,
         completed: false,
@@ -123,15 +174,16 @@ describe('Schedule Management', () => {
   describe('Schedule Relationships', () => {
     it('should allow querying tasks with schedule expansion', async () => {
       // Create schedule
-      const schedule = await pb.collection('schedules').create({
+      const schedule = await ctx.userPb.collection('schedules').create({
         title: 'Daily Homework',
         child: childId,
-        recurrence: 'daily',
+        timePeriod: 'morning',
+        daysOfWeek: ['mon', 'tue', 'wed', 'thu', 'fri'],
         active: true,
       })
 
       // Create task from schedule
-      await pb.collection('kiosk_tasks').create({
+      await ctx.userPb.collection('tasks').create({
         title: 'Daily Homework',
         child: childId,
         completed: false,
@@ -140,7 +192,7 @@ describe('Schedule Management', () => {
       })
 
       // Query tasks with schedule expansion
-      const tasks = await pb.collection('kiosk_tasks').getList(1, 50, {
+      const tasks = await ctx.userPb.collection('tasks').getList(1, 50, {
         filter: `child = "${childId}"`,
         expand: 'schedule',
       })
@@ -155,16 +207,17 @@ describe('Schedule Management', () => {
 
   describe('Business Logic Requirements', () => {
     it('should support the homework example - only one task even if missed', async () => {
-      // Create daily homework schedule
-      const schedule = await pb.collection('schedules').create({
+      // Create daily homework schedule (weekday afternoons)
+      const schedule = await ctx.userPb.collection('schedules').create({
         title: 'Daily Homework',
         child: childId,
-        recurrence: 'daily',
+        timePeriod: 'afternoon',
+        daysOfWeek: ['mon', 'tue', 'wed', 'thu', 'fri'],
         active: true,
       })
 
       // Create task for Tuesday (simulating automatic generation)
-      const tuesdayTask = await pb.collection('kiosk_tasks').create({
+      const tuesdayTask = await ctx.userPb.collection('tasks').create({
         title: 'Daily Homework',
         child: childId,
         completed: false,
@@ -176,7 +229,7 @@ describe('Schedule Management', () => {
       expect(tuesdayTask.completed).toBe(false)
 
       // On Wednesday, check if there's an existing incomplete task
-      const incompleteTasks = await pb.collection('kiosk_tasks').getList(1, 50, {
+      const incompleteTasks = await ctx.userPb.collection('tasks').getList(1, 50, {
         filter: `child = "${childId}" && schedule = "${schedule.id}" && completed = false`,
       })
 
@@ -186,18 +239,19 @@ describe('Schedule Management', () => {
     })
 
     it('should support the shower example - track completion time for intervals', async () => {
-      // Create shower schedule
-      const schedule = await pb.collection('schedules').create({
+      // Create shower schedule with intervalDays + timePeriod
+      const schedule = await ctx.userPb.collection('schedules').create({
         title: 'Shower Every 2 Days',
         child: childId,
-        recurrence: 'daily', // Daily check, but logic determines when to create task
+        timePeriod: 'evening',
+        intervalDays: 2,
         active: true,
         lastGenerated: new Date('2024-01-01').toISOString(), // Last shower day
       })
 
       // Simulate 3 days passing without showering
       // Day 3: Complete the overdue shower task
-      const showerTask = await pb.collection('kiosk_tasks').create({
+      const showerTask = await ctx.userPb.collection('tasks').create({
         title: 'Shower Every 2 Days',
         child: childId,
         completed: true,
@@ -207,12 +261,12 @@ describe('Schedule Management', () => {
       })
 
       // Update schedule's last generated to track completion
-      await pb.collection('schedules').update(schedule.id, {
+      await ctx.userPb.collection('schedules').update(schedule.id, {
         lastGenerated: showerTask.completedAt,
       })
 
       // Next task should be generated for day 5 (2 days after completion)
-      const updatedSchedule = await pb.collection('schedules').getOne(schedule.id)
+      const updatedSchedule = await ctx.userPb.collection('schedules').getOne(schedule.id)
       expect(updatedSchedule.lastGenerated).toBe(showerTask.completedAt)
     })
   })

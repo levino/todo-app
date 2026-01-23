@@ -80,9 +80,9 @@ interface ScheduleRecord {
   title: string
   child: string
   priority: number | null
-  cron: string | null
+  timePeriod: 'morning' | 'afternoon' | 'evening'
+  daysOfWeek: string[] | null
   intervalDays: number | null
-  time: string | null
   active: boolean
   lastGenerated: string | null
   collectionId: string
@@ -440,9 +440,9 @@ function registerTools() {
         id: s.id,
         title: s.title,
         priority: s.priority,
-        cron: s.cron,
+        timePeriod: s.timePeriod,
+        daysOfWeek: s.daysOfWeek,
         intervalDays: s.intervalDays,
-        time: s.time,
         active: s.active,
         lastGenerated: s.lastGenerated,
       }))
@@ -452,61 +452,66 @@ function registerTools() {
   })
 
   tools.set('create_schedule', {
-    description: `Create a new task schedule. Use cron for fixed time patterns or intervalDays for "every N days from last completion" patterns.
+    description: `Create a new task schedule. Use daysOfWeek for specific days or intervalDays for "every N days from last completion" patterns.
 
-Cron format: "minute hour day-of-month month day-of-week"
+Time periods (required):
+- morning: Tasks appear in the morning (default: 06:00-12:00)
+- afternoon: Tasks appear in the afternoon (default: 12:00-18:00)
+- evening: Tasks appear in the evening (default: 18:00-00:00)
+
+Days of week format: Array of day abbreviations ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 Examples:
-- "0 8 * * 1-5" = weekdays at 8:00
-- "0 8 * * *" = daily at 8:00
-- "0 8 1,15 * *" = 1st and 15th of month at 8:00
+- ['mon', 'tue', 'wed', 'thu', 'fri'] = weekdays
+- ['sat', 'sun'] = weekends
+- ['mon', 'wed', 'fri'] = every other day
 
-For "every N days" patterns (e.g., shower every 2 days), use intervalDays + time.
+For "every N days" patterns (e.g., shower every 2 days), use intervalDays.
 The interval resets from the last completion.`,
     inputSchema: z.object({
       childId: z.string().describe('ID of the child'),
       title: z.string().describe('Schedule title'),
-      cron: z.string().optional().describe('Cron expression for fixed schedules (e.g., "0 8 * * 1-5" for weekdays at 8am)'),
+      timePeriod: z.enum(['morning', 'afternoon', 'evening']).describe('Time period when the task should appear'),
+      daysOfWeek: z.array(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])).optional().describe('Days of the week for this schedule'),
       intervalDays: z.number().optional().describe('For interval schedules: days between tasks, counting from last completion'),
-      time: z.string().optional().describe('Time of day for interval schedules (HH:MM format, e.g., "08:00" or "18:30")'),
       priority: z.number().optional().describe('Priority (lower number = higher priority)'),
     }),
     handler: async (args, pb) => {
-      const { childId, title, cron, intervalDays, time, priority } = args as {
+      const { childId, title, timePeriod, daysOfWeek, intervalDays, priority } = args as {
         childId: string
         title: string
-        cron?: string
+        timePeriod: 'morning' | 'afternoon' | 'evening'
+        daysOfWeek?: string[]
         intervalDays?: number
-        time?: string
         priority?: number
       }
 
-      if (!cron && !intervalDays) {
-        return { content: [{ type: 'text', text: 'Error: Either cron or intervalDays must be provided' }], isError: true }
+      if (!daysOfWeek && !intervalDays) {
+        return { content: [{ type: 'text', text: 'Error: Either daysOfWeek or intervalDays must be provided' }], isError: true }
       }
 
-      if (intervalDays && !time) {
-        return { content: [{ type: 'text', text: 'Error: time is required when using intervalDays (e.g., "08:00")' }], isError: true }
+      if (daysOfWeek && intervalDays) {
+        return { content: [{ type: 'text', text: 'Error: Cannot use both daysOfWeek and intervalDays - choose one' }], isError: true }
       }
 
       const scheduleData: Record<string, unknown> = {
         title,
         child: childId,
+        timePeriod,
         active: true,
         priority: priority ?? null,
       }
 
-      if (cron) scheduleData.cron = cron
+      if (daysOfWeek) scheduleData.daysOfWeek = daysOfWeek
       if (intervalDays) scheduleData.intervalDays = intervalDays
-      if (time) scheduleData.time = time
 
       const schedule = await pb.collection('schedules').create(scheduleData)
 
-      let message = `Created schedule "${title}" (ID: ${schedule.id})`
-      if (cron) {
-        message += `, cron: ${cron}`
+      let message = `Created schedule "${title}" (ID: ${schedule.id}), time period: ${timePeriod}`
+      if (daysOfWeek) {
+        message += `, days: ${daysOfWeek.join(', ')}`
       }
       if (intervalDays) {
-        message += `, every ${intervalDays} days at ${time}`
+        message += `, every ${intervalDays} days`
       }
 
       return { content: [{ type: 'text', text: message }] }
@@ -518,28 +523,28 @@ The interval resets from the last completion.`,
     inputSchema: z.object({
       scheduleId: z.string().describe('ID of the schedule'),
       title: z.string().optional().describe('New title'),
-      cron: z.string().optional().describe('New cron expression'),
+      timePeriod: z.enum(['morning', 'afternoon', 'evening']).optional().describe('New time period'),
+      daysOfWeek: z.array(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'])).optional().describe('New days of week'),
       intervalDays: z.number().optional().describe('New interval in days'),
-      time: z.string().optional().describe('New time for interval schedules (HH:MM)'),
       priority: z.number().optional().describe('New priority'),
       active: z.boolean().optional().describe('Whether the schedule is active'),
     }),
     handler: async (args, pb) => {
-      const { scheduleId, title, cron, intervalDays, time, priority, active } = args as {
+      const { scheduleId, title, timePeriod, daysOfWeek, intervalDays, priority, active } = args as {
         scheduleId: string
         title?: string
-        cron?: string
+        timePeriod?: 'morning' | 'afternoon' | 'evening'
+        daysOfWeek?: string[]
         intervalDays?: number
-        time?: string
         priority?: number
         active?: boolean
       }
 
       const updates: Record<string, unknown> = {}
       if (title) updates.title = title
-      if (cron !== undefined) updates.cron = cron
+      if (timePeriod !== undefined) updates.timePeriod = timePeriod
+      if (daysOfWeek !== undefined) updates.daysOfWeek = daysOfWeek
       if (intervalDays !== undefined) updates.intervalDays = intervalDays
-      if (time !== undefined) updates.time = time
       if (priority !== undefined) updates.priority = priority
       if (active !== undefined) updates.active = active
 

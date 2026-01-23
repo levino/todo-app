@@ -60,3 +60,30 @@ Tasks angelegt fuer:
 - Alle 87 MCP Tests pass (31 db + 28 oauth + 14 server + 14 jwt)
 - Alle 75 Frontend Tests pass
 - Server loggt Cleanup-Ergebnis bei Start
+
+## 2026-01-23 - Cron durch Tageszeiten ersetzt
+
+**Task:** `replace-cron-with-time-periods`
+**Status:** COMPLETED
+
+### Schema-Aenderungen
+- ENTFERNT: `cron` (Text-Feld fuer Cron-Expressions)
+- ENTFERNT: `time` (Text-Feld fuer HH:MM Zeit)
+- HINZUGEFUEGT: `timePeriod` (Select: morning, afternoon, evening) - REQUIRED
+- HINZUGEFUEGT: `daysOfWeek` (JSON Array: ['mon', 'tue', 'wed', ...])
+- BEHALTEN: `intervalDays` (Nummer fuer Intervall-Schedules)
+
+### Code-Aenderungen
+- Migration `1769197503_updated_schedules.js` erstellt via PocketBase SDK
+- `scheduleProcessor.ts`: Interface aktualisiert auf neue Felder
+- `server.ts` (MCP):
+  - ScheduleRecord Interface aktualisiert
+  - list_schedules Tool zeigt neue Felder
+  - create_schedule Tool nutzt timePeriod + daysOfWeek/intervalDays
+  - update_schedule Tool aktualisiert
+- Integration Tests aktualisiert (schedules.integration.test.ts, schedule-time-travel.integration.test.ts)
+
+### Ergebnis
+- Alle 87 MCP Tests pass
+- Alle 76 Frontend Tests pass
+- Schedules nutzen jetzt Tageszeiten statt praeziser Uhrzeiten

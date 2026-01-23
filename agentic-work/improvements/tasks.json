@@ -35,7 +35,8 @@
       "id": "replace-cron-with-time-periods",
       "title": "Cron durch Tageszeiten ersetzen",
       "description": "**Problem:** Cron ist zu praezise ('0 18 * * *' = genau 18:00). Wir wollen Tageszeiten wie 'morgens', 'nachmittags', 'abends'.\n\n**Schema-Aenderung:**\n- ENTFERNEN: `cron`, `time`\n- NEU: `timePeriod: 'morning' | 'afternoon' | 'evening'`\n- BEHALTEN: `intervalDays` (alle X Tage)\n- NEU: `daysOfWeek: string[]` (z.B. ['mon', 'tue', 'wed'])\n\n**Acceptance Criteria:**\n- Schedule MUSS entweder `daysOfWeek` ODER `intervalDays` haben (nicht beides)\n- `timePeriod` ist required\n- Migration erstellt die Schema-Aenderung\n- Bestehende Tests werden angepasst",
-      "status": "pending",
+      "status": "completed",
+      "completedAt": "2026-01-23T22:00:00Z",
       "createdAt": "2026-01-23T20:00:00Z",
       "notes": []
     },
