@@ -100,9 +100,15 @@
       "id": "task-list-filter-by-visible-from",
       "title": "Aufgabenliste zeigt nur sichtbare Tasks",
       "description": "**Aenderung:**\n- Query filtert auf `visibleFrom <= now()`\n- Tasks die noch nicht sichtbar sind, werden nicht angezeigt\n\n**Acceptance Criteria:**\n- WHEN Task.visibleFrom in der Zukunft liegt THEN Task nicht in Aufgabenliste sichtbar\n- WHEN Task.visibleFrom in der Vergangenheit liegt THEN Task in Aufgabenliste sichtbar\n- WHEN Task.visibleFrom = null THEN Task sofort sichtbar (Fallback)",
-      "status": "pending",
+      "status": "completed",
       "createdAt": "2026-01-23T20:00:00Z",
-      "notes": []
+      "completedAt": "2026-01-23T20:35:00Z",
+      "notes": [
+        "DONE: [childId].astro filtert Tasks nach visibleFrom",
+        "DONE: Akzeptiert injiziertes 'now' Datum fuer Tests",
+        "DONE: JS-basiertes Filtering (PocketBase datetime comparison unzuverlaessig)",
+        "DONE: 5 Integration Tests, alle 115 Tests pass"
+      ]
     },
     {
       "id": "integration-tests-time-periods",

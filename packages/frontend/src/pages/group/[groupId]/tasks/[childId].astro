@@ -34,7 +34,7 @@ function sortByPriority(tasks: Task[]): Task[] {
 }
 
 const { groupId, childId } = Astro.params
-const { pb, user } = Astro.locals
+const { pb, user, now: injectedNow } = Astro.locals as { pb: any; user: any; now?: Date }
 
 if (!user || !groupId || !childId) {
   return Astro.redirect('/login')
@@ -66,14 +66,24 @@ try {
     console.error('Siblings fetch error:', siblingsError)
   }
 
-  // Fetch incomplete tasks for this child
+  // Fetch incomplete tasks for this child that are currently visible
+  // Tasks with visibleFrom in the future are not shown yet
   try {
+    const now = (injectedNow || new Date()).toISOString()
+    // Fetch all incomplete tasks first, then filter by visibleFrom
+    // PocketBase date comparison can be tricky, so we filter in JS for reliability
     const result = await pb.collection('tasks').getList<Task>(1, 100, {
       filter: `child = "${childId}" && completed = false`,
     })
 
+    // Filter tasks that are currently visible (visibleFrom is empty or <= now)
+    const visibleTasks = result.items.filter((task: Task & { visibleFrom?: string }) => {
+      if (!task.visibleFrom) return true // No visibleFrom means immediately visible
+      return new Date(task.visibleFrom) <= new Date(now)
+    })
+
     // Sort tasks by priority
-    tasks = sortByPriority(result.items)
+    tasks = sortByPriority(visibleTasks)
 
     // Tasks are now simply fetched and sorted by priority
   } catch (tasksError) {

@@ -207,3 +207,27 @@ Tasks angelegt fuer:
 - Alle 87 MCP Tests pass
 - Alle 110 Frontend Tests pass
 - Schedules erstellen Tasks nur an gueltigen Tagen/Intervallen
+
+## 2026-01-23 - Aufgabenliste filtert nach visibleFrom
+
+**Task:** `task-list-filter-by-visible-from`
+**Status:** COMPLETED
+
+### TDD Red Phase
+- 5 Integration Tests in `task-visible-from-filter.integration.test.ts`:
+  - Task mit visibleFrom in der Vergangenheit wird angezeigt
+  - Task mit visibleFrom in der Zukunft wird NICHT angezeigt
+  - Task mit visibleFrom = jetzt wird angezeigt
+  - Task ohne visibleFrom (null) wird angezeigt
+  - Mix von sichtbaren und versteckten Tasks
+
+### TDD Green Phase
+- `[childId].astro`:
+  - Akzeptiert optionales `now` Datum via `Astro.locals` fuer testbare Zeitlogik
+  - Filtert Tasks nach visibleFrom in JavaScript (PocketBase datetime comparison ist unzuverlaessig)
+  - Tasks mit `visibleFrom <= now` oder `visibleFrom = null` sind sichtbar
+
+### Ergebnis
+- Alle 87 MCP Tests pass
+- Alle 115 Frontend Tests pass
+- Aufgabenliste zeigt nur Tasks deren Tageszeit begonnen hat
