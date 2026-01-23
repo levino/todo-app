@@ -36,6 +36,76 @@ interface User {
   eveningStart?: string
 }
 
+interface Task {
+  id: string
+  schedule: string
+  completed: boolean
+  completedAt?: string
+}
+
+/**
+ * Map day names to JavaScript Date.getDay() values (0=Sunday, 1=Monday, etc.)
+ */
+const DAY_NAME_TO_NUMBER: Record<string, number> = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+}
+
+/**
+ * Check if today matches the daysOfWeek array.
+ * Returns true if daysOfWeek is null/empty (no day restriction).
+ */
+function isTodayInDaysOfWeek(daysOfWeek: string[] | null, now: Date): boolean {
+  if (!daysOfWeek || daysOfWeek.length === 0) {
+    return true // No restriction
+  }
+
+  const todayNumber = now.getDay()
+  return daysOfWeek.some((day) => DAY_NAME_TO_NUMBER[day.toLowerCase()] === todayNumber)
+}
+
+/**
+ * Check if enough days have passed since the last completed task.
+ * Returns true if intervalDays is null (no interval restriction).
+ */
+async function hasIntervalPassed(
+  pb: PocketBase,
+  scheduleId: string,
+  intervalDays: number | null,
+  now: Date
+): Promise<boolean> {
+  if (intervalDays === null) {
+    return true // No interval restriction
+  }
+
+  // Find the most recently completed task for this schedule
+  const completedTasks = await pb.collection('tasks').getList<Task>(1, 1, {
+    filter: `schedule = "${scheduleId}" && completed = true`,
+    sort: '-completedAt',
+  })
+
+  if (completedTasks.items.length === 0) {
+    return true // No previous completed task, so we can create one
+  }
+
+  const lastCompletedAt = new Date(completedTasks.items[0].completedAt || '')
+  if (Number.isNaN(lastCompletedAt.getTime())) {
+    return true // Invalid date, assume we can create
+  }
+
+  // Calculate days passed since last completion
+  const daysPassed = Math.floor(
+    (now.getTime() - lastCompletedAt.getTime()) / (1000 * 60 * 60 * 24)
+  )
+
+  return daysPassed >= intervalDays
+}
+
 /**
  * Get time period settings for a schedule by looking up the user who owns the child's group.
  */
@@ -73,13 +143,17 @@ async function getSettingsForSchedule(
 /**
  * Process all active schedules and generate tasks as needed.
  *
- * For now, this simply creates a task if there's no incomplete one.
- * TODO: Implement day-of-week and interval checking logic.
+ * Checks:
+ * 1. No incomplete task already exists for this schedule
+ * 2. Today matches daysOfWeek (if specified)
+ * 3. Interval has passed since last completion (if intervalDays specified)
  */
 export async function processSchedules(pb: PocketBase): Promise<void> {
   const schedules = await pb.collection('schedules').getFullList<Schedule>({
     filter: 'active = true',
   })
+
+  const now = new Date()
 
   for (const schedule of schedules) {
     // Check if there's already an incomplete task for this schedule
@@ -92,11 +166,20 @@ export async function processSchedules(pb: PocketBase): Promise<void> {
       continue
     }
 
+    // Check if today matches daysOfWeek
+    if (!isTodayInDaysOfWeek(schedule.daysOfWeek, now)) {
+      continue
+    }
+
+    // Check if enough days have passed since last completion
+    if (!(await hasIntervalPassed(pb, schedule.id, schedule.intervalDays, now))) {
+      continue
+    }
+
     // Get user's time period settings
     const settings = await getSettingsForSchedule(pb, schedule.child)
 
     // Calculate when this task should become visible
-    const now = new Date()
     const visibleFrom = calculateVisibleFrom(now, schedule.timePeriod, settings)
 
     await pb.collection('tasks').create({
@@ -105,7 +188,7 @@ export async function processSchedules(pb: PocketBase): Promise<void> {
       priority: schedule.priority,
       completed: false,
       schedule: schedule.id,
-      generatedAt: new Date().toISOString(),
+      generatedAt: now.toISOString(),
       visibleFrom: visibleFrom.toISOString(),
     })
   }

@@ -179,3 +179,31 @@ Tasks angelegt fuer:
 - Alle 87 MCP Tests pass
 - Alle 107 Frontend Tests pass
 - Tasks werden mit korrektem visibleFrom erstellt
+
+## 2026-01-23 - Schedule Processor mit Day-Filtering
+
+**Task:** `schedule-processor-time-periods`
+**Status:** COMPLETED
+
+### TDD Red Phase
+- 8 Integration Tests in `schedule-day-filtering.integration.test.ts`:
+  - daysOfWeek: Task erstellen wenn heute passt
+  - daysOfWeek: KEINE Task wenn heute nicht passt
+  - daysOfWeek: Mehrere Tage, Wochenenden
+  - intervalDays: Task erstellen wenn keine vorherige existiert
+  - intervalDays: KEINE Task wenn Interval nicht vergangen
+  - intervalDays: Task erstellen wenn Interval vergangen
+  - intervalDays: Task erstellen wenn mehr als Interval vergangen
+  - Ohne Filter: Task immer erstellen
+
+### TDD Green Phase
+- `scheduleProcessor.ts`:
+  - `DAY_NAME_TO_NUMBER` - Mapping 'mon'->1, 'tue'->2, etc.
+  - `isTodayInDaysOfWeek()` - prueft ob heute in daysOfWeek Array
+  - `hasIntervalPassed()` - prueft ob genug Tage seit letzter completedAt
+  - `processSchedules()` - nutzt beide Checks vor Task-Erstellung
+
+### Ergebnis
+- Alle 87 MCP Tests pass
+- Alle 110 Frontend Tests pass
+- Schedules erstellen Tasks nur an gueltigen Tagen/Intervallen

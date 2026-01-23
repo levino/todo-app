@@ -74,9 +74,15 @@
       "id": "schedule-processor-time-periods",
       "title": "Schedule Processor fuer Tageszeiten anpassen",
       "description": "**Aenderungen am Processor:**\n- Pruefen ob heute ein gueltiger Tag ist (daysOfWeek oder intervalDays)\n- `visibleFrom` berechnen basierend auf User-Einstellungen\n- Task nur erstellen wenn noch keine unerledigte existiert\n\n**Acceptance Criteria:**\n- WHEN daysOfWeek = ['mon', 'wed', 'fri'] UND heute ist Dienstag THEN keine Task erstellen\n- WHEN intervalDays = 2 UND letzte Task vor 1 Tag erledigt THEN keine neue Task\n- WHEN intervalDays = 2 UND letzte Task vor 2+ Tagen erledigt THEN neue Task erstellen\n- visibleFrom wird korrekt basierend auf User-Zeiten berechnet",
-      "status": "pending",
+      "status": "completed",
       "createdAt": "2026-01-23T20:00:00Z",
-      "notes": []
+      "completedAt": "2026-01-23T20:23:00Z",
+      "notes": [
+        "DONE: isTodayInDaysOfWeek() - prueft ob heute in daysOfWeek enthalten",
+        "DONE: hasIntervalPassed() - prueft ob genug Tage seit letzter Completion vergangen",
+        "DONE: DAY_NAME_TO_NUMBER Mapping fuer Wochentage",
+        "DONE: 8 Integration Tests fuer Day-Filtering, alle 110 Tests pass"
+      ]
     },
     {
       "id": "mcp-tools-time-periods",
