@@ -1,0 +1,106 @@
+{
+  "$schema": "../tasks.schema.json",
+  "version": 1,
+  "tasks": [
+    {
+      "id": "implement-refresh-tokens",
+      "title": "OAuth Refresh Tokens implementieren",
+      "description": "**Problem:** Access Tokens laufen nach 1 Stunde ab. User muss dann komplett neu autorisieren (neuer OAuth-Flow, neuer Client). Das nervt.\n\n**Loesung:** Refresh Tokens implementieren, damit Claude automatisch neue Access Tokens holen kann ohne User-Interaktion.\n\n**Acceptance Criteria:**\n- WHEN token endpoint returns access token THEN it SHALL also return a refresh_token\n- WHEN access token expires THEN client SHALL be able to use refresh_token to get new access token\n- WHEN refresh token is used THEN a new refresh token SHALL be issued (rotation)\n- WHEN refresh token is used THEN old refresh token SHALL be invalidated\n- Refresh tokens SHALL expire after 30 days\n- Access tokens SHALL remain at 1 hour TTL\n\n**Implementation Notes:**\n- Add `oauth_refresh_tokens` table to SQLite DB\n- Add `grant_type=refresh_token` support to token endpoint\n- Store: token_hash, client_id, user_id, expires_at, revoked_at\n- Consider: token families for rotation detection",
+      "status": "completed",
+      "createdAt": "2026-01-23T19:30:00Z",
+      "completedAt": "2026-01-23T21:00:00Z",
+      "notes": [
+        "Aktuell: 12 Claude-Clients registriert weil User staendig neu autorisieren muss",
+        "Alternative (quick fix): TTL erhoehen auf 7 Tage - aber nicht sauber",
+        "DONE: oauth_refresh_tokens table, saveRefreshToken, consumeRefreshToken, cleanupExpiredRefreshTokens",
+        "DONE: token endpoint supports grant_type=refresh_token with rotation",
+        "DONE: 14 neue Tests (8 DB + 6 Integration), alle 81 MCP Tests pass"
+      ]
+    },
+    {
+      "id": "cleanup-old-oauth-clients",
+      "title": "Alte OAuth-Clients aufräumen",
+      "description": "**Problem:** Jede Neu-Autorisierung erstellt einen neuen Client. Aktuell 12 Claude-Clients in der DB.\n\n**Loesung:** Alte/ungenutzte Clients automatisch loeschen.\n\n**Acceptance Criteria:**\n- Clients ohne Aktivitaet in den letzten 30 Tagen SOLLEN geloescht werden\n- Cleanup SOLL regelmaessig laufen (z.B. bei Server-Start)\n- Aktive Clients (mit gueltigen Refresh Tokens) SOLLEN nicht geloescht werden",
+      "status": "pending",
+      "createdAt": "2026-01-23T19:30:00Z",
+      "notes": []
+    },
+    {
+      "id": "replace-cron-with-time-periods",
+      "title": "Cron durch Tageszeiten ersetzen",
+      "description": "**Problem:** Cron ist zu praezise ('0 18 * * *' = genau 18:00). Wir wollen Tageszeiten wie 'morgens', 'nachmittags', 'abends'.\n\n**Schema-Aenderung:**\n- ENTFERNEN: `cron`, `time`\n- NEU: `timePeriod: 'morning' | 'afternoon' | 'evening'`\n- BEHALTEN: `intervalDays` (alle X Tage)\n- NEU: `daysOfWeek: string[]` (z.B. ['mon', 'tue', 'wed'])\n\n**Acceptance Criteria:**\n- Schedule MUSS entweder `daysOfWeek` ODER `intervalDays` haben (nicht beides)\n- `timePeriod` ist required\n- Migration erstellt die Schema-Aenderung\n- Bestehende Tests werden angepasst",
+      "status": "pending",
+      "createdAt": "2026-01-23T20:00:00Z",
+      "notes": []
+    },
+    {
+      "id": "user-configurable-time-periods",
+      "title": "Tageszeiten pro User konfigurierbar",
+      "description": "**User Story:** Als Elternteil will ich einstellen koennen, wann fuer meine Familie 'morgens', 'nachmittags' und 'abends' ist.\n\n**Defaults:**\n- Morgens: 06:00 - 12:00\n- Nachmittags: 12:00 - 18:00\n- Abends: 18:00 - 00:00 (Mitternacht)\n\n**Acceptance Criteria:**\n- WHEN User keine Einstellungen hat THEN gelten die Defaults\n- WHEN User Zeiten aendert THEN werden diese fuer alle Schedules des Users verwendet\n- Zeiten werden in `users` Collection gespeichert (oder separate `user_settings`)\n- Abends geht bis Mitternacht, dann beginnt Morgens\n- Keine Luecken zwischen den Perioden",
+      "status": "pending",
+      "createdAt": "2026-01-23T20:00:00Z",
+      "notes": [
+        "Felder z.B.: morningStart, afternoonStart, eveningStart (nur Start-Zeiten noetig)"
+      ]
+    },
+    {
+      "id": "task-visibility-by-time-period",
+      "title": "Tasks werden zur richtigen Tageszeit sichtbar",
+      "description": "**Kern-Logik:**\n- Task fuer 'Abend' erstellt um 14:00 -> wird um 18:00 sichtbar (wenn Abend beginnt)\n- Task fuer 'Abend' erstellt um 19:00 -> sofort sichtbar (ist schon Abend)\n- Keine Tasks sichtbar = alle erledigt (NICHT weil keine Tageszeit)\n\n**Acceptance Criteria:**\n- WHEN Schedule erstellt wird UND aktuelle Zeit ist VOR der Tageszeit THEN Task wird erstellt aber nicht angezeigt bis Tageszeit beginnt\n- WHEN Schedule erstellt wird UND aktuelle Zeit ist IN der Tageszeit THEN Task ist sofort sichtbar\n- WHEN alle Tasks einer Tageszeit erledigt sind THEN zeigt die Liste 'Alles erledigt'\n- Task hat Feld `visibleFrom: datetime` das vom Processor gesetzt wird",
+      "status": "pending",
+      "createdAt": "2026-01-23T20:00:00Z",
+      "notes": []
+    },
+    {
+      "id": "schedule-processor-time-periods",
+      "title": "Schedule Processor fuer Tageszeiten anpassen",
+      "description": "**Aenderungen am Processor:**\n- Pruefen ob heute ein gueltiger Tag ist (daysOfWeek oder intervalDays)\n- `visibleFrom` berechnen basierend auf User-Einstellungen\n- Task nur erstellen wenn noch keine unerledigte existiert\n\n**Acceptance Criteria:**\n- WHEN daysOfWeek = ['mon', 'wed', 'fri'] UND heute ist Dienstag THEN keine Task erstellen\n- WHEN intervalDays = 2 UND letzte Task vor 1 Tag erledigt THEN keine neue Task\n- WHEN intervalDays = 2 UND letzte Task vor 2+ Tagen erledigt THEN neue Task erstellen\n- visibleFrom wird korrekt basierend auf User-Zeiten berechnet",
+      "status": "pending",
+      "createdAt": "2026-01-23T20:00:00Z",
+      "notes": []
+    },
+    {
+      "id": "mcp-tools-time-periods",
+      "title": "MCP Tools fuer neue Schedule-Struktur anpassen",
+      "description": "**Aenderungen:**\n- `create_schedule` Tool: cron/time entfernen, timePeriod/daysOfWeek hinzufuegen\n- `list_schedules` Tool: neue Felder zurueckgeben\n- Tool-Beschreibungen aktualisieren fuer Claude\n\n**Acceptance Criteria:**\n- Claude kann Schedules mit timePeriod und daysOfWeek erstellen\n- Claude kann Schedules mit timePeriod und intervalDays erstellen\n- Validierung: entweder daysOfWeek ODER intervalDays, nicht beides\n- Validierung: timePeriod ist required",
+      "status": "pending",
+      "createdAt": "2026-01-23T20:00:00Z",
+      "notes": []
+    },
+    {
+      "id": "task-list-filter-by-visible-from",
+      "title": "Aufgabenliste zeigt nur sichtbare Tasks",
+      "description": "**Aenderung:**\n- Query filtert auf `visibleFrom <= now()`\n- Tasks die noch nicht sichtbar sind, werden nicht angezeigt\n\n**Acceptance Criteria:**\n- WHEN Task.visibleFrom in der Zukunft liegt THEN Task nicht in Aufgabenliste sichtbar\n- WHEN Task.visibleFrom in der Vergangenheit liegt THEN Task in Aufgabenliste sichtbar\n- WHEN Task.visibleFrom = null THEN Task sofort sichtbar (Fallback)",
+      "status": "pending",
+      "createdAt": "2026-01-23T20:00:00Z",
+      "notes": []
+    },
+    {
+      "id": "integration-tests-time-periods",
+      "title": "Integration Tests fuer Tageszeiten-Logik",
+      "description": "**Test-Szenarien:**\n\n1. Schedule mit daysOfWeek erstellen\n2. Schedule mit intervalDays erstellen\n3. Task-Sichtbarkeit basierend auf Tageszeit\n4. User-spezifische Zeiteinstellungen\n5. Processor erstellt Tasks nur an gueltigen Tagen\n6. Processor berechnet visibleFrom korrekt\n7. Aufgabenliste filtert nach visibleFrom\n\n**Acceptance Criteria:**\n- Alle Tests laufen als normaler User (nicht Superuser)\n- Tests nutzen vi.setSystemTime() fuer Zeitreisen\n- Tests decken Edge Cases ab (Mitternacht, Tageswechsel)",
+      "status": "pending",
+      "createdAt": "2026-01-23T20:00:00Z",
+      "notes": []
+    },
+    {
+      "id": "task-completion-animation",
+      "title": "Animation beim Abhaken von Tasks",
+      "description": "**User Story:** Als Kind will ich eine befriedigende Animation sehen wenn ich eine Aufgabe abhake, damit es sich gut anfuehlt.\n\n**Gewuenschtes Verhalten:**\n- Task slidet zur Seite weg wenn abgehakt\n- Restliche Tasks ruecken sanft nach\n\n**Technischer Ansatz:**\n- Astro View Transitions API nutzen\n- Oder: CSS transitions mit JavaScript trigger\n\n**Acceptance Criteria:**\n- WHEN Task abgehakt wird THEN slidet er nach rechts/links weg\n- Animation dauert ca. 300-500ms\n- Graceful degradation wenn Browser keine Animations unterstuetzt",
+      "status": "pending",
+      "createdAt": "2026-01-23T20:20:00Z",
+      "notes": []
+    },
+    {
+      "id": "purge-kiosk-terminology",
+      "title": "Kiosk-Begriff aus der App entfernen",
+      "description": "**Problem:** Der Begriff 'Kiosk' stellt die App falsch dar. Es ist einfach eine Aufgabenliste zum Abarbeiten.\n\n**Aenderungen:**\n- Testdateien umbenennen (kiosk.integration.test.ts)\n- Dokumentation aktualisieren\n- agentic-work/kiosk-mode Ordner aufräumen oder umbenennen\n- Kommentare und Variablennamen anpassen\n\n**Hinweis:** Migrations koennen nicht geaendert werden, aber Collection-Namen koennen per neuer Migration umbenannt werden falls noetig.",
+      "status": "pending",
+      "createdAt": "2026-01-23T20:15:00Z",
+      "notes": [
+        "24 Dateien betroffen",
+        "Migrations nicht editierbar - neue Migration fuer Umbenennung erstellen"
+      ]
+    }
+  ]
+}

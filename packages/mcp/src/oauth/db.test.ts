@@ -14,6 +14,9 @@ import {
   saveAuthCode,
   consumeAuthCode,
   cleanupExpiredCodes,
+  saveRefreshToken,
+  consumeRefreshToken,
+  cleanupExpiredRefreshTokens,
 } from './db.js'
 
 const TEST_DB_PATH = './test-data/oauth-test.db'
@@ -221,6 +224,92 @@ describe('OAuth Database', () => {
       // Code should no longer be valid (foreign key constraint or cascade delete)
       const authCode = consumeAuthCode(code)
       expect(authCode).toBeNull()
+    })
+  })
+
+  describe('Refresh Tokens', () => {
+    let clientId: string
+
+    beforeEach(() => {
+      const client = createClient('Test App', ['https://example.com/callback'])
+      clientId = client.client_id
+    })
+
+    it('should save a refresh token and return the token string', () => {
+      const token = saveRefreshToken(clientId, 'user-123')
+
+      expect(token).toBeDefined()
+      expect(token.length).toBeGreaterThan(20)
+    })
+
+    it('should consume a refresh token and return token data', () => {
+      const token = saveRefreshToken(clientId, 'user-123')
+
+      const refreshToken = consumeRefreshToken(token)
+
+      expect(refreshToken).not.toBeNull()
+      expect(refreshToken!.client_id).toBe(clientId)
+      expect(refreshToken!.user_id).toBe('user-123')
+      expect(refreshToken!.revoked_at).toBeNull()
+    })
+
+    it('should not allow reusing a consumed refresh token (rotation)', () => {
+      const token = saveRefreshToken(clientId, 'user-123')
+
+      // First consume should succeed
+      const first = consumeRefreshToken(token)
+      expect(first).not.toBeNull()
+
+      // Second consume should fail (token was revoked after use)
+      const second = consumeRefreshToken(token)
+      expect(second).toBeNull()
+    })
+
+    it('should not return expired refresh tokens', async () => {
+      // Create token that expires in 1 second
+      const token = saveRefreshToken(clientId, 'user-123', 1)
+
+      // Wait for expiration
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      const refreshToken = consumeRefreshToken(token)
+      expect(refreshToken).toBeNull()
+    })
+
+    it('should return null for non-existent refresh token', () => {
+      const refreshToken = consumeRefreshToken('non-existent-token')
+      expect(refreshToken).toBeNull()
+    })
+
+    it('should cleanup expired refresh tokens', async () => {
+      // Create expired token
+      saveRefreshToken(clientId, 'user-123', 1)
+
+      // Wait for expiration
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+
+      const cleaned = cleanupExpiredRefreshTokens()
+      expect(cleaned).toBe(1)
+    })
+
+    it('should delete refresh tokens when client is deleted', () => {
+      const token = saveRefreshToken(clientId, 'user-123')
+
+      deleteClient(clientId)
+
+      const refreshToken = consumeRefreshToken(token)
+      expect(refreshToken).toBeNull()
+    })
+
+    it('should have 30 day default expiry', () => {
+      const token = saveRefreshToken(clientId, 'user-123')
+
+      const refreshToken = consumeRefreshToken(token)
+
+      // Check expiry is roughly 30 days from now (within 1 minute tolerance)
+      const expectedExpiry = Math.floor(Date.now() / 1000) + 30 * 24 * 3600
+      expect(refreshToken!.expires_at).toBeGreaterThan(expectedExpiry - 60)
+      expect(refreshToken!.expires_at).toBeLessThan(expectedExpiry + 60)
     })
   })
 })

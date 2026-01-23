@@ -373,6 +373,202 @@ describe('OAuth 2.0 Integration', () => {
       expect(secondRes.status).toBe(400)
       expect(secondRes.body.error).toBe('invalid_grant')
     })
+
+    it('should return refresh_token alongside access_token', async () => {
+      const codeVerifier = 'test-code-verifier-that-is-at-least-43-characters-long'
+      const codeChallenge = await generateCodeChallenge(codeVerifier)
+
+      // Generate auth code
+      const authRes = await request(app)
+        .post('/oauth/authorize')
+        .send({
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          code_challenge: codeChallenge,
+          user_id: testUserId,
+        })
+
+      const code = authRes.body.code
+
+      // Exchange for token
+      const tokenRes = await request(app)
+        .post('/oauth/token')
+        .send({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: redirectUri,
+          code_verifier: codeVerifier,
+          client_id: clientId,
+          client_secret: clientSecret,
+        })
+
+      expect(tokenRes.status).toBe(200)
+      expect(tokenRes.body.access_token).toBeDefined()
+      expect(tokenRes.body.refresh_token).toBeDefined()
+      expect(tokenRes.body.token_type).toBe('Bearer')
+      expect(tokenRes.body.expires_in).toBe(3600)
+    })
+
+    it('should exchange refresh_token for new tokens', async () => {
+      const codeVerifier = 'test-code-verifier-that-is-at-least-43-characters-long'
+      const codeChallenge = await generateCodeChallenge(codeVerifier)
+
+      // Get initial tokens
+      const authRes = await request(app)
+        .post('/oauth/authorize')
+        .send({
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          code_challenge: codeChallenge,
+          user_id: testUserId,
+        })
+
+      const tokenRes = await request(app)
+        .post('/oauth/token')
+        .send({
+          grant_type: 'authorization_code',
+          code: authRes.body.code,
+          redirect_uri: redirectUri,
+          code_verifier: codeVerifier,
+          client_id: clientId,
+          client_secret: clientSecret,
+        })
+
+      const refreshToken = tokenRes.body.refresh_token
+
+      // Exchange refresh token for new tokens
+      const refreshRes = await request(app)
+        .post('/oauth/token')
+        .send({
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+          client_id: clientId,
+          client_secret: clientSecret,
+        })
+
+      expect(refreshRes.status).toBe(200)
+      expect(refreshRes.body.access_token).toBeDefined()
+      expect(refreshRes.body.refresh_token).toBeDefined()
+      expect(refreshRes.body.token_type).toBe('Bearer')
+      // New refresh token should be different (rotation)
+      expect(refreshRes.body.refresh_token).not.toBe(refreshToken)
+    })
+
+    it('should invalidate old refresh_token after use (rotation)', async () => {
+      const codeVerifier = 'test-code-verifier-that-is-at-least-43-characters-long'
+      const codeChallenge = await generateCodeChallenge(codeVerifier)
+
+      // Get initial tokens
+      const authRes = await request(app)
+        .post('/oauth/authorize')
+        .send({
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          code_challenge: codeChallenge,
+          user_id: testUserId,
+        })
+
+      const tokenRes = await request(app)
+        .post('/oauth/token')
+        .send({
+          grant_type: 'authorization_code',
+          code: authRes.body.code,
+          redirect_uri: redirectUri,
+          code_verifier: codeVerifier,
+          client_id: clientId,
+          client_secret: clientSecret,
+        })
+
+      const oldRefreshToken = tokenRes.body.refresh_token
+
+      // First refresh should succeed
+      const firstRefreshRes = await request(app)
+        .post('/oauth/token')
+        .send({
+          grant_type: 'refresh_token',
+          refresh_token: oldRefreshToken,
+          client_id: clientId,
+          client_secret: clientSecret,
+        })
+
+      expect(firstRefreshRes.status).toBe(200)
+
+      // Second refresh with old token should fail
+      const secondRefreshRes = await request(app)
+        .post('/oauth/token')
+        .send({
+          grant_type: 'refresh_token',
+          refresh_token: oldRefreshToken,
+          client_id: clientId,
+          client_secret: clientSecret,
+        })
+
+      expect(secondRefreshRes.status).toBe(400)
+      expect(secondRefreshRes.body.error).toBe('invalid_grant')
+    })
+
+    it('should reject invalid refresh_token', async () => {
+      const refreshRes = await request(app)
+        .post('/oauth/token')
+        .send({
+          grant_type: 'refresh_token',
+          refresh_token: 'invalid-refresh-token',
+          client_id: clientId,
+          client_secret: clientSecret,
+        })
+
+      expect(refreshRes.status).toBe(400)
+      expect(refreshRes.body.error).toBe('invalid_grant')
+    })
+
+    it('should reject refresh_token from different client', async () => {
+      const codeVerifier = 'test-code-verifier-that-is-at-least-43-characters-long'
+      const codeChallenge = await generateCodeChallenge(codeVerifier)
+
+      // Get tokens for first client
+      const authRes = await request(app)
+        .post('/oauth/authorize')
+        .send({
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          code_challenge: codeChallenge,
+          user_id: testUserId,
+        })
+
+      const tokenRes = await request(app)
+        .post('/oauth/token')
+        .send({
+          grant_type: 'authorization_code',
+          code: authRes.body.code,
+          redirect_uri: redirectUri,
+          code_verifier: codeVerifier,
+          client_id: clientId,
+          client_secret: clientSecret,
+        })
+
+      const refreshToken = tokenRes.body.refresh_token
+
+      // Register a second client
+      const client2Res = await request(app)
+        .post('/oauth/register')
+        .send({
+          client_name: 'Other Client',
+          redirect_uris: ['https://other.com/callback'],
+        })
+
+      // Try to use refresh token with different client
+      const refreshRes = await request(app)
+        .post('/oauth/token')
+        .send({
+          grant_type: 'refresh_token',
+          refresh_token: refreshToken,
+          client_id: client2Res.body.client_id,
+          client_secret: client2Res.body.client_secret,
+        })
+
+      expect(refreshRes.status).toBe(400)
+      expect(refreshRes.body.error).toBe('invalid_grant')
+    })
   })
 
   describe('JWT Authentication for MCP', () => {

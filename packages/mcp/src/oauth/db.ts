@@ -54,6 +54,24 @@ interface AuthorizationCodeRow {
   created_at: number
 }
 
+export interface RefreshToken {
+  token_hash: string
+  client_id: string
+  user_id: string
+  expires_at: number
+  revoked_at: number | null
+  created_at: number
+}
+
+interface RefreshTokenRow {
+  token_hash: string
+  client_id: string
+  user_id: string
+  expires_at: number
+  revoked_at: number | null
+  created_at: number
+}
+
 /**
  * Initialize the OAuth database with required tables.
  * Creates the database file if it doesn't exist.
@@ -104,6 +122,25 @@ export function initOAuthDb(dbPath: string = './data/oauth.db'): Database.Databa
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_auth_codes_expires
     ON oauth_authorization_codes(expires_at)
+  `)
+
+  // Create oauth_refresh_tokens table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS oauth_refresh_tokens (
+      token_hash TEXT PRIMARY KEY,
+      client_id TEXT NOT NULL,
+      user_id TEXT NOT NULL,
+      expires_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (client_id) REFERENCES oauth_clients(client_id)
+    )
+  `)
+
+  // Index for cleanup of expired/revoked refresh tokens
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_refresh_tokens_expires
+    ON oauth_refresh_tokens(expires_at)
   `)
 
   return db
@@ -217,13 +254,16 @@ export function validateClient(clientId: string, clientSecret: string): OAuthCli
 }
 
 /**
- * Delete a client and all associated authorization codes.
+ * Delete a client and all associated authorization codes and refresh tokens.
  */
 export function deleteClient(clientId: string): boolean {
   const database = getDb()
 
   // Delete associated authorization codes first
   database.prepare(`DELETE FROM oauth_authorization_codes WHERE client_id = ?`).run(clientId)
+
+  // Delete associated refresh tokens
+  database.prepare(`DELETE FROM oauth_refresh_tokens WHERE client_id = ?`).run(clientId)
 
   // Delete the client
   const result = database.prepare(`DELETE FROM oauth_clients WHERE client_id = ?`).run(clientId)
@@ -311,6 +351,86 @@ export function cleanupExpiredCodes(): number {
   const result = database.prepare(`
     DELETE FROM oauth_authorization_codes WHERE expires_at < ?
   `).run(now)
+
+  return result.changes
+}
+
+// Default refresh token expiry: 30 days
+const DEFAULT_REFRESH_TOKEN_EXPIRY = 30 * 24 * 3600
+
+/**
+ * Save a refresh token.
+ * Returns the plain-text token (only time it's available).
+ * Token expires after 30 days by default.
+ */
+export function saveRefreshToken(
+  clientId: string,
+  userId: string,
+  expiresInSeconds: number = DEFAULT_REFRESH_TOKEN_EXPIRY
+): string {
+  const database = getDb()
+
+  const token = randomBytes(32).toString('base64url')
+  const tokenHash = bcrypt.hashSync(token, 10)
+  const now = Math.floor(Date.now() / 1000)
+  const expiresAt = now + expiresInSeconds
+
+  const stmt = database.prepare(`
+    INSERT INTO oauth_refresh_tokens
+    (token_hash, client_id, user_id, expires_at, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `)
+
+  stmt.run(tokenHash, clientId, userId, expiresAt, now)
+
+  return token
+}
+
+/**
+ * Consume a refresh token (rotation pattern).
+ * Returns the token data if valid, null otherwise.
+ * Revokes the token after use - a new one should be issued.
+ */
+export function consumeRefreshToken(token: string): RefreshToken | null {
+  const database = getDb()
+  const now = Math.floor(Date.now() / 1000)
+
+  // Get all non-revoked, non-expired tokens and check hash
+  // This is necessary because we store hashed tokens
+  const stmt = database.prepare<[], RefreshTokenRow>(`
+    SELECT token_hash, client_id, user_id, expires_at, revoked_at, created_at
+    FROM oauth_refresh_tokens
+    WHERE revoked_at IS NULL AND expires_at > ?
+  `)
+
+  const rows = stmt.all(now)
+
+  for (const row of rows) {
+    if (bcrypt.compareSync(token, row.token_hash)) {
+      // Found matching token - revoke it (rotation)
+      database.prepare(`UPDATE oauth_refresh_tokens SET revoked_at = ? WHERE token_hash = ?`).run(now, row.token_hash)
+
+      return row as RefreshToken
+    }
+  }
+
+  return null
+}
+
+/**
+ * Clean up expired and revoked refresh tokens.
+ * Should be called periodically.
+ */
+export function cleanupExpiredRefreshTokens(): number {
+  const database = getDb()
+  const now = Math.floor(Date.now() / 1000)
+
+  // Delete expired tokens and tokens revoked more than 1 day ago
+  const oneDayAgo = now - 24 * 3600
+  const result = database.prepare(`
+    DELETE FROM oauth_refresh_tokens
+    WHERE expires_at < ? OR (revoked_at IS NOT NULL AND revoked_at < ?)
+  `).run(now, oneDayAgo)
 
   return result.changes
 }
