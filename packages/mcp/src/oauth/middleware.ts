@@ -26,24 +26,35 @@ const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://localhost:8090'
 
 // Singleton admin PocketBase client
 let adminPb: PocketBase | null = null
+let lastAdminAuth: number = 0
+const ADMIN_AUTH_TTL = 5 * 60 * 1000 // Re-auth every 5 minutes to be safe
 
 /**
  * Get authenticated admin PocketBase client.
- * Creates once and reuses. Only re-authenticates if token is invalid.
+ * Re-authenticates if token is old or invalid.
  */
 async function getAdminPb(): Promise<PocketBase> {
-  if (!adminPb) {
-    adminPb = new PocketBase(POCKETBASE_URL)
-  }
+  const now = Date.now()
+  const needsReauth = !adminPb || !adminPb.authStore.isValid || (now - lastAdminAuth) > ADMIN_AUTH_TTL
 
-  if (!adminPb.authStore.isValid) {
+  if (needsReauth) {
+    adminPb = new PocketBase(POCKETBASE_URL)
     const email = process.env.POCKETBASE_ADMIN_EMAIL || 'admin@test.local'
     const password = process.env.POCKETBASE_ADMIN_PASSWORD || 'testtest123'
     await adminPb.collection('_superusers').authWithPassword(email, password)
-    console.log('[OAuth] Admin authenticated')
+    lastAdminAuth = now
+    console.log('[OAuth] Admin authenticated (fresh)')
   }
 
   return adminPb
+}
+
+/**
+ * Force re-authentication of admin client.
+ */
+function clearAdminAuth(): void {
+  adminPb = null
+  lastAdminAuth = 0
 }
 
 /**
@@ -51,16 +62,20 @@ async function getAdminPb(): Promise<PocketBase> {
  * Returns a new PocketBase client authenticated as that user.
  */
 async function impersonateUser(userId: string): Promise<PocketBase> {
-  const admin = await getAdminPb()
-
-  // Use PocketBase impersonation API
-  // Duration in seconds (3600 = 1 hour)
-  // The impersonate() method returns a fully authenticated PocketBase client
-  const userPb = await admin.collection('users').impersonate(userId, 3600)
-
-  console.log(`[OAuth] Impersonated user: ${userPb.authStore.record?.id}, token valid: ${userPb.authStore.isValid}`)
-
-  return userPb
+  try {
+    const admin = await getAdminPb()
+    const userPb = await admin.collection('users').impersonate(userId, 3600)
+    console.log(`[OAuth] Impersonated user: ${userPb.authStore.record?.id}, token valid: ${userPb.authStore.isValid}`)
+    return userPb
+  } catch (error) {
+    // Admin token might be stale - clear and retry once
+    console.log('[OAuth] Impersonation failed, refreshing admin auth...', error)
+    clearAdminAuth()
+    const admin = await getAdminPb()
+    const userPb = await admin.collection('users').impersonate(userId, 3600)
+    console.log(`[OAuth] Impersonated user (retry): ${userPb.authStore.record?.id}`)
+    return userPb
+  }
 }
 
 /**

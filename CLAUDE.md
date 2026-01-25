@@ -2,6 +2,17 @@
 
 ## 🚨 CRITICAL RULES - READ FIRST
 
+### Test-Driven Development - NO CODE WITHOUT FAILING TESTS
+- **STRICTLY FORBIDDEN**: Changing any code without a failing test that proves the bug exists
+- **STRICTLY FORBIDDEN**: "Quick fixes" or "obvious fixes" without tests
+- **STRICTLY FORBIDDEN**: Implementing multiple features at once
+- **REQUIRED WORKFLOW**:
+  1. Write ONE small failing test
+  2. Write MINIMAL code to make it pass
+  3. Repeat with next small test
+  4. Never skip ahead - no "while I'm here" implementations
+  5. Never write code before the test exists
+
 ### Database Migrations - NEVER EDIT BY HAND
 - **STRICTLY FORBIDDEN**: Editing any file in `packages/api/pocketbase/pb_migrations/`
 - **STRICTLY FORBIDDEN**: Creating migration files manually
@@ -47,9 +58,16 @@ If you discover you've accidentally edited a migration file:
 - Add appropriate error handling
 
 ### Testing
-- Run the integration test suite before committing: `npm run test:integration`
+- Run the integration test suite before committing: `npm run docker:test`
 - Ensure all tests pass before submitting changes
 - Add tests for new functionality when appropriate
+- **NO SCHEMA TESTS**: Don't write tests that just verify database schemas exist. Test actual behavior and user flows instead.
+
+### Plans
+- Plans describe WHAT should be enabled, not HOW to implement it
+- Use "dev user stories" - describe the usage and behavior from a developer/tester perspective
+- Never write implementation details in plans - that's what the code is for
+- Focus on: What can the user/tester do? What should happen? What's the expected outcome?
 
 ### Git Workflow
 - Use descriptive commit messages
@@ -71,11 +89,21 @@ todo-app/
 └── agentic-work/              # AI workflow definitions
 ```
 
+## Environment Setup
+
+After cloning, create a `.env` file in the project root:
+
+```bash
+CLOUDFLARED_TUNNEL_TOKEN=your-tunnel-token-here
+```
+
+This token is required for the Cloudflare tunnel that exposes the MCP server for Claude integration.
+
 ## Key Commands
 
 ### Development
-- Start development: `docker compose up`
-- Run tests: `npm run test:integration`
+- Start development: `npm run dev`
+- Run tests: `npm run docker:test`
 - Format code: `npm run format`
 - Lint code: `npm run lint`
 

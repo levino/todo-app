@@ -1,0 +1,68 @@
+---
+interface Props {
+  childId: string
+  pocketbaseUrl: string
+  authToken: string
+}
+
+const { childId, pocketbaseUrl, authToken } = Astro.props
+---
+
+<task-subscription
+  data-child-id={childId}
+  data-pocketbase-url={pocketbaseUrl}
+  data-auth-token={authToken}
+></task-subscription>
+
+<script>
+  import PocketBase from 'pocketbase'
+
+  class TaskSubscription extends HTMLElement {
+    private pb: PocketBase | null = null
+    private unsubscribe: (() => void) | null = null
+
+    connectedCallback() {
+      const childId = this.dataset.childId
+      const pocketbaseUrl = this.dataset.pocketbaseUrl
+      const authToken = this.dataset.authToken
+
+      if (!childId || !pocketbaseUrl || !authToken) {
+        console.warn('[TaskSubscription] Missing required data attributes')
+        return
+      }
+
+      this.pb = new PocketBase(pocketbaseUrl)
+      this.pb.authStore.save(authToken, null)
+
+      this.subscribe(childId)
+    }
+
+    disconnectedCallback() {
+      if (this.unsubscribe) {
+        this.unsubscribe()
+        this.unsubscribe = null
+      }
+    }
+
+    private async subscribe(childId: string) {
+      if (!this.pb) return
+
+      try {
+        this.unsubscribe = await this.pb.collection('tasks').subscribe('*', (e) => {
+          if (e.record.child === childId) {
+            console.log(`[TaskSubscription] Task ${e.action}:`, e.record.title)
+
+            if (e.action === 'create' || e.action === 'update' || e.action === 'delete') {
+              location.reload()
+            }
+          }
+        })
+        console.log(`[TaskSubscription] Subscribed to tasks for child ${childId}`)
+      } catch (error) {
+        console.error('[TaskSubscription] Failed to subscribe:', error)
+      }
+    }
+  }
+
+  customElements.define('task-subscription', TaskSubscription)
+</script>

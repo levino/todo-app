@@ -20,6 +20,5 @@
       }
     }
   },
-  "postCreateCommand": "npm install",
-  "forwardPorts": [4321, 8090]
+  "postCreateCommand": "npm install"
 }

@@ -20,7 +20,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
   try {
     // Mark task as completed with timestamp
-    await pb.collection('kiosk_tasks').update(taskId, {
+    await pb.collection('tasks').update(taskId, {
       completed: true,
       completedAt: new Date().toISOString(),
     })

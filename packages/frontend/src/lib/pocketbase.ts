@@ -51,3 +51,15 @@ export function getPocketBase(): PocketBase {
 export function resetPocketBase(): void {
   _pb = null
 }
+
+/**
+ * Get the public PocketBase URL for client-side usage.
+ * This is the URL that browsers can access directly.
+ */
+export function getPublicPocketBaseUrl(): string {
+  return (
+    import.meta.env.PUBLIC_POCKETBASE_URL ||
+    process.env.PUBLIC_POCKETBASE_URL ||
+    'http://localhost:8090'
+  )
+}

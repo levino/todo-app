@@ -1,1 +1,1 @@
-kiosk-mode
+improvements

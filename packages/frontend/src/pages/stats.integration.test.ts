@@ -39,7 +39,7 @@ describe('Stats Page', () => {
 
     // Create 3 tasks
     for (let i = 0; i < 3; i++) {
-      await pb.collection('kiosk_tasks').create({
+      await pb.collection('tasks').create({
         title: `Task ${i + 1}`,
         child: child.id,
         priority: i,

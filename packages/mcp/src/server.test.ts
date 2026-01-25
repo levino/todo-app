@@ -483,7 +483,7 @@ describe('MCP Server', () => {
         const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
 
         // Mark as completed directly in DB
-        await adminPb.collection('kiosk_tasks').update(taskId, {
+        await adminPb.collection('tasks').update(taskId, {
           completed: true,
           completedAt: new Date().toISOString(),
         })
@@ -506,7 +506,7 @@ describe('MCP Server', () => {
         expect(res.body.result.content[0].text).toContain('Reset task')
 
         // Verify task is incomplete
-        const task = await adminPb.collection('kiosk_tasks').getOne(taskId)
+        const task = await adminPb.collection('tasks').getOne(taskId)
         expect(task.completed).toBe(false)
       })
     })

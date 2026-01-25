@@ -27,17 +27,19 @@ A simple todo application template built with [Astro](https://astro.build), [Shi
    npm install
    ```
 
-2. Start PocketBase:
+2. Create a `.env` file with your Cloudflare tunnel token:
    ```bash
-   docker compose up -d pocketbase-dev
+   echo "CLOUDFLARED_TUNNEL_TOKEN=your-tunnel-token-here" > .env
    ```
 
-3. Start the dev server:
+3. Start the dev stack:
    ```bash
-   npm run dev:bare
+   npm run dev
    ```
 
 4. Open [http://localhost:4321](http://localhost:4321)
+
+The MCP server is exposed via Cloudflare tunnel for Claude integration.
 
 ### PocketBase Admin
 

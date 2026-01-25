@@ -1,0 +1,44 @@
+---
+// Dev-only button to trigger the scheduler
+---
+
+{import.meta.env.DEV && (
+  <scheduler-button>
+    <button class="btn btn-sm btn-outline">
+      🔄 Scheduler ausführen
+    </button>
+  </scheduler-button>
+)}
+
+{import.meta.env.DEV && (
+  <script>
+    class SchedulerButton extends HTMLElement {
+      connectedCallback() {
+        const btn = this.querySelector('button')
+        if (!btn) return
+
+        btn.addEventListener('click', async () => {
+          btn.disabled = true
+          btn.textContent = '⏳ Läuft...'
+          try {
+            const res = await fetch('/api/dev/run-scheduler', { method: 'POST' })
+            if (res.ok) {
+              btn.textContent = '✅ Fertig!'
+              setTimeout(() => location.reload(), 500)
+            } else {
+              btn.textContent = '❌ Fehler'
+            }
+          } catch {
+            btn.textContent = '❌ Fehler'
+          }
+          setTimeout(() => {
+            btn.disabled = false
+            btn.textContent = '🔄 Scheduler ausführen'
+          }, 2000)
+        })
+      }
+    }
+
+    customElements.define('scheduler-button', SchedulerButton)
+  </script>
+)}

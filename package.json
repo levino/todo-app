@@ -8,8 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "docker compose run --rm -p 4321:4321 -p 3001:3001 -e POCKETBASE_URL=http://pocketbase-dev:8090 runner npm run dev:all",
-    "dev:all": "npm run dev -w @family-todo/frontend & npm run dev -w @family-todo/mcp & wait",
+    "dev": "docker compose -f docker-compose.dev.yaml up",
     "build": "npm run build -w @family-todo/frontend && npm run build -w @family-todo/mcp",
     "build:frontend": "npm run build -w @family-todo/frontend",
     "build:mcp": "npm run build -w @family-todo/mcp",
@@ -18,9 +17,9 @@
     "test": "npm run test -w @family-todo/mcp && npm run test -w @family-todo/frontend",
     "test:mcp": "npm run test -w @family-todo/mcp",
     "test:frontend": "npm run test -w @family-todo/frontend",
-    "docker:reset-test-db": "docker compose -f docker-compose.test.yaml down pocketbase && docker volume rm -f levino-todo-app_pb_data_test && docker compose -f docker-compose.test.yaml up -d pocketbase && sleep 2",
-    "docker:test": "npm run docker:reset-test-db && docker compose -f docker-compose.test.yaml run --rm runner npm test",
-    "docker:test:mcp": "npm run docker:reset-test-db && docker compose -f docker-compose.test.yaml run --rm runner npm run test:mcp",
+    "docker:reset-test-db": "docker compose -p scheduler-test -f docker-compose.test.yaml down pocketbase && docker volume rm -f scheduler-test_pb_data_test && docker compose -p scheduler-test -f docker-compose.test.yaml up -d pocketbase && sleep 2",
+    "docker:test": "npm run docker:reset-test-db && docker compose -p scheduler-test -f docker-compose.test.yaml run --rm runner sh -c 'npm install && npm test'",
+    "docker:test:mcp": "npm run docker:reset-test-db && docker compose -p scheduler-test -f docker-compose.test.yaml run --rm runner sh -c 'npm install && npm run test:mcp'",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write ."

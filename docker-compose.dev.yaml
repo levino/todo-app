@@ -10,7 +10,7 @@ services:
       - PB_ADMIN_EMAIL=admin@test.local
       - PB_ADMIN_PASSWORD=testtest123
     volumes:
-      - ./packages/api/pocketbase/pb_data:/pb_data
+      - pb_data_dev:/pb_data
       - ./packages/api/pocketbase/pb_migrations:/pb_migrations
     command: ["--migrationsDir=/pb_migrations"]
     healthcheck:
@@ -44,7 +44,7 @@ services:
       - POCKETBASE_URL=http://pocketbase:8090
       - POCKETBASE_ADMIN_EMAIL=admin@test.local
       - POCKETBASE_ADMIN_PASSWORD=testtest123
-      - OAUTH_ISSUER=${OAUTH_ISSUER:-http://localhost:3001}
+      - OAUTH_ISSUER=${OAUTH_ISSUER:-https://mcp-dev-todos.levinkeller.de}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:4321}
     volumes:
       - ./packages/mcp:/app
@@ -55,7 +55,15 @@ services:
         condition: service_healthy
     command: sh -c "chown -R node:node /app/node_modules /app/data && su node -c 'npm install && npx tsx --watch src/server.ts'"
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel run --token ${CLOUDFLARED_TUNNEL_TOKEN}
+    depends_on:
+      - mcp
+    restart: unless-stopped
+
 volumes:
+  pb_data_dev:
   frontend_node_modules:
   mcp_node_modules:
   mcp_data:

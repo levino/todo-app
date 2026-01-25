@@ -45,11 +45,19 @@ If no pending/in_progress tasks remain, output `<promise>COMPLETE</promise>` and
 **IMMEDIATELY** mark the task as `in_progress` in tasks.json before working. This ensures the next session knows where to continue if interrupted.
 
 **CRITICAL - Test-Driven Development (TDD):**
-1. **Write a failing integration test FIRST** in `*.integration.test.ts`
-2. Run the test: `npm test` (this starts Docker Compose and runs tests inside the container)
-3. Write code to make the test pass
-4. **RUN THE TESTS AGAIN** to verify they pass
-5. Only mark task as complete if tests pass
+
+Tests werden **inkrementell** geschrieben, nicht einmal am Anfang und dann fertig:
+
+1. **Write a failing test FIRST** for the next piece of functionality
+2. Run the test: `npm test` - it should fail
+3. Write **minimal code** to make the test pass
+4. Run tests again - they should pass
+5. **Repeat**: Write next failing test, implement, verify
+6. Only mark task as complete when all functionality is tested and passing
+
+**Wichtig:** Nicht einen grossen Test am Anfang schreiben und dann alles implementieren. Stattdessen: kleiner Test → Code → kleiner Test → Code → ...
+
+See also: `.claude/CLAUDE.md` for project-wide TDD rules.
 
 **Test File Naming:**
 - `*.test.ts` - Unit tests (pure logic, no API, no side effects)
@@ -119,7 +127,7 @@ This signals the loop to stop. Otherwise just end your session normally and the 
 
 ## Important Rules
 
-- **TDD is mandatory**: Test first, then code. No exceptions.
+- **TDD is mandatory**: Test first, then code. Tests grow incrementally with features. No exceptions.
 - **RUN THE TESTS**: You MUST run `npm run test:bare -- --run` and verify tests pass before marking complete
 - **Integration tests over E2E**: Write extensive Vitest integration tests, E2E is optional
 - **One task, fully completed**: Pick one task and complete it fully before session ends

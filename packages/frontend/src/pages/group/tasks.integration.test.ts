@@ -158,7 +158,7 @@ describe('Tasks Child Page', () => {
   })
 
   it('should render child with colored initials', async () => {
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'Test Task',
       child: childId,
       priority: 1,
@@ -176,13 +176,13 @@ describe('Tasks Child Page', () => {
   })
 
   it('should display tasks for the child', async () => {
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'Zähne putzen',
       child: childId,
       priority: 1,
       completed: false,
     })
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'Zimmer aufräumen',
       child: childId,
       priority: 2,
@@ -211,14 +211,14 @@ describe('Tasks Child Page', () => {
   })
 
   it('should not show completed tasks', async () => {
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'Completed Task',
       child: childId,
       priority: 1,
       completed: true,
       completedAt: new Date().toISOString(),
     })
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'Pending Task',
       child: childId,
       priority: 2,
@@ -263,7 +263,7 @@ describe('Tasks Child Page', () => {
   })
 
   it('should have completion form pointing to correct API endpoint', async () => {
-    const task = await adminPb.collection('kiosk_tasks').create({
+    const task = await adminPb.collection('tasks').create({
       title: 'Test Task',
       child: childId,
       priority: 1,
@@ -281,13 +281,13 @@ describe('Tasks Child Page', () => {
   })
 
   it('should order tasks by priority', async () => {
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'Low Priority',
       child: childId,
       priority: 10,
       completed: false,
     })
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'High Priority',
       child: childId,
       priority: 1,

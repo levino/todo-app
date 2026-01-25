@@ -1,6 +1,7 @@
 ---
 import Layout from '@levino/shipyard-base/layouts/Page.astro'
 import ColoredInitials from '@/components/ColoredInitials.astro'
+import DevSchedulerButton from '@/components/DevSchedulerButton.astro'
 
 interface Child {
   id: string
@@ -75,10 +76,11 @@ try {
         </div>
       )}
 
-      <div class="mt-8 pt-8 border-t border-base-300">
+      <div class="mt-8 pt-8 border-t border-base-300 flex justify-between items-center">
         <a href="/admin" class="btn btn-ghost btn-sm">
           ← MCP Verbindung
         </a>
+        <DevSchedulerButton />
       </div>
     </div>
   </div>
