@@ -8,29 +8,18 @@
  */
 
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
-
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { adminPb, createRandomUser } from '../../../../tests/pocketbase'
 
 // We can't easily test Astro API routes with AstroContainer,
 // so we test the logic by importing the handler directly
 // For now, we test via the running dev server or document expected behavior
 
 describe('Login API', () => {
-  let adminPb: PocketBase
   let testEmail: string
 
   beforeEach(async () => {
-    adminPb = new PocketBase(POCKETBASE_URL)
-    await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-
-    // Create test user
-    testEmail = `login-test-${Date.now()}@example.com`
-    await adminPb.collection('users').create({
-      email: testEmail,
-      password: 'testtest123',
-      passwordConfirm: 'testtest123',
-    })
+    const userPb = await createRandomUser()
+    testEmail = userPb.authStore.record!.email
   })
 
   describe('next parameter validation', () => {

@@ -1,26 +1,41 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import StatsPage from './stats.astro'
-
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { adminPb, createRandomUser } from '../../tests/pocketbase'
 
 describe('Stats Page', () => {
-  let pb: PocketBase
   let container: AstroContainer
+  let userPb: Awaited<ReturnType<typeof createRandomUser>>
+  let userId: string
+  let groupId: string
+  let childId: string
 
   beforeEach(async () => {
-    // Setup PocketBase client
-    pb = new PocketBase(POCKETBASE_URL)
-    await pb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-
-    // Create Astro container
     container = await AstroContainer.create()
+
+    // Create fresh user with their own group - they'll only see their tasks
+    userPb = await createRandomUser()
+    userId = userPb.authStore.record!.id
+
+    const group = await adminPb.collection('groups').create({ name: 'Test Group' })
+    groupId = group.id
+
+    await adminPb.collection('user_groups').create({
+      user: userId,
+      group: groupId,
+    })
+
+    const child = await adminPb.collection('children').create({
+      name: 'Test Child',
+      group: groupId,
+      color: '#FF6B6B',
+    })
+    childId = child.id
   })
 
   it('should render the stats page showing zero tasks when empty', async () => {
     const result = await container.renderToString(StatsPage, {
-      locals: { pb },
+      locals: { pb: userPb },
     })
 
     expect(result).toContain('data-testid="stats-page"')
@@ -29,26 +44,17 @@ describe('Stats Page', () => {
   })
 
   it('should show correct task count after creating tasks', async () => {
-    // Create test data
-    const group = await pb.collection('groups').create({ name: 'Test Group' })
-    const child = await pb.collection('children').create({
-      name: 'Test Child',
-      group: group.id,
-      color: '#FF6B6B',
-    })
-
-    // Create 3 tasks
     for (let i = 0; i < 3; i++) {
-      await pb.collection('tasks').create({
+      await userPb.collection('tasks').create({
         title: `Task ${i + 1}`,
-        child: child.id,
+        child: childId,
         priority: i,
         completed: false,
       })
     }
 
     const result = await container.renderToString(StatsPage, {
-      locals: { pb },
+      locals: { pb: userPb },
     })
 
     expect(result).toContain('Total tasks: 3')

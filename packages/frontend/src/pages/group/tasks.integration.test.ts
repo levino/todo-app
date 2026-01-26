@@ -1,43 +1,22 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import TasksIndexPage from './[groupId]/tasks/index.astro'
 import TasksChildPage from './[groupId]/tasks/[childId].astro'
-import { resetPocketBase } from '@/lib/pocketbase'
-
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { adminPb, createRandomUser } from '../../../tests/pocketbase'
 
 describe('Tasks Index Page', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let userPb: Awaited<ReturnType<typeof createRandomUser>>
   let container: AstroContainer
   let groupId: string
   let userId: string
 
   beforeEach(async () => {
-    resetPocketBase()
+    userPb = await createRandomUser()
+    userId = userPb.authStore.record!.id
 
-    adminPb = new PocketBase(POCKETBASE_URL)
-    await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-
-    // Create test user
-    const email = `test-${Date.now()}@example.com`
-    const user = await adminPb.collection('users').create({
-      email,
-      password: 'testtest123',
-      passwordConfirm: 'testtest123',
-    })
-    userId = user.id
-
-    // Create user connection
-    userPb = new PocketBase(POCKETBASE_URL)
-    await userPb.collection('users').authWithPassword(email, 'testtest123')
-
-    // Create test group
     const group = await adminPb.collection('groups').create({ name: 'Test Family' })
     groupId = group.id
 
-    // Add user to group
     await adminPb.collection('user_groups').create({
       user: userId,
       group: groupId,
@@ -70,7 +49,7 @@ describe('Tasks Index Page', () => {
 
     expect(html).toContain('Max')
     expect(html).toContain('#FF6B6B')
-    expect(html).toContain('M') // Initial
+    expect(html).toContain('M')
   })
 
   it('should have links to child task pages', async () => {
@@ -111,37 +90,19 @@ describe('Tasks Index Page', () => {
 })
 
 describe('Tasks Child Page', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let userPb: Awaited<ReturnType<typeof createRandomUser>>
   let container: AstroContainer
   let groupId: string
   let childId: string
   let userId: string
 
   beforeEach(async () => {
-    resetPocketBase()
+    userPb = await createRandomUser()
+    userId = userPb.authStore.record!.id
 
-    adminPb = new PocketBase(POCKETBASE_URL)
-    await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-
-    // Create test user
-    const email = `test-${Date.now()}@example.com`
-    const user = await adminPb.collection('users').create({
-      email,
-      password: 'testtest123',
-      passwordConfirm: 'testtest123',
-    })
-    userId = user.id
-
-    // Create user connection
-    userPb = new PocketBase(POCKETBASE_URL)
-    await userPb.collection('users').authWithPassword(email, 'testtest123')
-
-    // Create test data
     const group = await adminPb.collection('groups').create({ name: 'Test Family' })
     groupId = group.id
 
-    // Add user to group
     await adminPb.collection('user_groups').create({
       user: userId,
       group: groupId,
@@ -172,7 +133,7 @@ describe('Tasks Child Page', () => {
 
     expect(html).toContain('Max')
     expect(html).toContain('#FF6B6B')
-    expect(html).toContain('M') // Initial
+    expect(html).toContain('M')
   })
 
   it('should display tasks for the child', async () => {
@@ -304,8 +265,3 @@ describe('Tasks Child Page', () => {
     expect(highIndex).toBeLessThan(lowIndex)
   })
 })
-
-// Cross-group security is handled by:
-// 1. Page logic: child.group !== groupId check with redirect
-// 2. PocketBase collection rules: restrict child access to group members
-// These work together but are complex to test with AstroContainer

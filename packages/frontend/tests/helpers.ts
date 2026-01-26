@@ -1,12 +1,11 @@
 /**
  * Test Helpers for Integration Tests
  *
- * Provides utilities for creating test users and authenticating as regular users
- * instead of superusers. This ensures tests catch permission issues.
+ * Re-exports from pocketbase.ts and provides additional helpers.
  */
 
 import PocketBase from 'pocketbase'
-import { getPocketbaseUrl } from './setup.integration'
+import { adminPb, createRandomUser } from './pocketbase'
 
 export interface TestContext {
   /** Admin PocketBase client - use only for setup/teardown */
@@ -15,50 +14,30 @@ export interface TestContext {
   userPb: PocketBase
   /** The test user's ID */
   userId: string
-  /** The test user's email */
-  userEmail: string
 }
 
 /**
- * Create a test user and return both admin and user PocketBase clients.
- *
- * Use adminPb only for test setup (creating groups, children, etc.)
- * Use userPb for all actual test operations to verify permissions work correctly.
+ * Create a test user and return context with admin and user clients.
  */
 export async function createTestUser(): Promise<TestContext> {
-  const pocketbaseUrl = getPocketbaseUrl()
-  const adminPb = new PocketBase(pocketbaseUrl)
-  await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-
-  const email = `test-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`
-  const user = await adminPb.collection('users').create({
-    email,
-    password: 'testtest123',
-    passwordConfirm: 'testtest123',
-  })
-
-  const userPb = new PocketBase(pocketbaseUrl)
-  await userPb.collection('users').authWithPassword(email, 'testtest123')
-
+  const userPb = await createRandomUser()
   return {
     adminPb,
     userPb,
-    userId: user.id,
-    userEmail: email,
+    userId: userPb.authStore.record!.id,
   }
 }
 
 /**
  * Create a test group and add the user to it.
- * Returns the group ID.
  */
 export async function createTestGroup(
-  adminPb: PocketBase,
+  pb: PocketBase,
   userId: string,
   name = 'Test Family'
 ): Promise<string> {
-  const group = await adminPb.collection('groups').create({ name })
-  await adminPb.collection('user_groups').create({
+  const group = await pb.collection('groups').create({ name })
+  await pb.collection('user_groups').create({
     user: userId,
     group: group.id,
   })
@@ -67,18 +46,20 @@ export async function createTestGroup(
 
 /**
  * Create a test child in a group.
- * Returns the child ID.
  */
 export async function createTestChild(
-  adminPb: PocketBase,
+  pb: PocketBase,
   groupId: string,
   name = 'Max',
   color = '#4DABF7'
 ): Promise<string> {
-  const child = await adminPb.collection('children').create({
+  const child = await pb.collection('children').create({
     name,
     group: groupId,
     color,
   })
   return child.id
 }
+
+// Re-export for convenience
+export { adminPb, createRandomUser } from './pocketbase'

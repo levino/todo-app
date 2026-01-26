@@ -9,12 +9,10 @@
  */
 
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
-import { describe, expect, it, beforeEach, vi } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import PocketBase from 'pocketbase'
 import AuthorizePage from './authorize.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
-
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { createRandomUser, POCKETBASE_URL } from '../../../tests/pocketbase'
 
 // Mock client data
 const mockClientId = 'test-client-id-12345'
@@ -56,34 +54,20 @@ function mockFetch(url: string | URL | Request, init?: RequestInit) {
 }
 
 describe('OAuth Authorize Page', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let userPb: Awaited<ReturnType<typeof createRandomUser>>
   let container: AstroContainer
-  let userId: string
 
   beforeEach(async () => {
     // Mock fetch
     global.fetch = mockFetch as typeof fetch
 
-    resetPocketBase()
-
-    adminPb = new PocketBase(POCKETBASE_URL)
-    await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-
-    // Create test user
-    const email = `oauth-test-${Date.now()}@example.com`
-    const user = await adminPb.collection('users').create({
-      email,
-      password: 'testtest123',
-      passwordConfirm: 'testtest123',
-    })
-    userId = user.id
-
-    // Create authenticated user connection
-    userPb = new PocketBase(POCKETBASE_URL)
-    await userPb.collection('users').authWithPassword(email, 'testtest123')
+    userPb = await createRandomUser()
 
     container = await AstroContainer.create()
+  })
+
+  afterEach(() => {
+    global.fetch = originalFetch
   })
 
   describe('Unauthenticated User', () => {

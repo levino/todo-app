@@ -6,10 +6,14 @@
  * - createRandomUser: factory to create a test user
  */
 
+import { EventSource } from 'eventsource'
+// @ts-expect-error Polyfill EventSource for PocketBase subscriptions in Node.js
+globalThis.EventSource = EventSource
+
 import PocketBase from 'pocketbase'
 import { nanoid } from 'nanoid'
 
-const POCKETBASE_URL = 'http://127.0.0.1:8090'
+export const POCKETBASE_URL = 'http://127.0.0.1:8090'
 const ADMIN_EMAIL = 'admin@test.local'
 const ADMIN_PASSWORD = 'testtest123'
 

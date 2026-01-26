@@ -8,31 +8,14 @@ import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
 import GroupsPage from './groups.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
-
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { createRandomUser, POCKETBASE_URL } from '../../../tests/pocketbase'
 
 describe('Settings Groups Page', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let userPb: Awaited<ReturnType<typeof createRandomUser>>
   let container: AstroContainer
 
   beforeEach(async () => {
-    resetPocketBase()
-
-    adminPb = new PocketBase(POCKETBASE_URL)
-    await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-
-    // Create test user
-    const email = `settings-test-${Date.now()}@example.com`
-    await adminPb.collection('users').create({
-      email,
-      password: 'testtest123',
-      passwordConfirm: 'testtest123',
-    })
-
-    userPb = new PocketBase(POCKETBASE_URL)
-    await userPb.collection('users').authWithPassword(email, 'testtest123')
+    userPb = await createRandomUser()
 
     container = await AstroContainer.create()
   })

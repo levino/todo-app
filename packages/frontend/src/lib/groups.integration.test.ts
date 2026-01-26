@@ -1,5 +1,4 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import {
   getUserGroups,
   isUserInGroup,
@@ -7,35 +6,16 @@ import {
   removeUserFromGroup,
   getInitials,
 } from './groups'
-import { resetPocketBase } from './pocketbase'
-
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { adminPb, createRandomUser } from '../../tests/pocketbase'
 
 describe('Groups Library', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let userPb: Awaited<ReturnType<typeof createRandomUser>>
   let userId: string
   let groupId: string
 
   beforeEach(async () => {
-    resetPocketBase()
-
-    // Create admin connection for setup
-    adminPb = new PocketBase(POCKETBASE_URL)
-    await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-
-    // Create a test user
-    const email = `test-${Date.now()}@example.com`
-    const user = await adminPb.collection('users').create({
-      email,
-      password: 'testtest123',
-      passwordConfirm: 'testtest123',
-    })
-    userId = user.id
-
-    // Create user connection
-    userPb = new PocketBase(POCKETBASE_URL)
-    await userPb.collection('users').authWithPassword(email, 'testtest123')
+    userPb = await createRandomUser()
+    userId = userPb.authStore.record!.id
 
     // Create a test group
     const group = await adminPb.collection('groups').create({ name: 'Test Family' })
@@ -49,7 +29,6 @@ describe('Groups Library', () => {
     })
 
     it('should return groups user belongs to', async () => {
-      // Add user to group
       await adminPb.collection('user_groups').create({
         user: userId,
         group: groupId,
@@ -61,10 +40,8 @@ describe('Groups Library', () => {
     })
 
     it('should return multiple groups when user belongs to many', async () => {
-      // Create second group
       const group2 = await adminPb.collection('groups').create({ name: 'Other Family' })
 
-      // Add user to both groups
       await adminPb.collection('user_groups').create({
         user: userId,
         group: groupId,
@@ -98,30 +75,22 @@ describe('Groups Library', () => {
 
   describe('addUserToGroup', () => {
     it('should add user to group', async () => {
-      // First verify user is not in group
       expect(await isUserInGroup(userPb, userId, groupId)).toBe(false)
-
-      // Add user to group
       await addUserToGroup(userPb, userId, groupId)
-
-      // Verify user is now in group
       expect(await isUserInGroup(userPb, userId, groupId)).toBe(true)
     })
   })
 
   describe('removeUserFromGroup', () => {
     it('should remove user from group', async () => {
-      // First add user to group
       await adminPb.collection('user_groups').create({
         user: userId,
         group: groupId,
       })
       expect(await isUserInGroup(userPb, userId, groupId)).toBe(true)
 
-      // Remove user from group
       await removeUserFromGroup(userPb, userId, groupId)
 
-      // Verify user is no longer in group
       expect(await isUserInGroup(userPb, userId, groupId)).toBe(false)
     })
   })
@@ -136,7 +105,6 @@ describe('Groups Library', () => {
     })
 
     it('should handle three or more names', () => {
-      // Takes first two initials (first and middle name)
       expect(getInitials('Max Peter Mustermann')).toBe('MP')
     })
 
@@ -151,42 +119,16 @@ describe('Groups Library', () => {
 })
 
 describe('Group Membership - PocketBase Rules', () => {
-  let adminPb: PocketBase
-  let user1Pb: PocketBase
-  let user2Pb: PocketBase
+  let user1Pb: Awaited<ReturnType<typeof createRandomUser>>
+  let user2Pb: Awaited<ReturnType<typeof createRandomUser>>
   let user1Id: string
-  let user2Id: string
   let groupId: string
 
   beforeEach(async () => {
-    resetPocketBase()
+    user1Pb = await createRandomUser()
+    user1Id = user1Pb.authStore.record!.id
 
-    adminPb = new PocketBase(POCKETBASE_URL)
-    await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-
-    // Create two test users
-    const email1 = `user1-${Date.now()}@example.com`
-    const user1 = await adminPb.collection('users').create({
-      email: email1,
-      password: 'testtest123',
-      passwordConfirm: 'testtest123',
-    })
-    user1Id = user1.id
-
-    const email2 = `user2-${Date.now()}@example.com`
-    const user2 = await adminPb.collection('users').create({
-      email: email2,
-      password: 'testtest123',
-      passwordConfirm: 'testtest123',
-    })
-    user2Id = user2.id
-
-    // Create PB connections for both users
-    user1Pb = new PocketBase(POCKETBASE_URL)
-    await user1Pb.collection('users').authWithPassword(email1, 'testtest123')
-
-    user2Pb = new PocketBase(POCKETBASE_URL)
-    await user2Pb.collection('users').authWithPassword(email2, 'testtest123')
+    user2Pb = await createRandomUser()
 
     // Create a group and add user1
     const group = await adminPb.collection('groups').create({ name: 'User1 Family' })
@@ -216,14 +158,12 @@ describe('Group Membership - PocketBase Rules', () => {
   })
 
   it('should allow member to read children in their group', async () => {
-    // Create child as admin
     await adminPb.collection('children').create({
       name: 'Max',
       color: '#FF6B6B',
       group: groupId,
     })
 
-    // User1 should be able to read
     const children = await user1Pb.collection('children').getList(1, 100, {
       filter: `group = "${groupId}"`,
     })
@@ -232,14 +172,12 @@ describe('Group Membership - PocketBase Rules', () => {
   })
 
   it('should deny non-member access to children', async () => {
-    // Create child as admin
     const child = await adminPb.collection('children').create({
       name: 'Max',
       color: '#FF6B6B',
       group: groupId,
     })
 
-    // User2 should not be able to read
     await expect(user2Pb.collection('children').getOne(child.id)).rejects.toThrow()
   })
 })

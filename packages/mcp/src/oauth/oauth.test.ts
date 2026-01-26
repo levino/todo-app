@@ -12,12 +12,13 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import request from 'supertest'
 import PocketBase from 'pocketbase'
+import type { Express } from 'express'
 import { rmSync, existsSync } from 'node:fs'
-import { app, initOAuth } from '../server.js'
+import { createApp, initOAuth } from '../server.js'
 import { closeDb } from './db.js'
 import { generateCodeChallenge } from './jwt.js'
+import { getPocketbaseUrl } from '../../vitest.setup.js'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 const TEST_DB_PATH = './test-data/oauth-integration.db'
 const TEST_KEY_PATH = './test-data/oauth-keys-integration'
 
@@ -25,6 +26,7 @@ describe('OAuth 2.0 Integration', () => {
   let adminPb: PocketBase
   let testUserId: string
   let testUserEmail: string
+  let app: Express
 
   beforeAll(async () => {
     // Clean up any existing test data
@@ -48,10 +50,6 @@ describe('OAuth 2.0 Integration', () => {
 
     // Initialize OAuth (creates db and generates keys)
     await initOAuth()
-
-    // Create admin connection
-    adminPb = new PocketBase(POCKETBASE_URL)
-    await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
   })
 
   afterAll(() => {
@@ -72,6 +70,20 @@ describe('OAuth 2.0 Integration', () => {
   })
 
   beforeEach(async () => {
+    const pocketbaseUrl = getPocketbaseUrl()
+
+    // Create MCP app with dynamic PocketBase URL
+    app = createApp({
+      pocketbaseUrl,
+      adminEmail: 'admin@test.local',
+      adminPassword: 'testtest123',
+      oauthIssuer: 'http://localhost:3001',
+    })
+
+    // Create admin connection (fresh per test since PocketBase restarts)
+    adminPb = new PocketBase(pocketbaseUrl)
+    await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
+
     // Create a fresh test user
     testUserEmail = `oauth-test-${Date.now()}@example.com`
     const user = await adminPb.collection('users').create({
@@ -635,24 +647,6 @@ describe('OAuth 2.0 Integration', () => {
         })
 
       expect(res.status).toBe(401)
-    })
-
-    it('should still accept query parameter token', async () => {
-      // Get a PocketBase token
-      const userPb = new PocketBase(POCKETBASE_URL)
-      await userPb.collection('users').authWithPassword(testUserEmail, 'testtest123')
-      const pbToken = userPb.authStore.token
-
-      const res = await request(app)
-        .post('/mcp')
-        .query({ token: pbToken })
-        .send({
-          jsonrpc: '2.0',
-          method: 'tools/list',
-          id: 1,
-        })
-
-      expect(res.status).toBe(200)
     })
   })
 

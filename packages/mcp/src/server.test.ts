@@ -8,22 +8,39 @@
 import { describe, it, expect, beforeEach, beforeAll } from 'vitest'
 import request from 'supertest'
 import PocketBase from 'pocketbase'
-import { app } from './server.js'
+import type { Express } from 'express'
+import { createApp, initOAuth } from './server.js'
+import { signAccessToken } from './oauth/jwt.js'
+import { getPocketbaseUrl } from '../vitest.setup.js'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+const OAUTH_ISSUER = 'http://localhost:3001'
 
 describe('MCP Server', () => {
   let adminPb: PocketBase
-  let authToken: string
+  let jwt: string
   let userId: string
+  let app: Express
 
   beforeAll(async () => {
-    // Create admin connection for setup
-    adminPb = new PocketBase(POCKETBASE_URL)
-    await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
+    // Initialize OAuth once for all tests
+    await initOAuth()
   })
 
   beforeEach(async () => {
+    const pocketbaseUrl = getPocketbaseUrl()
+
+    // Create MCP app with dynamic PocketBase URL
+    app = createApp({
+      pocketbaseUrl,
+      adminEmail: 'admin@test.local',
+      adminPassword: 'testtest123',
+      oauthIssuer: OAUTH_ISSUER,
+    })
+
+    // Create admin connection for setup
+    adminPb = new PocketBase(pocketbaseUrl)
+    await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
+
     // Create a fresh test user for each test
     const email = `test-${Date.now()}@example.com`
     const user = await adminPb.collection('users').create({
@@ -33,10 +50,13 @@ describe('MCP Server', () => {
     })
     userId = user.id
 
-    // Get auth token
-    const userPb = new PocketBase(POCKETBASE_URL)
-    await userPb.collection('users').authWithPassword(email, 'testtest123')
-    authToken = userPb.authStore.token
+    // Create JWT for MCP authentication
+    jwt = await signAccessToken(
+      { sub: userId, client_id: 'test-client' },
+      OAUTH_ISSUER,
+      'family-todo-mcp',
+      3600
+    )
   })
 
   describe('Health Check', () => {
@@ -58,13 +78,13 @@ describe('MCP Server', () => {
         })
 
       expect(res.status).toBe(401)
-      expect(res.body.error.message).toContain('token')
+      expect(res.body.error.message).toContain('Authorization')
     })
 
     it('should reject requests with invalid token', async () => {
       const res = await request(app)
         .post('/mcp')
-        .query({ token: 'invalid_token' })
+        .set('Authorization', 'Bearer invalid_token')
         .send({
           jsonrpc: '2.0',
           method: 'tools/list',
@@ -78,7 +98,7 @@ describe('MCP Server', () => {
     it('should accept requests with valid token', async () => {
       const res = await request(app)
         .post('/mcp')
-        .query({ token: authToken })
+        .set('Authorization', `Bearer ${jwt}`)
         .send({
           jsonrpc: '2.0',
           method: 'tools/list',
@@ -93,7 +113,7 @@ describe('MCP Server', () => {
     it('should list available tools', async () => {
       const res = await request(app)
         .post('/mcp')
-        .query({ token: authToken })
+        .set('Authorization', `Bearer ${jwt}`)
         .send({
           jsonrpc: '2.0',
           method: 'tools/list',
@@ -120,7 +140,7 @@ describe('MCP Server', () => {
       it('should create a group', async () => {
         const res = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -143,7 +163,7 @@ describe('MCP Server', () => {
         // First create a group
         await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -157,7 +177,7 @@ describe('MCP Server', () => {
         // Then list groups
         const res = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -182,7 +202,7 @@ describe('MCP Server', () => {
         // Create a group first
         const res = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -201,7 +221,7 @@ describe('MCP Server', () => {
       it('should create a child', async () => {
         const res = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -225,7 +245,7 @@ describe('MCP Server', () => {
         // Create a child
         await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -239,7 +259,7 @@ describe('MCP Server', () => {
         // List children
         const res = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -266,7 +286,7 @@ describe('MCP Server', () => {
         // Create group
         const groupRes = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -281,7 +301,7 @@ describe('MCP Server', () => {
         // Create child
         const childRes = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -297,7 +317,7 @@ describe('MCP Server', () => {
       it('should create a task', async () => {
         const res = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -321,7 +341,7 @@ describe('MCP Server', () => {
         // Create tasks
         await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -334,7 +354,7 @@ describe('MCP Server', () => {
 
         await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -348,7 +368,7 @@ describe('MCP Server', () => {
         // List tasks
         const res = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -368,7 +388,7 @@ describe('MCP Server', () => {
         // Create task
         const createRes = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -383,7 +403,7 @@ describe('MCP Server', () => {
         // Update task
         const res = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -400,7 +420,7 @@ describe('MCP Server', () => {
         // Verify via list
         const listRes = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -419,7 +439,7 @@ describe('MCP Server', () => {
         // Create task
         const createRes = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -434,7 +454,7 @@ describe('MCP Server', () => {
         // Delete task
         const res = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -451,7 +471,7 @@ describe('MCP Server', () => {
         // Verify via list
         const listRes = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -470,7 +490,7 @@ describe('MCP Server', () => {
         // Create task
         const createRes = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -491,7 +511,7 @@ describe('MCP Server', () => {
         // Reset task
         const res = await request(app)
           .post('/mcp')
-          .query({ token: authToken })
+          .set('Authorization', `Bearer ${jwt}`)
           .send({
             jsonrpc: '2.0',
             method: 'tools/call',
