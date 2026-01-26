@@ -23,6 +23,9 @@ const OAUTH_ISSUER = 'http://localhost:3001'
  * 2. Create user, group, child via PocketBase
  * 3. Create task via MCP Server (like Claude would)
  * 4. Verify task is visible in Astro page
+ *
+ * TODO: In separates Integration-Test-Package verschieben (packages/integration-tests o.ä.)
+ * Dieser Test gehört nicht ins Frontend - er testet die Brücke zwischen MCP und Frontend.
  */
 describe('Full Flow: MCP Task Creation → Astro Display', () => {
   let mcpApp: Express

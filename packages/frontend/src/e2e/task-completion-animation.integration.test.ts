@@ -6,10 +6,14 @@ import { createTestUser, createTestGroup, createTestChild, type TestContext } fr
 /**
  * Task Completion Animation Integration Tests
  *
- * Tests that the task list has proper animation setup:
- * - CSS transitions are defined for slide-out effect
- * - JavaScript handles form submission with animation
- * - Graceful degradation for no-JS
+ * TODO: Animation ist falsch implementiert. Richtige Idee:
+ * - Klick macht POST auf die Seite
+ * - Task wird als completed markiert
+ * - Seite lädt ohne den Task neu
+ * - Animation passiert durch Astro View Transition wegen des fehlenden Elements
+ *
+ * Aktuell testet diese Datei die falsche Implementierung (JS-basierte Animation).
+ * Nach Umbau auf View Transitions müssen diese Tests angepasst werden.
  */
 describe('Task Completion Animation', () => {
   let ctx: TestContext
