@@ -1,7 +1,7 @@
 # Docker Compose files for this project:
 #
 # Development: docker compose -f docker-compose.dev.yaml up
-# Testing:     docker compose -f docker-compose.test.yaml up -d pocketbase
+# Testing:     docker compose -f docker-compose.integration.yaml run --rm runner npm test
 # Production:  docker compose -f docker-compose.coolify.yaml up
 
 # Default: alias for dev

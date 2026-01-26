@@ -9,7 +9,7 @@ A simple todo application template built with [Astro](https://astro.build), [Shi
 - **PocketBase** - Lightweight backend database
 - **TailwindCSS + DaisyUI** - Styling
 - **Docker Compose** - Development and production configurations
-- **Vitest + Playwright** - Testing
+- **Vitest** - Testing
 
 ## Quick Start
 
@@ -57,7 +57,7 @@ Default credentials:
 │   ├── lib/             # Utilities (pocketbase client)
 │   └── middleware.ts    # Auth middleware
 ├── tests/
-│   └── e2e/             # Playwright tests
+│   └── helpers.ts       # Test utilities
 ├── pocketbase/
 │   ├── pb_migrations/   # Auto-generated migrations
 │   └── pb_data/         # Development data (gitignored)
@@ -97,11 +97,11 @@ Run with `node temp-collection.js`, then delete the file. PocketBase generates t
 ## Testing
 
 ```bash
-# Integration tests
-npm run test:bare
+# Run tests in Docker (clean environment)
+docker compose -f docker-compose.integration.yaml run --rm runner npm test
 
-# E2E tests (requires Playwright browsers)
-npm run test:playwright:bare
+# Or run directly (requires PocketBase on host)
+npm test
 ```
 
 ## Deployment

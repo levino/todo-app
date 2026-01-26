@@ -21,7 +21,6 @@
     "tailwindcss": "^3.4.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.57.0",
     "@types/supertest": "^6.0.2",
     "@vitest/coverage-v8": "^4.0.16",
     "eventsource": "^4.1.0",
