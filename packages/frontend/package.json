@@ -7,8 +7,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "typecheck": "astro check && tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "vitest"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.6",
@@ -23,8 +22,11 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
+    "@types/supertest": "^6.0.2",
     "@vitest/coverage-v8": "^4.0.16",
     "eventsource": "^4.1.0",
+    "nanoid": "^5.0.9",
+    "supertest": "^7.0.0",
     "typescript": "^5.8.2",
     "vitest": "^4.0.16"
   }

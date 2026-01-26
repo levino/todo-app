@@ -1,0 +1,23 @@
+# Test Container with Node.js and PocketBase
+FROM node:22-slim
+
+# Install dependencies for PocketBase
+RUN apt-get update && apt-get install -y \
+    curl \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PocketBase
+ARG POCKETBASE_VERSION=0.26.6
+RUN curl -fsSL "https://github.com/pocketbase/pocketbase/releases/download/v${POCKETBASE_VERSION}/pocketbase_${POCKETBASE_VERSION}_linux_amd64.zip" -o /tmp/pb.zip \
+    && unzip /tmp/pb.zip -d /usr/local/bin \
+    && rm /tmp/pb.zip \
+    && chmod +x /usr/local/bin/pocketbase
+
+# Verify installations
+RUN node --version && pocketbase --version
+
+WORKDIR /app
+
+# Default command
+CMD ["npm", "run", "test"]

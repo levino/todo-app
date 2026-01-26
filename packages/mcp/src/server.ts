@@ -9,22 +9,10 @@
  */
 
 import express from 'express'
-import type { Request, Response, NextFunction } from 'express'
+import type { Request, Response, Express } from 'express'
 import cors from 'cors'
 import PocketBase from 'pocketbase'
 import { z } from 'zod'
-
-// Debug logging - enable via DEBUG_MCP=true
-const DEBUG = process.env.DEBUG_MCP === 'true'
-
-function debugLog(category: string, message: string, data?: unknown) {
-  if (!DEBUG) return
-  const timestamp = new Date().toISOString()
-  console.log(`[${timestamp}] [DEBUG:${category}] ${message}`)
-  if (data !== undefined) {
-    console.log(JSON.stringify(data, null, 2))
-  }
-}
 
 // OAuth modules
 import { initOAuthDb, cleanupInactiveClients, cleanupExpiredCodes, cleanupExpiredRefreshTokens } from './oauth/db.js'
@@ -34,14 +22,7 @@ import registerRouter from './oauth/endpoints/register.js'
 import clientInfoRouter from './oauth/endpoints/client-info.js'
 import tokenRouter from './oauth/endpoints/token.js'
 import authorizeRouter from './oauth/endpoints/authorize.js'
-import { authenticateFlexible } from './oauth/middleware.js'
-
-const POCKETBASE_URL = process.env.POCKETBASE_URL
-if (!POCKETBASE_URL) {
-  throw new Error('POCKETBASE_URL environment variable is required')
-}
-
-const PORT = parseInt(process.env.PORT || '3001', 10)
+import { createAuthMiddleware, type AuthConfig } from './oauth/middleware.js'
 
 // PocketBase record types
 interface ChildRecord {
@@ -96,10 +77,9 @@ interface Tool {
   handler: (args: Record<string, unknown>, pb: PocketBase) => Promise<{ content: { type: 'text'; text: string }[]; isError?: boolean }>
 }
 
-const tools: Map<string, Tool> = new Map()
+function createTools(): Map<string, Tool> {
+  const tools: Map<string, Tool> = new Map()
 
-// Register tools
-function registerTools() {
   // ========== GROUP TOOLS ==========
 
   tools.set('list_groups', {
@@ -403,7 +383,7 @@ function registerTools() {
     inputSchema: z.object({
       groupId: z.string().optional().describe('Optional: Only process schedules for children in this group'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, _pb) => {
       const { groupId } = args as { groupId?: string }
 
       // This would trigger the Go schedule manager manually
@@ -657,10 +637,9 @@ The interval resets from the last completion.`,
       return { content: [{ type: 'text', text: `Removed user ${userId} from group` }] }
     },
   })
-}
 
-// Initialize tools
-registerTools()
+  return tools
+}
 
 // Convert Zod schema to JSON Schema for MCP
 function zodToJsonSchema(schema: z.ZodType): object {
@@ -704,189 +683,151 @@ function zodToJsonSchema(schema: z.ZodType): object {
   return { type: 'object' }
 }
 
-// Create Express app
-export const app = express()
+/**
+ * MCP Server configuration
+ */
+export interface McpServerConfig {
+  pocketbaseUrl: string
+  adminEmail: string
+  adminPassword: string
+  oauthIssuer: string
+  oauthDbPath?: string
+}
 
-app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}))
+/**
+ * Create MCP Express app with injected config
+ */
+export function createApp(config: McpServerConfig): Express {
+  const tools = createTools()
 
-app.use(express.json())
-app.use(express.urlencoded({ extended: true })) // For OAuth token endpoint
+  const authConfig: AuthConfig = {
+    pocketbaseUrl: config.pocketbaseUrl,
+    adminEmail: config.adminEmail,
+    adminPassword: config.adminPassword,
+    oauthIssuer: config.oauthIssuer,
+  }
+  const { authenticateJWT } = createAuthMiddleware(authConfig)
 
-// Request logging (after body parsers so we can log the body)
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const timestamp = new Date().toISOString()
-  console.log(`[${timestamp}] ${req.method} ${req.path}`)
+  const app = express()
 
-  if (DEBUG) {
-    debugLog('REQUEST', `${req.method} ${req.originalUrl}`, {
-      headers: req.headers,
-      query: req.query,
-      body: req.body,
-    })
+  app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  }))
 
-    // Capture response
-    const originalSend = res.send.bind(res)
-    res.send = function(body: unknown) {
-      debugLog('RESPONSE', `${req.method} ${req.originalUrl} -> ${res.statusCode}`, {
-        statusCode: res.statusCode,
-        body: typeof body === 'string' ? (() => { try { return JSON.parse(body) } catch { return body } })() : body,
+  app.use(express.json())
+  app.use(express.urlencoded({ extended: true }))
+
+  // Health check
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok' })
+  })
+
+  // OAuth 2.0 endpoints
+  app.use('/.well-known', discoveryRouter)
+  app.use('/oauth/register', registerRouter)
+  app.use('/oauth/client', clientInfoRouter)
+  app.use('/oauth/token', tokenRouter)
+  app.use('/oauth/authorize', authorizeRouter)
+
+  // MCP endpoint
+  app.post('/mcp', authenticateJWT, async (req: Request, res: Response) => {
+    const pb = (req as Request & { pb: PocketBase }).pb
+    const { jsonrpc, method, params, id } = req.body
+
+    if (jsonrpc !== '2.0') {
+      res.status(400).json({
+        jsonrpc: '2.0',
+        error: { code: -32600, message: 'Invalid JSON-RPC version' },
+        id,
       })
-      return originalSend(body)
+      return
     }
-  }
 
-  next()
-})
-
-// Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' })
-})
-
-// OAuth 2.0 endpoints
-app.use('/.well-known', discoveryRouter)
-app.use('/oauth/register', registerRouter)
-app.use('/oauth/client', clientInfoRouter)
-app.use('/oauth/token', tokenRouter)
-app.use('/oauth/authorize', authorizeRouter)
-
-// MCP endpoint - JSON-RPC handler (supports Bearer token or query param)
-app.post('/mcp', authenticateFlexible, async (req: Request, res: Response) => {
-  const pb = (req as Request & { pb: PocketBase }).pb
-  const { jsonrpc, method, params, id } = req.body
-  console.log(`[MCP] Request: method=${method}, id=${id}`)
-
-  if (jsonrpc !== '2.0') {
-    res.status(400).json({
-      jsonrpc: '2.0',
-      error: { code: -32600, message: 'Invalid JSON-RPC version' },
-      id,
-    })
-    return
-  }
-
-  try {
-    if (method === 'initialize') {
-      // MCP initialization - return server capabilities
-      res.json({
-        jsonrpc: '2.0',
-        result: {
-          protocolVersion: '2024-11-05',
-          serverInfo: {
-            name: 'family-todo-mcp',
-            version: '1.0.0',
-          },
-          capabilities: {
-            tools: {},
-          },
-        },
-        id,
-      })
-    } else if (method === 'notifications/initialized') {
-      // Client acknowledges initialization - just return success
-      res.json({
-        jsonrpc: '2.0',
-        result: {},
-        id,
-      })
-    } else if (method === 'tools/list') {
-      // Return list of available tools
-      const toolList = Array.from(tools.entries()).map(([name, tool]) => ({
-        name,
-        description: tool.description,
-        inputSchema: tool.inputSchema ? zodToJsonSchema(tool.inputSchema) : { type: 'object' },
-      }))
-
-      res.json({
-        jsonrpc: '2.0',
-        result: { tools: toolList },
-        id,
-      })
-    } else if (method === 'tools/call') {
-      const { name, arguments: args } = params || {}
-
-      const tool = tools.get(name)
-      if (!tool) {
+    try {
+      if (method === 'initialize') {
         res.json({
           jsonrpc: '2.0',
-          error: { code: -32601, message: `Unknown tool: ${name}` },
+          result: {
+            protocolVersion: '2024-11-05',
+            serverInfo: { name: 'family-todo-mcp', version: '1.0.0' },
+            capabilities: { tools: {} },
+          },
           id,
         })
-        return
-      }
+      } else if (method === 'notifications/initialized') {
+        res.json({ jsonrpc: '2.0', result: {}, id })
+      } else if (method === 'tools/list') {
+        const toolList = Array.from(tools.entries()).map(([name, tool]) => ({
+          name,
+          description: tool.description,
+          inputSchema: tool.inputSchema ? zodToJsonSchema(tool.inputSchema) : { type: 'object' },
+        }))
+        res.json({ jsonrpc: '2.0', result: { tools: toolList }, id })
+      } else if (method === 'tools/call') {
+        const { name, arguments: args } = params || {}
+        const tool = tools.get(name)
 
-      // Validate input if schema exists
-      if (tool.inputSchema) {
-        const validation = tool.inputSchema.safeParse(args)
-        if (!validation.success) {
-          res.json({
-            jsonrpc: '2.0',
-            error: { code: -32602, message: `Invalid parameters: ${validation.error.message}` },
-            id,
-          })
+        if (!tool) {
+          res.json({ jsonrpc: '2.0', error: { code: -32601, message: `Unknown tool: ${name}` }, id })
           return
         }
+
+        if (tool.inputSchema) {
+          const validation = tool.inputSchema.safeParse(args)
+          if (!validation.success) {
+            res.json({ jsonrpc: '2.0', error: { code: -32602, message: `Invalid parameters: ${validation.error.message}` }, id })
+            return
+          }
+        }
+
+        const result = await tool.handler(args || {}, pb)
+        res.json({ jsonrpc: '2.0', result, id })
+      } else {
+        res.json({ jsonrpc: '2.0', error: { code: -32601, message: `Unknown method: ${method}` }, id })
       }
-
-      // Call the tool
-      const result = await tool.handler(args || {}, pb)
-
-      res.json({
-        jsonrpc: '2.0',
-        result,
-        id,
-      })
-    } else {
-      res.json({
-        jsonrpc: '2.0',
-        error: { code: -32601, message: `Unknown method: ${method}` },
-        id,
-      })
+    } catch (error) {
+      res.json({ jsonrpc: '2.0', error: { code: -32603, message: error instanceof Error ? error.message : 'Internal error' }, id })
     }
-  } catch (error) {
-    console.error('MCP error:', error)
-    res.json({
-      jsonrpc: '2.0',
-      error: { code: -32603, message: error instanceof Error ? error.message : 'Internal error' },
-      id,
-    })
-  }
-})
-
-// Handle GET /mcp - Claude might be checking for SSE or metadata
-app.get('/mcp', (req, res) => {
-  console.log(`[MCP] GET request - headers: ${JSON.stringify(req.headers.accept)}`)
-  res.status(405).json({
-    jsonrpc: '2.0',
-    error: { code: -32600, message: 'Method not allowed. Use POST for MCP calls.' },
   })
-})
 
-// Initialize OAuth (database and keys)
-export async function initOAuth(): Promise<void> {
-  const dbPath = process.env.OAUTH_DB_PATH || './data/oauth.db'
-  initOAuthDb(dbPath)
+  app.get('/mcp', (_req, res) => {
+    res.status(405).json({ jsonrpc: '2.0', error: { code: -32600, message: 'Method not allowed. Use POST for MCP calls.' } })
+  })
+
+  return app
+}
+
+/**
+ * Initialize OAuth database and keys
+ */
+export async function initOAuth(dbPath?: string): Promise<void> {
+  const path = dbPath || process.env.OAUTH_DB_PATH || './data/oauth.db'
+  initOAuthDb(path)
   await initKeys()
 
-  // Cleanup on startup
-  const expiredCodes = cleanupExpiredCodes()
-  const expiredTokens = cleanupExpiredRefreshTokens()
-  const inactiveClients = cleanupInactiveClients()
-  console.log(`[OAuth] Cleanup: ${expiredCodes} expired codes, ${expiredTokens} expired tokens, ${inactiveClients} inactive clients removed`)
+  cleanupExpiredCodes()
+  cleanupExpiredRefreshTokens()
+  cleanupInactiveClients()
 }
+
+// Default app using environment variables (for backwards compatibility)
+const defaultConfig: McpServerConfig = {
+  pocketbaseUrl: process.env.POCKETBASE_URL || 'http://localhost:8090',
+  adminEmail: process.env.POCKETBASE_ADMIN_EMAIL || 'admin@test.local',
+  adminPassword: process.env.POCKETBASE_ADMIN_PASSWORD || 'testtest123',
+  oauthIssuer: process.env.OAUTH_ISSUER || 'http://localhost:3001',
+}
+
+export const app = createApp(defaultConfig)
 
 // Start server (only when run directly)
 if (process.env.NODE_ENV !== 'test') {
+  const PORT = parseInt(process.env.PORT || '3001', 10)
   initOAuth().then(() => {
-    app.listen(PORT, '::', () => {
-      console.log(`Family Todo MCP server listening on [::]:${PORT} (all interfaces, IPv4+IPv6)`)
-    })
-  }).catch((err) => {
-    console.error('Failed to initialize OAuth:', err)
+    app.listen(PORT, '::')
+  }).catch(() => {
     process.exit(1)
   })
 }

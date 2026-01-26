@@ -6,8 +6,7 @@
  */
 
 import PocketBase from 'pocketbase'
-
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { getPocketbaseUrl } from './setup.integration'
 
 export interface TestContext {
   /** Admin PocketBase client - use only for setup/teardown */
@@ -27,7 +26,8 @@ export interface TestContext {
  * Use userPb for all actual test operations to verify permissions work correctly.
  */
 export async function createTestUser(): Promise<TestContext> {
-  const adminPb = new PocketBase(POCKETBASE_URL)
+  const pocketbaseUrl = getPocketbaseUrl()
+  const adminPb = new PocketBase(pocketbaseUrl)
   await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
   const email = `test-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`
@@ -37,7 +37,7 @@ export async function createTestUser(): Promise<TestContext> {
     passwordConfirm: 'testtest123',
   })
 
-  const userPb = new PocketBase(POCKETBASE_URL)
+  const userPb = new PocketBase(pocketbaseUrl)
   await userPb.collection('users').authWithPassword(email, 'testtest123')
 
   return {

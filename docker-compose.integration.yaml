@@ -1,0 +1,22 @@
+# Integration Tests
+# Runs unit and integration tests with PocketBase spawned per-test
+#
+# Usage:
+#   docker compose -f docker-compose.integration.yaml run --rm runner yarn vitest
+#   docker compose -f docker-compose.integration.yaml run --rm runner sh  # interactive shell
+
+services:
+  runner:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    user: node
+    working_dir: /app
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+      - pb_data:/app/packages/api/pocketbase/pb_data
+
+volumes:
+  node_modules:
+  pb_data:
