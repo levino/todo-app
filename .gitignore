@@ -39,3 +39,6 @@ packages/*/data/
 
 # Nested package-lock.json (monorepo uses root lock file)
 packages/*/package-lock.json
+
+# Ralph Loop local state
+.claude/ralph-loop.local.md
