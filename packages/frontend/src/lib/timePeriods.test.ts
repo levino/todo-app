@@ -13,6 +13,7 @@ import {
   isTimeInPeriod,
   getCurrentTimePeriod,
   getTimePeriodStartDateTime,
+  calculateVisibleFrom,
   type UserTimePeriodSettings,
 } from './timePeriods'
 

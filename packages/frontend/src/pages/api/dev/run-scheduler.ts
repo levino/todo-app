@@ -15,7 +15,8 @@ export const POST: APIRoute = async ({ locals }) => {
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (error) {
-    return new Response(JSON.stringify({ error: String(error) }), {
+    console.error('Scheduler error:', error)
+    return new Response(JSON.stringify({ error: String(error), stack: (error as Error).stack }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     })
