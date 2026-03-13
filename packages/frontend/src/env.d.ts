@@ -6,7 +6,7 @@ import type { AuthUser } from './lib/auth'
 interface ImportMetaEnv {
   readonly POCKETBASE_URL: string
   readonly SERVICE_URL_POCKETBASE: string
-  readonly DISABLE_AUTH: string
+
 }
 
 interface ImportMeta {

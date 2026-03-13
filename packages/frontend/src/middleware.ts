@@ -9,20 +9,6 @@ const publicPaths = ['/login', '/signup', '/api/auth/', '/api/health', '/api/mcp
 const softAuthPaths = ['/oauth/']
 
 export const onRequest = defineMiddleware(async (context, next) => {
-  // Skip auth entirely in test environment
-  if (process.env.DISABLE_AUTH === 'true' || import.meta.env.DISABLE_AUTH === 'true') {
-    // Provide admin-authenticated PocketBase instance for tests
-    const pb = createRequestPocketBase()
-    try {
-      await pb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-    } catch {
-      // If admin auth fails, continue with unauthenticated instance
-    }
-    context.locals.pb = pb
-    context.locals.user = { id: 'test-user', email: 'test@test.local' }
-    return next()
-  }
-
   const path = new URL(context.request.url).pathname
 
   // Skip auth for public paths
