@@ -38,10 +38,12 @@ beforeEach(async () => {
 
   // Clear all test data before each test (order matters for relations!)
   // Delete children of relations first, then parents
-  await clearCollection(pb, 'tasks')       // depends on children
-  await clearCollection(pb, 'children')    // depends on groups
-  await clearCollection(pb, 'user_groups') // junction table
+  await clearCollection(pb, 'point_transactions') // depends on children, rewards, tasks
+  await clearCollection(pb, 'rewards')            // depends on groups
+  await clearCollection(pb, 'tasks')              // depends on children
+  await clearCollection(pb, 'children')           // depends on groups
+  await clearCollection(pb, 'user_groups')        // junction table
   await clearCollection(pb, 'groups')
   await clearCollection(pb, 'todos')
-  await clearCollection(pb, 'users')       // clear test users
+  await clearCollection(pb, 'users')              // clear test users
 })

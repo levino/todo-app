@@ -73,16 +73,17 @@ flowchart TB
 
 ## Phase 3: Belohnungssystem 🏆
 
-**Status: Idee**
+**Status: Fertig**
 
 Motivation durch Punkte und Belohnungen.
 
-### Ideen
+### Features
 
-- Punkte für erledigte Aufgaben
-- Wöchentliche/monatliche Ziele
-- Virtuelle oder reale Belohnungen
-- Familien-Rangliste
+- Punkte pro Aufgabe konfigurierbar (via MCP)
+- Belohnungen erstellen/verwalten (via MCP)
+- Punktestand pro Kind in der Kiosk-Ansicht
+- Belohnungen einlösen (via MCP)
+- Punkte-Historie über Transaktionslog
 
 ---
 

@@ -66,7 +66,30 @@ interface TaskRecord {
   recurrenceInterval: number | null
   recurrenceDays: number[] | null
   timeOfDay: string
+  points: number | null
   child: string
+  collectionId: string
+  collectionName: string
+}
+
+interface RewardRecord {
+  id: string
+  name: string
+  description: string
+  pointsCost: number
+  group: string
+  collectionId: string
+  collectionName: string
+}
+
+interface PointTransactionRecord {
+  id: string
+  child: string
+  points: number
+  type: string
+  description: string
+  reward: string | null
+  task: string | null
   collectionId: string
   collectionName: string
 }
@@ -359,6 +382,7 @@ function registerTools() {
         recurrenceInterval: t.recurrenceInterval,
         recurrenceDays: t.recurrenceDays,
         timeOfDay: t.timeOfDay,
+        points: t.points,
       }))
 
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
@@ -376,11 +400,12 @@ function registerTools() {
       recurrenceType: z.string().optional().describe('Recurrence type: "interval" (every N days) or "weekly" (specific weekdays)'),
       recurrenceInterval: z.number().optional().describe('Days between recurrences (for interval type)'),
       recurrenceDays: z.array(z.number()).optional().describe('Weekdays for recurrence (0=Sunday, 1=Monday, ..., 6=Saturday)'),
+      points: z.number().optional().describe('Points awarded for completing this task'),
     }),
     handler: async (args, pb) => {
-      const { childId, title, timeOfDay, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays } = args as {
+      const { childId, title, timeOfDay, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays, points } = args as {
         childId: string; title: string; timeOfDay: string; priority?: number; dueDate?: string;
-        recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]
+        recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]; points?: number
       }
 
       const effectiveDueDate = dueDate
@@ -396,6 +421,7 @@ function registerTools() {
         recurrenceType: recurrenceType ?? null,
         recurrenceInterval: recurrenceInterval ?? null,
         recurrenceDays: recurrenceDays ?? null,
+        points: points ?? null,
       })
 
       const parts = [`Created task "${title}" (ID: ${task.id})`]
@@ -581,6 +607,140 @@ function registerTools() {
       await pb.collection('user_groups').delete(memberships.items[0].id)
 
       return { content: [{ type: 'text', text: `Removed user ${userId} from group` }] }
+    },
+  })
+
+  // ========== REWARD TOOLS ==========
+
+  tools.set('create_reward', {
+    description: 'Create a new reward that children can redeem with points',
+    inputSchema: z.object({
+      groupId: z.string().describe('ID of the group'),
+      name: z.string().describe('Name of the reward (e.g., "Ice Cream")'),
+      description: z.string().optional().describe('Description of the reward'),
+      pointsCost: z.number().describe('How many points this reward costs'),
+    }),
+    handler: async (args, pb) => {
+      const { groupId, name, description, pointsCost } = args as { groupId: string; name: string; description?: string; pointsCost: number }
+
+      const reward = await pb.collection('rewards').create({
+        name,
+        description: description ?? '',
+        pointsCost,
+        group: groupId,
+      })
+
+      return { content: [{ type: 'text', text: `Created reward "${name}" (ID: ${reward.id}) - costs ${pointsCost} points` }] }
+    },
+  })
+
+  tools.set('list_rewards', {
+    description: 'List all rewards for a group',
+    inputSchema: z.object({
+      groupId: z.string().describe('ID of the group'),
+    }),
+    handler: async (args, pb) => {
+      const { groupId } = args as { groupId: string }
+
+      const rewards = await pb.collection<RewardRecord>('rewards').getList(1, 100, {
+        filter: `group = "${groupId}"`,
+        sort: 'name',
+      })
+
+      const result = rewards.items.map((r) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        pointsCost: r.pointsCost,
+      }))
+
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
+    },
+  })
+
+  tools.set('update_reward', {
+    description: 'Update a reward',
+    inputSchema: z.object({
+      rewardId: z.string().describe('ID of the reward'),
+      name: z.string().optional().describe('New name'),
+      description: z.string().optional().describe('New description'),
+      pointsCost: z.number().optional().describe('New points cost'),
+    }),
+    handler: async (args, pb) => {
+      const { rewardId, name, description, pointsCost } = args as { rewardId: string; name?: string; description?: string; pointsCost?: number }
+
+      const updates: Record<string, unknown> = {}
+      if (name) updates.name = name
+      if (description !== undefined) updates.description = description
+      if (pointsCost !== undefined) updates.pointsCost = pointsCost
+
+      await pb.collection('rewards').update(rewardId, updates)
+
+      return { content: [{ type: 'text', text: `Updated reward ${rewardId}` }] }
+    },
+  })
+
+  tools.set('delete_reward', {
+    description: 'Delete a reward',
+    inputSchema: z.object({
+      rewardId: z.string().describe('ID of the reward'),
+    }),
+    handler: async (args, pb) => {
+      const { rewardId } = args as { rewardId: string }
+
+      await pb.collection('rewards').delete(rewardId)
+
+      return { content: [{ type: 'text', text: `Deleted reward ${rewardId}` }] }
+    },
+  })
+
+  tools.set('get_points_balance', {
+    description: 'Get the current points balance for a child',
+    inputSchema: z.object({
+      childId: z.string().describe('ID of the child'),
+    }),
+    handler: async (args, pb) => {
+      const { childId } = args as { childId: string }
+
+      const transactions = await pb.collection<PointTransactionRecord>('point_transactions').getFullList({
+        filter: `child = "${childId}"`,
+      })
+
+      const balance = transactions.reduce((sum, t) => sum + t.points, 0)
+
+      return { content: [{ type: 'text', text: JSON.stringify({ childId, balance, totalTransactions: transactions.length }, null, 2) }] }
+    },
+  })
+
+  tools.set('redeem_reward', {
+    description: 'Redeem a reward for a child, deducting points from their balance',
+    inputSchema: z.object({
+      childId: z.string().describe('ID of the child'),
+      rewardId: z.string().describe('ID of the reward to redeem'),
+    }),
+    handler: async (args, pb) => {
+      const { childId, rewardId } = args as { childId: string; rewardId: string }
+
+      const reward = await pb.collection<RewardRecord>('rewards').getOne(rewardId)
+
+      const transactions = await pb.collection<PointTransactionRecord>('point_transactions').getFullList({
+        filter: `child = "${childId}"`,
+      })
+      const balance = transactions.reduce((sum, t) => sum + t.points, 0)
+
+      if (balance < reward.pointsCost) {
+        return { content: [{ type: 'text', text: `Insufficient points. Balance: ${balance}, Cost: ${reward.pointsCost}` }], isError: true }
+      }
+
+      await pb.collection('point_transactions').create({
+        child: childId,
+        points: -reward.pointsCost,
+        type: 'redeemed',
+        description: `Redeemed: ${reward.name}`,
+        reward: rewardId,
+      })
+
+      return { content: [{ type: 'text', text: `Redeemed "${reward.name}" for ${reward.pointsCost} points. New balance: ${balance - reward.pointsCost}` }] }
     },
   })
 }
