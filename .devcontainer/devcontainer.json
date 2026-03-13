@@ -21,6 +21,6 @@
       }
     }
   },
-  "postCreateCommand": "npm install && curl -fsSL https://github.com/zellij-org/zellij/releases/latest/download/zellij-x86_64-unknown-linux-musl.tar.gz | sudo tar -xz -C /usr/local/bin",
+  "postCreateCommand": "npm install && curl -fsSL https://github.com/zellij-org/zellij/releases/latest/download/zellij-$(uname -m)-unknown-linux-musl.tar.gz | sudo tar -xz -C /usr/local/bin",
   "forwardPorts": [4321, 8090]
 }
