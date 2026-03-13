@@ -2,7 +2,6 @@
 import { actions } from 'astro:actions'
 import Layout from '@/layouts/Layout.astro'
 import ColoredInitials from '@/components/ColoredInitials.astro'
-import OfflineIndicator from '@/components/OfflineIndicator.astro'
 import {
   type Task,
   type Child,
@@ -102,7 +101,6 @@ const showSwitcher = selectedChild && siblings.length > 1
 ---
 
 <Layout title={selectedChild ? `${selectedChild.name} - Aufgaben` : `${groupName} - Aufgaben`}>
-  <OfflineIndicator />
   <div class="min-h-screen bg-base-100 p-4 md:p-8">
     <div class="max-w-3xl mx-auto">
       {error && (
