@@ -344,6 +344,30 @@ describe('MCP Server', () => {
         expect(res.body.error).toBeDefined()
       })
 
+      it('should reject create_task with invalid timeOfDay', async () => {
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Bad phase',
+                priority: 1,
+                timeOfDay: 'midnight',
+              },
+            },
+            id: 3,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.error).toBeDefined()
+        expect(res.body.error.message).toContain('Invalid parameters')
+      })
+
       it('should list tasks', async () => {
         // Create tasks
         await request(app)
