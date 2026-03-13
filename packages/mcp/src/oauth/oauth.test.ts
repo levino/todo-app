@@ -261,7 +261,7 @@ describe('OAuth 2.0 Integration', () => {
       expect(tokenRes.status).toBe(200)
       expect(tokenRes.body.access_token).toBeDefined()
       expect(tokenRes.body.token_type).toBe('Bearer')
-      expect(tokenRes.body.expires_in).toBe(3600)
+      expect(tokenRes.body.expires_in).toBe(15768000)
     })
 
     it('should support Basic auth for token endpoint', async () => {
@@ -457,6 +457,94 @@ describe('OAuth 2.0 Integration', () => {
         })
 
       expect(res.status).toBe(200)
+    })
+  })
+
+  describe('Grant Revocation', () => {
+    let clientId: string
+    let clientSecret: string
+    let accessToken: string
+    const redirectUri = 'https://example.com/callback'
+
+    beforeEach(async () => {
+      // Register client
+      const registerRes = await request(app)
+        .post('/oauth/register')
+        .send({
+          client_name: 'Revocation Test',
+          redirect_uris: [redirectUri],
+        })
+
+      clientId = registerRes.body.client_id
+      clientSecret = registerRes.body.client_secret
+
+      // Get access token (this should also create a grant)
+      const codeVerifier = 'test-code-verifier-that-is-at-least-43-characters-long'
+      const codeChallenge = await generateCodeChallenge(codeVerifier)
+
+      const authRes = await request(app)
+        .post('/oauth/authorize')
+        .send({
+          client_id: clientId,
+          redirect_uri: redirectUri,
+          code_challenge: codeChallenge,
+          user_id: testUserId,
+        })
+
+      const tokenRes = await request(app)
+        .post('/oauth/token')
+        .send({
+          grant_type: 'authorization_code',
+          code: authRes.body.code,
+          redirect_uri: redirectUri,
+          code_verifier: codeVerifier,
+          client_id: clientId,
+          client_secret: clientSecret,
+        })
+
+      accessToken = tokenRes.body.access_token
+    })
+
+    it('should list active grants for a user', async () => {
+      const res = await request(app)
+        .get(`/oauth/grants?user_id=${testUserId}`)
+
+      expect(res.status).toBe(200)
+      expect(res.body).toBeInstanceOf(Array)
+      expect(res.body.length).toBeGreaterThanOrEqual(1)
+
+      const grant = res.body.find((g: { client_id: string }) => g.client_id === clientId)
+      expect(grant).toBeDefined()
+      expect(grant.client_name).toBe('Revocation Test')
+    })
+
+    it('should revoke a grant and reject subsequent MCP requests', async () => {
+      // MCP should work before revocation
+      const beforeRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ jsonrpc: '2.0', method: 'tools/list', id: 1 })
+      expect(beforeRes.status).not.toBe(401)
+
+      // Revoke the grant
+      const revokeRes = await request(app)
+        .delete(`/oauth/grants/${clientId}?user_id=${testUserId}`)
+      expect(revokeRes.status).toBe(200)
+
+      // MCP should fail after revocation
+      const afterRes = await request(app)
+        .post('/mcp')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ jsonrpc: '2.0', method: 'tools/list', id: 2 })
+      expect(afterRes.status).toBe(401)
+    })
+
+    it('should return empty array for user with no grants', async () => {
+      const res = await request(app)
+        .get('/oauth/grants?user_id=nonexistent-user')
+
+      expect(res.status).toBe(200)
+      expect(res.body).toEqual([])
     })
   })
 

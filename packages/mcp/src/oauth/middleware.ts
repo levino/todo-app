@@ -9,6 +9,7 @@
 import type { Request, Response, NextFunction } from 'express'
 import PocketBase from 'pocketbase'
 import { verifyAccessToken } from './jwt.js'
+import { isGrantActive } from './db.js'
 
 // Debug logging - enable via DEBUG_MCP=true
 const DEBUG = process.env.DEBUG_MCP === 'true'
@@ -54,9 +55,8 @@ async function impersonateUser(userId: string): Promise<PocketBase> {
   const admin = await getAdminPb()
 
   // Use PocketBase impersonation API
-  // Duration in seconds (3600 = 1 hour)
-  // The impersonate() method returns a fully authenticated PocketBase client
-  const userPb = await admin.collection('users').impersonate(userId, 3600)
+  // Duration in seconds (15768000 = ~6 months, matching OAuth token lifetime)
+  const userPb = await admin.collection('users').impersonate(userId, 15768000)
 
   console.log(`[OAuth] Impersonated user: ${userPb.authStore.record?.id}, token valid: ${userPb.authStore.isValid}`)
 
@@ -121,6 +121,19 @@ export async function authenticateJWT(
 
   console.log(`[OAuth] JWT verified, sub=${claims.sub}`)
   debugLog('AUTH', 'JWT verified successfully', { claims })
+
+  // Check if grant has been revoked
+  if (claims.client_id && !isGrantActive(claims.sub, claims.client_id)) {
+    console.log(`[OAuth] Grant revoked for user=${claims.sub}, client=${claims.client_id}`)
+    res.status(401).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32600,
+        message: 'Grant has been revoked. Re-authorize to continue.',
+      },
+    })
+    return
+  }
 
   try {
     // Impersonate the user

@@ -106,6 +106,24 @@ export function initOAuthDb(dbPath: string = './data/oauth.db'): Database.Databa
     ON oauth_authorization_codes(expires_at)
   `)
 
+  // Create oauth_grants table (tracks active user-client connections)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS oauth_grants (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      client_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      revoked_at INTEGER,
+      FOREIGN KEY (client_id) REFERENCES oauth_clients(client_id),
+      UNIQUE(user_id, client_id)
+    )
+  `)
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_grants_user
+    ON oauth_grants(user_id)
+  `)
+
   return db
 }
 
@@ -298,6 +316,74 @@ export function consumeAuthCode(code: string): AuthorizationCode | null {
   })
 
   return transaction()
+}
+
+/**
+ * Save or update a grant (user-client connection).
+ * If a revoked grant exists, reactivates it.
+ */
+export function saveGrant(userId: string, clientId: string): void {
+  const database = getDb()
+  const now = Math.floor(Date.now() / 1000)
+
+  const existing = database.prepare<[string, string], { id: number }>(`
+    SELECT id FROM oauth_grants WHERE user_id = ? AND client_id = ?
+  `).get(userId, clientId)
+
+  if (existing) {
+    database.prepare(`UPDATE oauth_grants SET revoked_at = NULL, created_at = ? WHERE id = ?`).run(now, existing.id)
+  } else {
+    database.prepare(`INSERT INTO oauth_grants (user_id, client_id, created_at) VALUES (?, ?, ?)`).run(userId, clientId, now)
+  }
+}
+
+export interface GrantInfo {
+  client_id: string
+  client_name: string | null
+  created_at: number
+}
+
+/**
+ * List active (non-revoked) grants for a user.
+ */
+export function listGrants(userId: string): GrantInfo[] {
+  const database = getDb()
+
+  const rows = database.prepare<[string], { client_id: string; client_name: string | null; created_at: number }>(`
+    SELECT g.client_id, c.client_name, g.created_at
+    FROM oauth_grants g
+    JOIN oauth_clients c ON g.client_id = c.client_id
+    WHERE g.user_id = ? AND g.revoked_at IS NULL
+  `).all(userId)
+
+  return rows
+}
+
+/**
+ * Revoke a grant (user-client connection).
+ */
+export function revokeGrant(userId: string, clientId: string): boolean {
+  const database = getDb()
+  const now = Math.floor(Date.now() / 1000)
+
+  const result = database.prepare(`
+    UPDATE oauth_grants SET revoked_at = ? WHERE user_id = ? AND client_id = ? AND revoked_at IS NULL
+  `).run(now, userId, clientId)
+
+  return result.changes > 0
+}
+
+/**
+ * Check if a grant is active (not revoked).
+ */
+export function isGrantActive(userId: string, clientId: string): boolean {
+  const database = getDb()
+
+  const row = database.prepare<[string, string], { id: number }>(`
+    SELECT id FROM oauth_grants WHERE user_id = ? AND client_id = ? AND revoked_at IS NULL
+  `).get(userId, clientId)
+
+  return !!row
 }
 
 /**

@@ -80,3 +80,11 @@ jobs:
         run: npm run build
         env:
           POCKETBASE_URL: http://pocketbase:8090
+
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build frontend Docker image
+        run: docker build -f packages/frontend/Dockerfile -t frontend-ci-test .
