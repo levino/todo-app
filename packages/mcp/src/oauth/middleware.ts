@@ -54,9 +54,8 @@ async function impersonateUser(userId: string): Promise<PocketBase> {
   const admin = await getAdminPb()
 
   // Use PocketBase impersonation API
-  // Duration in seconds (3600 = 1 hour)
-  // The impersonate() method returns a fully authenticated PocketBase client
-  const userPb = await admin.collection('users').impersonate(userId, 3600)
+  // Duration in seconds (15768000 = ~6 months, matching OAuth token lifetime)
+  const userPb = await admin.collection('users').impersonate(userId, 15768000)
 
   console.log(`[OAuth] Impersonated user: ${userPb.authStore.record?.id}, token valid: ${userPb.authStore.isValid}`)
 
