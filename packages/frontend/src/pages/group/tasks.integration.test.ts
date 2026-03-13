@@ -158,7 +158,7 @@ describe('Tasks Child Page', () => {
   })
 
   it('should render child with colored initials', async () => {
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'Test Task',
       child: childId,
       priority: 1,
@@ -176,13 +176,13 @@ describe('Tasks Child Page', () => {
   })
 
   it('should display tasks for the child', async () => {
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'Zähne putzen',
       child: childId,
       priority: 1,
       completed: false,
     })
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'Zimmer aufräumen',
       child: childId,
       priority: 2,
@@ -211,14 +211,14 @@ describe('Tasks Child Page', () => {
   })
 
   it('should not show completed tasks', async () => {
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'Completed Task',
       child: childId,
       priority: 1,
       completed: true,
       completedAt: new Date().toISOString(),
     })
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'Pending Task',
       child: childId,
       priority: 2,
@@ -263,7 +263,7 @@ describe('Tasks Child Page', () => {
   })
 
   it('should have completion form pointing to correct API endpoint', async () => {
-    const task = await adminPb.collection('kiosk_tasks').create({
+    const task = await adminPb.collection('tasks').create({
       title: 'Test Task',
       child: childId,
       priority: 1,
@@ -280,14 +280,67 @@ describe('Tasks Child Page', () => {
     expect(html).toContain(`value="${childId}"`)
   })
 
+  it('should highlight overdue tasks', async () => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    await adminPb.collection('tasks').create({
+      title: 'Overdue Task',
+      child: childId,
+      priority: 1,
+      completed: false,
+      dueDate: yesterday.toISOString(),
+    })
+
+    const html = await container.renderToString(TasksChildPage, {
+      params: { groupId, childId },
+      locals: { pb: userPb, user: userPb.authStore.record },
+    })
+
+    expect(html).toContain('Overdue Task')
+    expect(html).toContain('data-overdue="true"')
+    expect(html).toContain('Überfällig')
+  })
+
+  it('should sort overdue tasks before non-overdue tasks', async () => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+
+    await adminPb.collection('tasks').create({
+      title: 'Future Task',
+      child: childId,
+      priority: 1,
+      completed: false,
+      dueDate: tomorrow.toISOString(),
+    })
+    await adminPb.collection('tasks').create({
+      title: 'Overdue Task',
+      child: childId,
+      priority: 10,
+      completed: false,
+      dueDate: yesterday.toISOString(),
+    })
+
+    const html = await container.renderToString(TasksChildPage, {
+      params: { groupId, childId },
+      locals: { pb: userPb, user: userPb.authStore.record },
+    })
+
+    const overdueIndex = html.indexOf('Overdue Task')
+    const futureIndex = html.indexOf('Future Task')
+    expect(overdueIndex).toBeLessThan(futureIndex)
+  })
+
   it('should order tasks by priority', async () => {
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'Low Priority',
       child: childId,
       priority: 10,
       completed: false,
     })
-    await adminPb.collection('kiosk_tasks').create({
+    await adminPb.collection('tasks').create({
       title: 'High Priority',
       child: childId,
       priority: 1,
