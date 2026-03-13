@@ -1,0 +1,11 @@
+---
+import ShipyardLayout from '@levino/shipyard-base/layouts/Page.astro'
+import PwaHead from '@/components/PwaHead.astro'
+
+const props = Astro.props
+---
+
+<ShipyardLayout {...props}>
+  <PwaHead slot="head" />
+  <slot />
+</ShipyardLayout>
