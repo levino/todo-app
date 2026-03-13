@@ -133,7 +133,11 @@ describe('Tasks Page - Child View (?child=id)', () => {
     userPb = new PocketBase(POCKETBASE_URL)
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
-    const group = await adminPb.collection('groups').create({ name: 'Test Family' })
+    const group = await adminPb.collection('groups').create({
+      name: 'Test Family',
+      morningEnd: '00:00',
+      eveningStart: '23:59',
+    })
     groupId = group.id
 
     await adminPb.collection('user_groups').create({
@@ -367,19 +371,11 @@ describe('Tasks Page - Child View (?child=id)', () => {
 
     const html = await renderChildPage()
 
-    if (currentPhase === 'morning') {
-      expect(html).toContain('Morning Task')
-      expect(html).not.toContain('Afternoon Task')
-      expect(html).not.toContain('Evening Task')
-    } else if (currentPhase === 'afternoon') {
-      expect(html).not.toContain('Morning Task')
-      expect(html).toContain('Afternoon Task')
-      expect(html).not.toContain('Evening Task')
-    } else {
-      expect(html).not.toContain('Morning Task')
-      expect(html).not.toContain('Afternoon Task')
-      expect(html).toContain('Evening Task')
-    }
+    // Group is configured with morningEnd=00:00 and eveningStart=23:59,
+    // so the current phase is always 'afternoon'
+    expect(html).not.toContain('Morning Task')
+    expect(html).toContain('Afternoon Task')
+    expect(html).not.toContain('Evening Task')
   })
 
   it('should use custom phase times from group settings', async () => {

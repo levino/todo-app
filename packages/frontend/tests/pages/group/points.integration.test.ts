@@ -32,7 +32,11 @@ describe('Points Display on Task Page', () => {
     userPb = new PocketBase(POCKETBASE_URL)
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
-    const group = await adminPb.collection('groups').create({ name: 'Test Family' })
+    const group = await adminPb.collection('groups').create({
+      name: 'Test Family',
+      morningEnd: '00:00',
+      eveningStart: '23:59',
+    })
     groupId = group.id
 
     await adminPb.collection('user_groups').create({
