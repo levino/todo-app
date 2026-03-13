@@ -14,6 +14,9 @@ const getCurrentPhase = (morningEnd: string, eveningStart: string) => {
   return 'evening'
 }
 
+const TEST_USER_EMAIL = `e2e-${Date.now()}@example.com`
+const TEST_USER_PASSWORD = 'testtest123'
+
 const setupTestData = async () => {
   const pb = new PocketBase(POCKETBASE_URL)
   await pb
@@ -24,6 +27,17 @@ const setupTestData = async () => {
     name: 'E2E Test Family',
     morningEnd: '09:00',
     eveningStart: '18:00',
+  })
+
+  const user = await pb.collection('users').create({
+    email: TEST_USER_EMAIL,
+    password: TEST_USER_PASSWORD,
+    passwordConfirm: TEST_USER_PASSWORD,
+  })
+
+  const userGroup = await pb.collection('user_groups').create({
+    user: user.id,
+    group: group.id,
   })
 
   const child1 = await pb.collection('children').create({
@@ -59,12 +73,12 @@ const setupTestData = async () => {
     priority: 1,
   })
 
-  return { pb, group, child1, child2, task1, task2 }
+  return { pb, group, user, userGroup, child1, child2, task1, task2 }
 }
 
 const cleanupTestData = async (
   pb: PocketBase,
-  ids: { tasks: string[]; children: string[]; groups: string[] },
+  ids: { tasks: string[]; children: string[]; groups: string[]; userGroups: string[]; users: string[] },
 ) => {
   for (const id of ids.tasks) {
     try {
@@ -76,9 +90,19 @@ const cleanupTestData = async (
       await pb.collection('children').delete(id)
     } catch {}
   }
+  for (const id of ids.userGroups) {
+    try {
+      await pb.collection('user_groups').delete(id)
+    } catch {}
+  }
   for (const id of ids.groups) {
     try {
       await pb.collection('groups').delete(id)
+    } catch {}
+  }
+  for (const id of ids.users) {
+    try {
+      await pb.collection('users').delete(id)
     } catch {}
   }
 }
@@ -86,6 +110,8 @@ const cleanupTestData = async (
 test.describe('Task completion confirmation dialog', () => {
   let pb: PocketBase
   let group: { id: string }
+  let user: { id: string }
+  let userGroup: { id: string }
   let child1: { id: string }
   let child2: { id: string }
   let task1: { id: string }
@@ -95,17 +121,27 @@ test.describe('Task completion confirmation dialog', () => {
     const data = await setupTestData()
     pb = data.pb
     group = data.group
+    user = data.user
+    userGroup = data.userGroup
     child1 = data.child1
     child2 = data.child2
     task1 = data.task1
     task2 = data.task2
   })
 
+  test.beforeEach(async ({ page }) => {
+    await page.request.post('http://localhost:4321/api/auth/login', {
+      form: { email: TEST_USER_EMAIL, password: TEST_USER_PASSWORD },
+    })
+  })
+
   test.afterAll(async () => {
     await cleanupTestData(pb, {
       tasks: [task1.id, task2.id],
       children: [child1.id, child2.id],
+      userGroups: [userGroup.id],
       groups: [group.id],
+      users: [user.id],
     })
   })
 

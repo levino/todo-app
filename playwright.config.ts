@@ -24,7 +24,6 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     env: {
       POCKETBASE_URL: process.env.POCKETBASE_URL || 'http://localhost:8090',
-      DISABLE_AUTH: 'true',
     },
   },
 })
