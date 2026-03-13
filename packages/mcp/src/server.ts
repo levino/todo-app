@@ -113,6 +113,33 @@ export function calculateNextDueDate(
   return null
 }
 
+export function calculateInitialDueDate(
+  recurrenceType: string | null,
+  recurrenceInterval: number | null,
+  recurrenceDays: number[] | null,
+  today: Date,
+): string | null {
+  if (recurrenceType === 'interval' && recurrenceInterval) {
+    return today.toISOString()
+  }
+
+  if (recurrenceType === 'weekly' && recurrenceDays && recurrenceDays.length > 0) {
+    const sorted = [...recurrenceDays].sort((a, b) => a - b)
+    const currentDay = today.getDay()
+
+    const nextDay = sorted.find((d) => d >= currentDay) ?? sorted[0]
+    const daysUntil = nextDay >= currentDay
+      ? nextDay - currentDay
+      : 7 - currentDay + nextDay
+
+    const next = new Date(today)
+    next.setDate(next.getDate() + daysUntil)
+    return next.toISOString()
+  }
+
+  return null
+}
+
 // Tool registry
 interface Tool {
   description: string
@@ -356,13 +383,16 @@ function registerTools() {
         recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]
       }
 
+      const effectiveDueDate = dueDate
+        ?? calculateInitialDueDate(recurrenceType ?? null, recurrenceInterval ?? null, recurrenceDays ?? null, new Date())
+
       const task = await pb.collection('tasks').create({
         title,
         child: childId,
         timeOfDay,
         priority: priority ?? null,
         completed: false,
-        dueDate: dueDate ?? null,
+        dueDate: effectiveDueDate,
         recurrenceType: recurrenceType ?? null,
         recurrenceInterval: recurrenceInterval ?? null,
         recurrenceDays: recurrenceDays ?? null,
