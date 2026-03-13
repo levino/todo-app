@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
+import { getCurrentPhase } from '@/lib/tasks'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -112,9 +113,11 @@ describe('Tasks Page - Child View (?child=id)', () => {
   let groupId: string
   let childId: string
   let userId: string
+  let currentPhase: string
 
   beforeEach(async () => {
     resetPocketBase()
+    currentPhase = getCurrentPhase('09:00', '18:00', 'Europe/Berlin')
 
     adminPb = new PocketBase(POCKETBASE_URL)
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
@@ -161,7 +164,7 @@ describe('Tasks Page - Child View (?child=id)', () => {
       child: childId,
       priority: 1,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
 
     const html = await renderChildPage()
@@ -177,14 +180,14 @@ describe('Tasks Page - Child View (?child=id)', () => {
       child: childId,
       priority: 1,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
     await adminPb.collection('tasks').create({
       title: 'Zimmer aufräumen',
       child: childId,
       priority: 2,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
 
     const html = await renderChildPage()
@@ -211,14 +214,14 @@ describe('Tasks Page - Child View (?child=id)', () => {
       priority: 1,
       completed: true,
       completedAt: yesterday.toISOString(),
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
     await adminPb.collection('tasks').create({
       title: 'Pending Task',
       child: childId,
       priority: 2,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
 
     const html = await renderChildPage()
@@ -255,7 +258,7 @@ describe('Tasks Page - Child View (?child=id)', () => {
       child: childId,
       priority: 1,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
 
     const html = await renderChildPage()
@@ -277,7 +280,7 @@ describe('Tasks Page - Child View (?child=id)', () => {
       priority: 1,
       completed: false,
       dueDate: yesterday.toISOString(),
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
 
     const html = await renderChildPage()
@@ -298,7 +301,7 @@ describe('Tasks Page - Child View (?child=id)', () => {
       priority: 1,
       completed: false,
       dueDate: today.toISOString(),
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
     await adminPb.collection('tasks').create({
       title: 'Overdue Task',
@@ -306,7 +309,7 @@ describe('Tasks Page - Child View (?child=id)', () => {
       priority: 10,
       completed: false,
       dueDate: yesterday.toISOString(),
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
 
     const html = await renderChildPage()
@@ -322,14 +325,14 @@ describe('Tasks Page - Child View (?child=id)', () => {
       child: childId,
       priority: 10,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
     await adminPb.collection('tasks').create({
       title: 'High Priority',
       child: childId,
       priority: 1,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
 
     const html = await renderChildPage()
@@ -364,12 +367,11 @@ describe('Tasks Page - Child View (?child=id)', () => {
 
     const html = await renderChildPage()
 
-    const currentHour = new Date().getHours()
-    if (currentHour < 9) {
+    if (currentPhase === 'morning') {
       expect(html).toContain('Morning Task')
       expect(html).not.toContain('Afternoon Task')
       expect(html).not.toContain('Evening Task')
-    } else if (currentHour < 18) {
+    } else if (currentPhase === 'afternoon') {
       expect(html).not.toContain('Morning Task')
       expect(html).toContain('Afternoon Task')
       expect(html).not.toContain('Evening Task')

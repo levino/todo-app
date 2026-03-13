@@ -847,6 +847,29 @@ describe('MCP Server', () => {
         expect(group.eveningStart).toBe('19:00')
       })
 
+      it('should configure timezone for a group', async () => {
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'configure_phase_times',
+              arguments: {
+                groupId,
+                timezone: 'America/New_York',
+              },
+            },
+            id: 2,
+          })
+
+        expect(res.status).toBe(200)
+
+        const group = await adminPb.collection('groups').getOne(groupId)
+        expect(group.timezone).toBe('America/New_York')
+      })
+
       it('should list groups with phase times', async () => {
         await adminPb.collection('groups').update(groupId, {
           morningEnd: '08:30',
@@ -869,6 +892,28 @@ describe('MCP Server', () => {
         const groups = JSON.parse(res.body.result.content[0].text)
         expect(groups[0].morningEnd).toBe('08:30')
         expect(groups[0].eveningStart).toBe('17:30')
+      })
+
+      it('should list groups with timezone', async () => {
+        await adminPb.collection('groups').update(groupId, {
+          timezone: 'Europe/Berlin',
+        })
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'list_groups',
+              arguments: {},
+            },
+            id: 2,
+          })
+
+        const groups = JSON.parse(res.body.result.content[0].text)
+        expect(groups[0].timezone).toBe('Europe/Berlin')
       })
 
       it('should be listed in tools/list', async () => {
@@ -1261,6 +1306,30 @@ describe('calculateNextDueDate', () => {
     expect(calculateNextDueDate(null, null, null, completed)).toBeNull()
     expect(calculateNextDueDate('', null, null, completed)).toBeNull()
   })
+
+  it('should use timezone to determine weekday correctly', () => {
+    // 2026-03-13 23:30 UTC = 2026-03-14 00:30 Europe/Berlin (CET = UTC+1)
+    // In UTC it's Friday (day 5), but in Berlin it's Saturday (day 6)
+    const completed = new Date('2026-03-13T23:30:00Z')
+    // Schedule for Sunday(0) only
+    // In UTC (Friday), next Sunday = 2 days = 2026-03-15
+    // In Berlin (Saturday), next Sunday = 1 day = 2026-03-15
+    // Schedule for Saturday(6) only
+    // In UTC (Friday), next Saturday = 1 day = 2026-03-14
+    // In Berlin (Saturday), it's already Saturday, so next Saturday = 7 days = 2026-03-21
+    // But calculateNextDueDate uses > not >= so even in Berlin next Sat = 7 days
+    // Let's test with Monday(1):
+    // In UTC (Friday day 5): next Monday = 3 days = 2026-03-16
+    // In Berlin (Saturday day 6): next Monday = 2 days = 2026-03-16 (same result but different day calc)
+    // Better test: schedule for Friday(5)
+    // In UTC (Friday day 5): next Friday = 7 days (since > not >=) = 2026-03-20
+    // In Berlin (Saturday day 6): next Friday = 6 days = 2026-03-20 (same)
+    // Most telling test: schedule for Saturday(6)
+    // In UTC (Friday day 5): next Saturday = 1 day = 2026-03-14
+    // In Berlin (Saturday day 6): next Saturday = 7 days = 2026-03-21
+    const result = calculateNextDueDate('weekly', null, [6], completed, 'Europe/Berlin')
+    expect(result).toContain('2026-03-21') // next Saturday in Berlin timezone
+  })
 })
 
 describe('calculateInitialDueDate', () => {
@@ -1287,5 +1356,22 @@ describe('calculateInitialDueDate', () => {
   it('should return null for non-recurring tasks', () => {
     const today = new Date('2026-03-13T10:00:00Z')
     expect(calculateInitialDueDate(null, null, null, today)).toBeNull()
+  })
+
+  it('should use timezone to determine today correctly', () => {
+    // 2026-03-13 23:30 UTC = 2026-03-14 00:30 Europe/Berlin
+    // In UTC it's Friday (day 5), in Berlin it's Saturday (day 6)
+    const today = new Date('2026-03-13T23:30:00Z')
+    // recurrenceDays includes Saturday(6)
+    // In Berlin, today IS Saturday, so should return 2026-03-14
+    const result = calculateInitialDueDate('weekly', null, [6], today, 'Europe/Berlin')
+    expect(result).toContain('2026-03-14')
+  })
+
+  it('should return today in local timezone for interval type', () => {
+    // 2026-03-13 23:30 UTC = 2026-03-14 00:30 in Europe/Berlin
+    const today = new Date('2026-03-13T23:30:00Z')
+    const result = calculateInitialDueDate('interval', 3, null, today, 'Europe/Berlin')
+    expect(result).toContain('2026-03-14')
   })
 })

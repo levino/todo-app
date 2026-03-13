@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
 import TasksIndexPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
+import { getCurrentPhase } from '@/lib/tasks'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -55,7 +56,7 @@ describe('Points Display on Task Page', () => {
       child: childId,
       priority: 1,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: getCurrentPhase('09:00', '18:00', 'Europe/Berlin'),
       points: 10,
     })
 
@@ -76,7 +77,7 @@ describe('Points Display on Task Page', () => {
       child: childId,
       priority: 1,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: getCurrentPhase('09:00', '18:00', 'Europe/Berlin'),
     })
 
     const request = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
@@ -108,7 +109,7 @@ describe('Points Display on Task Page', () => {
       child: childId,
       priority: 1,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: getCurrentPhase('09:00', '18:00', 'Europe/Berlin'),
       points: 5,
     })
 

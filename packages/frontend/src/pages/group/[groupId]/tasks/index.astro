@@ -9,6 +9,7 @@ import {
   getCurrentPhase,
   sortTasks,
   phaseLabels,
+  getLocalDateString,
 } from '@/lib/tasks'
 
 interface PointTransaction {
@@ -38,6 +39,7 @@ let recentlyCompleted: Task[] = []
 let currentPhase = 'afternoon'
 let groupMorningEnd = '09:00'
 let groupEveningStart = '18:00'
+let groupTimezone = 'Europe/Berlin'
 let groupName = ''
 let pointsBalance = 0
 
@@ -46,7 +48,8 @@ try {
   groupName = group.name
   groupMorningEnd = group.morningEnd || '09:00'
   groupEveningStart = group.eveningStart || '18:00'
-  currentPhase = getCurrentPhase(groupMorningEnd, groupEveningStart)
+  groupTimezone = group.timezone || 'Europe/Berlin'
+  currentPhase = getCurrentPhase(groupMorningEnd, groupEveningStart, groupTimezone)
 
   const childrenResult = await pb.collection('children').getList<Child>(1, 100, {
     filter: `group = "${groupId}"`,
@@ -62,15 +65,16 @@ try {
   }
 
   const now = new Date()
-  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
+  const todayDateStr = getLocalDateString(groupTimezone, now)
+  const todayEnd = todayDateStr + ' 23:59:59.999Z'
 
   if (selectedChild) {
     const result = await pb.collection('tasks').getList<Task>(1, 100, {
       filter: `child = "${selectedChild.id}" && completed = false && timeOfDay = "${currentPhase}" && (dueDate = "" || dueDate <= "${todayEnd}")`,
     })
-    tasksByChild[selectedChild.id] = sortTasks(result.items)
+    tasksByChild[selectedChild.id] = sortTasks(result.items, groupTimezone)
 
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().replace('T', ' ')
+    const todayStart = todayDateStr + ' 00:00:00.000Z'
     const recentlyCompletedResult = await pb.collection('tasks').getList<Task>(1, 100, {
       filter: `child = "${selectedChild.id}" && ((completed = true && completedAt >= "${todayStart}") || (completed = false && lastCompletedAt >= "${todayStart}" && lastCompletedAt != "" && recurrenceType != ""))`,
     })
@@ -89,14 +93,14 @@ try {
       const result = await pb.collection('tasks').getList<Task>(1, 100, {
         filter: `child = "${child.id}" && completed = false && timeOfDay = "${currentPhase}" && (dueDate = "" || dueDate <= "${todayEnd}")`,
       })
-      tasksByChild[child.id] = sortTasks(result.items)
+      tasksByChild[child.id] = sortTasks(result.items, groupTimezone)
     }
   }
 } catch (e) {
   console.error('Page fetch error:', e)
 }
 
-const todayStr = new Date().toISOString().slice(0, 10)
+const todayStr = getLocalDateString(groupTimezone)
 const showSwitcher = selectedChild && siblings.length > 1
 ---
 
@@ -348,7 +352,7 @@ const showSwitcher = selectedChild && siblings.length > 1
     </div>
   </div>
 
-  <script define:vars={{ currentPhase, groupMorningEnd, groupEveningStart }}>
+  <script define:vars={{ currentPhase, groupMorningEnd, groupEveningStart, groupTimezone }}>
     const parseTime = (timeStr) => {
       const [h, m] = timeStr.split(':').map(Number)
       return h * 60 + m
@@ -357,6 +361,20 @@ const showSwitcher = selectedChild && siblings.length > 1
     const morningEndMinutes = parseTime(groupMorningEnd)
     const eveningStartMinutes = parseTime(groupEveningStart)
 
+    const getLocalMinutes = () => {
+      const now = new Date()
+      const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: groupTimezone || 'Europe/Berlin',
+        hour: 'numeric',
+        minute: 'numeric',
+        hour12: false,
+      })
+      const parts = formatter.formatToParts(now)
+      const hour = Number(parts.find(p => p.type === 'hour')?.value || 0)
+      const minute = Number(parts.find(p => p.type === 'minute')?.value || 0)
+      return hour * 60 + minute
+    }
+
     const getPhase = (minutes) => {
       if (minutes < morningEndMinutes) return 'morning'
       if (minutes < eveningStartMinutes) return 'afternoon'
@@ -364,9 +382,7 @@ const showSwitcher = selectedChild && siblings.length > 1
     }
 
     setInterval(() => {
-      const now = new Date()
-      const minutes = now.getHours() * 60 + now.getMinutes()
-      if (getPhase(minutes) !== currentPhase) {
+      if (getPhase(getLocalMinutes()) !== currentPhase) {
         window.location.reload()
       }
     }, 60000)
