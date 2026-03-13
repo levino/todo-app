@@ -16,7 +16,7 @@ Die Kinder bereiten sich auf die Schule vor. Nur Tasks, die für den Start in de
 
 ### Nachmittags (9:00 – 18:00 Uhr)
 
-Nach der Schule kommen die allgemeinen Aufgaben und Hobbys. Dies ist der **Default-Slot** für alle Tasks, die keiner speziellen Tageszeit zugeordnet sind:
+Nach der Schule kommen die allgemeinen Aufgaben und Hobbys:
 
 - Hausaufgaben machen
 - Instrument üben (z.B. Geige spielen)
@@ -36,36 +36,46 @@ Die Abendroutine vor dem Schlafengehen:
 
 Am Wochenende gelten dieselben Phasen und Zeitgrenzen. Die Phasenstruktur ist tagesunabhängig.
 
+## Design-Entscheidungen
+
+- **Kein Übergang**: Phasenwechsel ist hart — keine Übergangszeit nötig, da Kinder um 9 in der Schule sind
+- **Auto-Refresh**: Die Task-Ansicht aktualisiert sich automatisch beim Phasenwechsel (kein manueller Reload)
+- **Filter gilt überall**: Alle Nutzer sehen nur Tasks der aktuellen Phase. Eltern können sich über den MCP-Server / KI eine Gesamtübersicht holen
+- **`timeOfDay` ist Pflichtfeld**: Bei der Task-Erstellung muss immer eine Phase angegeben werden — kein Default
+- **Customization sofort**: Phasen-Zeiten sind pro Gruppe anpassbar (kommt in v1)
+
 ## Technisches Konzept
 
 ### Datenmodell
 
-Neues Feld `timeOfDay` auf der `tasks`-Collection:
+Neues Pflichtfeld `timeOfDay` auf der `tasks`-Collection:
 
 | Wert | Beschreibung |
 |------|-------------|
 | `morning` | Morgenroutine |
-| `afternoon` | Allgemeine Aufgaben (Default) |
+| `afternoon` | Allgemeine Aufgaben |
 | `evening` | Abendroutine |
+
+### Phasen-Zeiten pro Gruppe
+
+Neue Felder auf der `groups`-Collection (oder eigene Collection):
+
+| Feld | Default | Beschreibung |
+|------|---------|-------------|
+| `morningEnd` | 09:00 | Ende der Morgenphase |
+| `eveningStart` | 18:00 | Start der Abendphase |
+
+Konfiguration über MCP-Server, damit Eltern per Chat die Zeiten für ihre Familie anpassen können.
 
 ### Migration
 
-Alle bestehenden Tasks werden auf `afternoon` gesetzt, da dies der allgemeine Slot ist.
+Alle bestehenden Tasks werden auf `afternoon` gesetzt (allgemeiner Slot).
 
 ### Anzeigelogik
 
-Die Task-Ansicht filtert automatisch nach der aktuellen Tagesphase basierend auf der Uhrzeit des Clients. Es werden nur Tasks der aktuellen Phase angezeigt.
+Die Task-Ansicht filtert nach der aktuellen Tagesphase basierend auf der Uhrzeit. Beim Phasenwechsel wird automatisch neu geladen (Timer/Subscription).
 
-### Default-Zeiten
+### MCP-Server
 
-| Phase | Start | Ende |
-|-------|-------|------|
-| morning | 00:00 | 09:00 |
-| afternoon | 09:00 | 18:00 |
-| evening | 18:00 | 00:00 |
-
-### Customization (geplant)
-
-Die Zeitgrenzen sollen pro Gruppe anpassbar sein, damit Familien die Phasen an ihren eigenen Tagesablauf anpassen können. Dies wird über den MCP-Server ermöglicht, sodass Eltern per Chat-Interface die Zeiten für ihre Familie konfigurieren können.
-
-Beispiel: Eine Familie, deren Kinder erst um 10:00 zur Schule müssen, kann die Morgenphase bis 10:00 verlängern.
+- `create_task`: `timeOfDay` als Pflichtparameter
+- Neues Tool: Phasen-Zeiten pro Gruppe konfigurieren
