@@ -39,10 +39,14 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
 
   const formData = await request.formData()
   const childId = formData.get('childId') as string
+  const completedBy = formData.get('completedBy') as string || childId
+  const redirectTo = formData.get('redirectTo') as string
 
   if (!childId) {
     return new Response('Missing child ID', { status: 400 })
   }
+
+  const redirectUrl = redirectTo || `/group/${groupId}/tasks/${childId}`
 
   try {
     const now = new Date()
@@ -60,6 +64,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       await pb.collection('tasks').update(taskId, {
         completed: false,
         completedAt: null,
+        completedBy: '',
         lastCompletedAt: now.toISOString(),
         dueDate: nextDueDate,
       })
@@ -68,12 +73,13 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
       await pb.collection('tasks').update(taskId, {
         completed: true,
         completedAt: now.toISOString(),
+        completedBy,
         lastCompletedAt: now.toISOString(),
       })
     }
   } catch {
-    return Response.redirect(new URL(`/group/${groupId}/tasks/${childId}?error=complete-failed`, request.url), 303)
+    return Response.redirect(new URL(`${redirectUrl}?error=complete-failed`, request.url), 303)
   }
 
-  return Response.redirect(new URL(`/group/${groupId}/tasks/${childId}`, request.url), 303)
+  return Response.redirect(new URL(redirectUrl, request.url), 303)
 }

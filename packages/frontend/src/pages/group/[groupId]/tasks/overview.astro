@@ -1,0 +1,210 @@
+---
+import Layout from '@levino/shipyard-base/layouts/Page.astro'
+import ColoredInitials from '@/components/ColoredInitials.astro'
+
+interface Child {
+  id: string
+  name: string
+  color: string
+  group: string
+}
+
+interface Task {
+  id: string
+  title: string
+  child: string
+  priority: number | null
+  completed: boolean
+  completedAt: string | null
+  dueDate: string | null
+  recurrenceType: string | null
+  timeOfDay: string
+}
+
+interface Group {
+  id: string
+  name: string
+  morningEnd: string
+  eveningStart: string
+}
+
+const getCurrentPhase = (morningEnd: string, eveningStart: string): string => {
+  const now = new Date()
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+
+  const [morningEndHour, morningEndMin] = (morningEnd || '09:00').split(':').map(Number)
+  const morningEndMinutes = morningEndHour * 60 + morningEndMin
+
+  const [eveningStartHour, eveningStartMin] = (eveningStart || '18:00').split(':').map(Number)
+  const eveningStartMinutes = eveningStartHour * 60 + eveningStartMin
+
+  if (currentMinutes < morningEndMinutes) return 'morning'
+  if (currentMinutes < eveningStartMinutes) return 'afternoon'
+  return 'evening'
+}
+
+const phaseLabels: Record<string, string> = {
+  morning: 'Morgens',
+  afternoon: 'Nachmittags',
+  evening: 'Abends',
+}
+
+const sortTasks = (tasks: Task[]): Task[] => {
+  const now = new Date()
+  return tasks.sort((a, b) => {
+    const overdueA = a.dueDate && new Date(a.dueDate) < now ? 1 : 0
+    const overdueB = b.dueDate && new Date(b.dueDate) < now ? 1 : 0
+    if (overdueA !== overdueB) return overdueB - overdueA
+
+    const priorityA = (a.priority === null || a.priority === undefined || a.priority === 0) ? Infinity : a.priority
+    const priorityB = (b.priority === null || b.priority === undefined || b.priority === 0) ? Infinity : b.priority
+    return priorityA - priorityB
+  })
+}
+
+const { groupId } = Astro.params
+const { pb, user } = Astro.locals
+
+if (!user || !groupId) {
+  return Astro.redirect('/login')
+}
+
+let children: Child[] = []
+let tasksByChild: Record<string, Task[]> = {}
+let error = ''
+let currentPhase = 'afternoon'
+let groupMorningEnd = '09:00'
+let groupEveningStart = '18:00'
+let groupName = ''
+
+try {
+  const group = await pb.collection('groups').getOne<Group>(groupId)
+  groupName = group.name
+  groupMorningEnd = group.morningEnd || '09:00'
+  groupEveningStart = group.eveningStart || '18:00'
+  currentPhase = getCurrentPhase(groupMorningEnd, groupEveningStart)
+
+  const childrenResult = await pb.collection('children').getList<Child>(1, 100, {
+    filter: `group = "${groupId}"`,
+    sort: 'name',
+  })
+  children = childrenResult.items
+
+  for (const child of children) {
+    const result = await pb.collection('tasks').getList<Task>(1, 100, {
+      filter: `child = "${child.id}" && completed = false && timeOfDay = "${currentPhase}"`,
+    })
+    tasksByChild[child.id] = sortTasks(result.items)
+  }
+} catch (e) {
+  console.error('Overview fetch error:', e)
+  error = 'Fehler beim Laden der Übersicht.'
+}
+---
+
+<Layout title={`${groupName} - Übersicht`}>
+  <div class="min-h-screen bg-base-100 p-4 md:p-8">
+    <div class="max-w-3xl mx-auto">
+      <header class="mb-4">
+        <h1 class="text-3xl font-bold">{groupName}</h1>
+      </header>
+
+      <div data-testid="phase-indicator" class="badge badge-lg badge-outline mb-8">
+        {phaseLabels[currentPhase]}
+      </div>
+
+      {error && (
+        <div class="alert alert-error mb-6">
+          <span>{error}</span>
+        </div>
+      )}
+
+      {children.map((child) => {
+        const tasks = tasksByChild[child.id] || []
+        return (
+          <section data-testid="child-section" class="mb-8">
+            <header class="flex items-center gap-3 mb-4">
+              <ColoredInitials name={child.name} color={child.color} size="md" />
+              <h2 class="text-2xl font-bold">{child.name}</h2>
+            </header>
+
+            {tasks.length === 0 ? (
+              <div data-testid="celebration" class="text-center py-8 bg-base-200 rounded-xl">
+                <div class="text-5xl mb-2">🌟</div>
+                <p class="text-lg text-success font-bold">Alles erledigt!</p>
+              </div>
+            ) : (
+              <ul class="space-y-3">
+                {tasks.map((task) => {
+                  const isOverdue = task.dueDate && new Date(task.dueDate) < new Date()
+                  return (
+                    <li
+                      data-testid="task-item"
+                      data-overdue={isOverdue ? "true" : undefined}
+                      class:list={[
+                        'flex items-center gap-4 p-4 rounded-xl min-h-[56px]',
+                        isOverdue ? 'bg-error/10 border-2 border-error' : 'bg-base-200',
+                      ]}
+                    >
+                      <form method="POST" action={`/api/groups/${groupId}/tasks/${task.id}/complete`}>
+                        <input type="hidden" name="childId" value={child.id} />
+                        <input type="hidden" name="completedBy" value={child.id} />
+                        <input type="hidden" name="redirectTo" value={`/group/${groupId}/tasks/overview`} />
+                        <button
+                          type="submit"
+                          data-testid="complete-button"
+                          class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px]"
+                          aria-label={`${task.title} erledigen`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </button>
+                      </form>
+                      <div class="flex-1">
+                        <span class="text-xl md:text-2xl">{task.title}</span>
+                        {isOverdue && (
+                          <span data-testid="overdue-badge" class="badge badge-error badge-sm ml-2">Überfällig</span>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+        )
+      })}
+
+      <div class="mt-8 pt-8 border-t border-base-300">
+        <a href={`/group/${groupId}/tasks`} class="btn btn-ghost btn-sm">
+          ← Kinderauswahl
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script define:vars={{ currentPhase, groupMorningEnd, groupEveningStart }}>
+    const parseTime = (timeStr) => {
+      const [h, m] = timeStr.split(':').map(Number)
+      return h * 60 + m
+    }
+
+    const morningEndMinutes = parseTime(groupMorningEnd)
+    const eveningStartMinutes = parseTime(groupEveningStart)
+
+    const getPhase = (minutes) => {
+      if (minutes < morningEndMinutes) return 'morning'
+      if (minutes < eveningStartMinutes) return 'afternoon'
+      return 'evening'
+    }
+
+    setInterval(() => {
+      const now = new Date()
+      const minutes = now.getHours() * 60 + now.getMinutes()
+      if (getPhase(minutes) !== currentPhase) {
+        window.location.reload()
+      }
+    }, 60000)
+  </script>
+</Layout>
