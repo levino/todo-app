@@ -107,8 +107,8 @@ describe('Task Page Animations and Haptic Feedback', () => {
         locals: { pb, user: pb.authStore.record },
       })
 
-      // Child name links should have transition-colors
-      expect(html).toMatch(/hover:underline[^"]*transition-colors/)
+      // Child name links should have hover lift and transition
+      expect(html).toMatch(/hover:-translate-y-0\.5[^"]*transition-transform/)
     })
 
     it('should have animation classes on complete buttons', async () => {

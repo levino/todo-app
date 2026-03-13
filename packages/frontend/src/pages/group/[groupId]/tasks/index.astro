@@ -111,7 +111,7 @@ const displayChildren = selectedChild ? [selectedChild] : children
 ---
 
 <Layout title={selectedChild ? `${selectedChild.name} - Aufgaben` : `${groupName} - Aufgaben`}>
-  <div transition:animate="slide" class="min-h-screen bg-base-100 p-4 md:p-8">
+  <div transition:animate="fade" class="min-h-screen bg-base-100 p-4 md:p-8">
     <div class:list={[selectedChild ? 'max-w-3xl' : 'max-w-6xl', 'mx-auto']}>
       {error && (
         <div class="alert alert-error mb-6">
@@ -178,10 +178,10 @@ const displayChildren = selectedChild ? [selectedChild] : children
           const futureTasks = futureTasksByChild[child.id] || []
           const childPoints = pointsBalanceByChild[child.id] || 0
           return (
-            <div data-testid="child-column">
+            <div data-testid="child-column" transition:name={`child-${child.id}`}>
               {!selectedChild && (
                 <header class="flex items-center gap-3 mb-4">
-                  <a href={`/group/${groupId}/tasks?child=${child.id}`} class="flex items-center gap-3 text-2xl font-bold hover:underline transition-colors duration-150">
+                  <a href={`/group/${groupId}/tasks?child=${child.id}`} class="flex items-center gap-3 text-2xl font-bold no-underline hover:-translate-y-0.5 transition-transform duration-150">
                     <ColoredInitials name={child.name} color={child.color} size="md" />
                     {child.name}
                   </a>
@@ -355,38 +355,42 @@ const displayChildren = selectedChild ? [selectedChild] : children
   </dialog>
 
   <script>
-    let pendingForm: HTMLFormElement | null = null
-    const dialog = document.getElementById('confirm-dialog') as HTMLDialogElement
-    const titleEl = document.getElementById('confirm-task-title') as HTMLElement
-    const cancelBtn = document.getElementById('confirm-cancel') as HTMLButtonElement
-    const okBtn = document.getElementById('confirm-ok') as HTMLButtonElement
+    document.addEventListener('astro:page-load', () => {
+      let pendingForm: HTMLFormElement | null = null
+      const dialog = document.getElementById('confirm-dialog') as HTMLDialogElement
+      const titleEl = document.getElementById('confirm-task-title') as HTMLElement
+      const cancelBtn = document.getElementById('confirm-cancel') as HTMLButtonElement
+      const okBtn = document.getElementById('confirm-ok') as HTMLButtonElement
 
-    document.querySelectorAll('form[data-task-title]').forEach((form) => {
-      form.addEventListener('submit', (e) => {
-        e.preventDefault()
-        pendingForm = form as HTMLFormElement
-        titleEl.textContent = form.getAttribute('data-task-title') || ''
-        dialog.showModal()
+      if (!dialog || !titleEl || !cancelBtn || !okBtn) return
+
+      document.querySelectorAll('form[data-task-title]').forEach((form) => {
+        form.addEventListener('submit', (e) => {
+          e.preventDefault()
+          pendingForm = form as HTMLFormElement
+          titleEl.textContent = form.getAttribute('data-task-title') || ''
+          dialog.showModal()
+        })
       })
-    })
 
-    cancelBtn.addEventListener('click', () => {
-      pendingForm = null
-      dialog.close()
-    })
+      cancelBtn.addEventListener('click', () => {
+        pendingForm = null
+        dialog.close()
+      })
 
-    okBtn.addEventListener('click', () => {
-      if (pendingForm) pendingForm.submit()
-    })
+      okBtn.addEventListener('click', () => {
+        if (pendingForm) pendingForm.submit()
+      })
 
-    document.querySelectorAll('[data-testid="task-item"]').forEach((li) => {
-      li.addEventListener('click', (e) => {
-        if ((e.target as Element).closest('button')) return
-        const form = li.querySelector('form[data-task-title]') as HTMLFormElement
-        if (form) {
-          const event = new Event('submit', { cancelable: true, bubbles: true })
-          form.dispatchEvent(event)
-        }
+      document.querySelectorAll('[data-testid="task-item"]').forEach((li) => {
+        li.addEventListener('click', (e) => {
+          if ((e.target as Element).closest('button')) return
+          const form = li.querySelector('form[data-task-title]') as HTMLFormElement
+          if (form) {
+            const event = new Event('submit', { cancelable: true, bubbles: true })
+            form.dispatchEvent(event)
+          }
+        })
       })
     })
   </script>
@@ -428,9 +432,11 @@ const displayChildren = selectedChild ? [selectedChild] : children
   </script>
 
   <script is:inline>
-    document.querySelectorAll('.btn-success[type="submit"]').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        if (navigator.vibrate) navigator.vibrate(50)
+    document.addEventListener('astro:page-load', function() {
+      document.querySelectorAll('.btn-success[type="submit"]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          if (navigator.vibrate) navigator.vibrate(50)
+        })
       })
     })
   </script>
