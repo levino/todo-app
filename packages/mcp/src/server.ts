@@ -105,31 +105,58 @@ export const CHILD_COLORS = [
   { name: 'Pink', value: '#F783AC' },
 ]
 
-// Calculate next due date based on recurrence
+export function getLocalDateParts(timezone: string, date: Date): { year: number; month: number; day: number; weekday: number } {
+  const tz = timezone || 'Europe/Berlin'
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    weekday: 'short',
+  })
+  const parts = formatter.formatToParts(date)
+  const year = Number(parts.find((p) => p.type === 'year')?.value)
+  const month = Number(parts.find((p) => p.type === 'month')?.value)
+  const day = Number(parts.find((p) => p.type === 'day')?.value)
+  const weekdayStr = parts.find((p) => p.type === 'weekday')?.value || ''
+  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  const weekday = weekdayMap[weekdayStr] ?? date.getDay()
+  return { year, month, day, weekday }
+}
+
+export function getLocalDateString(timezone: string, date: Date): string {
+  const { year, month, day } = getLocalDateParts(timezone, date)
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
 export function calculateNextDueDate(
   recurrenceType: string | null,
   recurrenceInterval: number | null,
   recurrenceDays: number[] | null,
   completedAt: Date,
+  timezone?: string,
 ): string | null {
+  const tz = timezone || 'UTC'
+
   if (recurrenceType === 'interval' && recurrenceInterval) {
-    const next = new Date(completedAt)
-    next.setDate(next.getDate() + recurrenceInterval)
+    const localDate = getLocalDateString(tz, completedAt)
+    const next = new Date(localDate + 'T00:00:00Z')
+    next.setUTCDate(next.getUTCDate() + recurrenceInterval)
     return next.toISOString()
   }
 
   if (recurrenceType === 'weekly' && recurrenceDays && recurrenceDays.length > 0) {
     const sorted = [...recurrenceDays].sort((a, b) => a - b)
-    const currentDay = completedAt.getDay()
+    const { weekday: currentDay } = getLocalDateParts(tz, completedAt)
+    const localDate = getLocalDateString(tz, completedAt)
 
-    // Find the next weekday after today
     const nextDay = sorted.find((d) => d > currentDay) ?? sorted[0]
     const daysUntil = nextDay > currentDay
       ? nextDay - currentDay
       : 7 - currentDay + nextDay
 
-    const next = new Date(completedAt)
-    next.setDate(next.getDate() + daysUntil)
+    const next = new Date(localDate + 'T00:00:00Z')
+    next.setUTCDate(next.getUTCDate() + daysUntil)
     return next.toISOString()
   }
 
@@ -141,22 +168,27 @@ export function calculateInitialDueDate(
   recurrenceInterval: number | null,
   recurrenceDays: number[] | null,
   today: Date,
+  timezone?: string,
 ): string | null {
+  const tz = timezone || 'UTC'
+
   if (recurrenceType === 'interval' && recurrenceInterval) {
-    return today.toISOString()
+    const localDate = getLocalDateString(tz, today)
+    return new Date(localDate + 'T00:00:00Z').toISOString()
   }
 
   if (recurrenceType === 'weekly' && recurrenceDays && recurrenceDays.length > 0) {
     const sorted = [...recurrenceDays].sort((a, b) => a - b)
-    const currentDay = today.getDay()
+    const { weekday: currentDay } = getLocalDateParts(tz, today)
+    const localDate = getLocalDateString(tz, today)
 
     const nextDay = sorted.find((d) => d >= currentDay) ?? sorted[0]
     const daysUntil = nextDay >= currentDay
       ? nextDay - currentDay
       : 7 - currentDay + nextDay
 
-    const next = new Date(today)
-    next.setDate(next.getDate() + daysUntil)
+    const next = new Date(localDate + 'T00:00:00Z')
+    next.setUTCDate(next.getUTCDate() + daysUntil)
     return next.toISOString()
   }
 
@@ -190,7 +222,7 @@ function registerTools() {
       })
 
       interface MembershipWithGroup {
-        expand?: { group?: { id: string; name: string; morningEnd?: string; eveningStart?: string } }
+        expand?: { group?: { id: string; name: string; morningEnd?: string; eveningStart?: string; timezone?: string } }
       }
 
       const groups = memberships.items.map((m: MembershipWithGroup) => ({
@@ -198,6 +230,7 @@ function registerTools() {
         name: m.expand?.group?.name,
         morningEnd: m.expand?.group?.morningEnd || '09:00',
         eveningStart: m.expand?.group?.eveningStart || '18:00',
+        timezone: m.expand?.group?.timezone || 'Europe/Berlin',
       }))
 
       return { content: [{ type: 'text', text: JSON.stringify(groups, null, 2) }] }
@@ -408,8 +441,12 @@ function registerTools() {
         recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]; points?: number
       }
 
+      const child = await pb.collection('children').getOne(childId)
+      const group = await pb.collection('groups').getOne(child.group)
+      const timezone = group.timezone || 'Europe/Berlin'
+
       const effectiveDueDate = dueDate
-        ?? calculateInitialDueDate(recurrenceType ?? null, recurrenceInterval ?? null, recurrenceDays ?? null, new Date())
+        ?? calculateInitialDueDate(recurrenceType ?? null, recurrenceInterval ?? null, recurrenceDays ?? null, new Date(), timezone)
 
       const task = await pb.collection('tasks').create({
         title,
@@ -568,18 +605,20 @@ function registerTools() {
   })
 
   tools.set('configure_phase_times', {
-    description: 'Configure the time-of-day phase boundaries for a group. Morning phase runs from midnight to morningEnd, afternoon from morningEnd to eveningStart, evening from eveningStart to midnight. Default: morningEnd=09:00, eveningStart=18:00.',
+    description: 'Configure the time-of-day phase boundaries and timezone for a group. Morning phase runs from midnight to morningEnd, afternoon from morningEnd to eveningStart, evening from eveningStart to midnight. Default: morningEnd=09:00, eveningStart=18:00, timezone=Europe/Berlin.',
     inputSchema: z.object({
       groupId: z.string().describe('ID of the group'),
       morningEnd: z.string().optional().describe('End of morning phase (HH:MM format, e.g. "09:00")'),
       eveningStart: z.string().optional().describe('Start of evening phase (HH:MM format, e.g. "18:00")'),
+      timezone: z.string().optional().describe('IANA timezone (e.g. "Europe/Berlin", "America/New_York")'),
     }),
     handler: async (args, pb) => {
-      const { groupId, morningEnd, eveningStart } = args as { groupId: string; morningEnd?: string; eveningStart?: string }
+      const { groupId, morningEnd, eveningStart, timezone } = args as { groupId: string; morningEnd?: string; eveningStart?: string; timezone?: string }
 
       const updates: Record<string, string> = {}
       if (morningEnd) updates.morningEnd = morningEnd
       if (eveningStart) updates.eveningStart = eveningStart
+      if (timezone) updates.timezone = timezone
 
       await pb.collection('groups').update(groupId, updates)
 

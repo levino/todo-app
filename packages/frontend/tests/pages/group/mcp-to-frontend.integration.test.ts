@@ -5,6 +5,7 @@ import request from 'supertest'
 import { app } from '@family-todo/mcp/src/server.js'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
+import { getCurrentPhase } from '@/lib/tasks'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -67,8 +68,7 @@ describe('MCP → Frontend Integration', () => {
     })
     const childId = extractId(childResult.result.content[0].text)
 
-    const currentHour = new Date().getHours()
-    const currentPhase = currentHour < 9 ? 'morning' : currentHour < 18 ? 'afternoon' : 'evening'
+    const currentPhase = getCurrentPhase('09:00', '18:00', 'Europe/Berlin')
 
     await mcpCall(authToken, 'create_task', {
       childId,
@@ -125,12 +125,12 @@ describe('MCP → Frontend Integration', () => {
 
     const html = await renderChildPage(groupId, childId)
 
-    const currentHour = new Date().getHours()
-    if (currentHour < 9) {
+    const phase = getCurrentPhase('09:00', '18:00', 'Europe/Berlin')
+    if (phase === 'morning') {
       expect(html).toContain('Morgenaufgabe')
       expect(html).not.toContain('Nachmittagsaufgabe')
       expect(html).not.toContain('Abendaufgabe')
-    } else if (currentHour < 18) {
+    } else if (phase === 'afternoon') {
       expect(html).not.toContain('Morgenaufgabe')
       expect(html).toContain('Nachmittagsaufgabe')
       expect(html).not.toContain('Abendaufgabe')
@@ -189,8 +189,8 @@ describe('MCP → Frontend Integration', () => {
     })
     const childId = extractId(childResult.result.content[0].text)
 
-    const currentHour = new Date().getHours()
-    const otherPhase = currentHour < 9 ? 'evening' : currentHour < 18 ? 'morning' : 'morning'
+    const curPhase = getCurrentPhase('09:00', '18:00', 'Europe/Berlin')
+    const otherPhase = curPhase === 'morning' ? 'evening' : 'morning'
 
     await mcpCall(authToken, 'create_task', {
       childId,
@@ -217,8 +217,7 @@ describe('MCP → Frontend Integration', () => {
     })
     const childId = extractId(childResult.result.content[0].text)
 
-    const currentHour = new Date().getHours()
-    const currentPhase = currentHour < 9 ? 'morning' : currentHour < 18 ? 'afternoon' : 'evening'
+    const currentPhase = getCurrentPhase('09:00', '18:00', 'Europe/Berlin')
 
     const yesterday = new Date()
     yesterday.setDate(yesterday.getDate() - 1)

@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
+import { getCurrentPhase } from '@/lib/tasks'
 
 const POCKETBASE_URL =
   process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
@@ -14,6 +15,7 @@ describe('Tasks Overview Page', () => {
   let groupId: string
   let child1Id: string
   let child2Id: string
+  let currentPhase: string
 
   beforeEach(async () => {
     resetPocketBase()
@@ -44,6 +46,7 @@ describe('Tasks Overview Page', () => {
       eveningStart: '18:00',
     })
     groupId = group.id
+    currentPhase = getCurrentPhase('09:00', '18:00', 'Europe/Berlin')
 
     await adminPb.collection('user_groups').create({
       user: user.id,
@@ -72,13 +75,13 @@ describe('Tasks Overview Page', () => {
       title: 'Zähne putzen',
       child: child1Id,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
     await adminPb.collection('tasks').create({
       title: 'Hausaufgaben',
       child: child2Id,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
 
     const html = await container.renderToString(TasksPage, {
@@ -97,7 +100,7 @@ describe('Tasks Overview Page', () => {
       title: 'Zähne putzen',
       child: child1Id,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
 
     const html = await container.renderToString(TasksPage, {
@@ -119,14 +122,14 @@ describe('Tasks Overview Page', () => {
       title: 'Future Task',
       child: child1Id,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
       dueDate: tomorrow.toISOString(),
     })
     await adminPb.collection('tasks').create({
       title: 'Today Task',
       child: child1Id,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
 
     const html = await container.renderToString(TasksPage, {
@@ -143,7 +146,7 @@ describe('Tasks Overview Page', () => {
       title: 'Aufräumen',
       child: child1Id,
       completed: false,
-      timeOfDay: 'afternoon',
+      timeOfDay: currentPhase,
     })
 
     const html = await container.renderToString(TasksPage, {
