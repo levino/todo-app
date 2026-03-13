@@ -184,7 +184,7 @@ const showSwitcher = selectedChild && siblings.length > 1
                         isOverdue ? 'bg-error/10 border-2 border-error' : 'bg-base-200',
                       ]}
                     >
-                      <form method="POST" action={actions.completeTask}>
+                      <form method="POST" action={actions.completeTask} data-task-title={task.title}>
                         <input type="hidden" name="taskId" value={task.id} />
                         <input type="hidden" name="childId" value={selectedChild.id} />
                         <input type="hidden" name="completedBy" value={selectedChild.id} />
@@ -311,7 +311,7 @@ const showSwitcher = selectedChild && siblings.length > 1
                             isOverdue ? 'bg-error/10 border-2 border-error' : 'bg-base-200',
                           ]}
                         >
-                          <form method="POST" action={actions.completeTask}>
+                          <form method="POST" action={actions.completeTask} data-task-title={task.title}>
                             <input type="hidden" name="taskId" value={task.id} />
                             <input type="hidden" name="childId" value={child.id} />
                             <input type="hidden" name="completedBy" value={child.id} />
@@ -351,6 +351,46 @@ const showSwitcher = selectedChild && siblings.length > 1
       )}
     </div>
   </div>
+
+  <dialog data-testid="confirm-dialog" id="confirm-dialog" class="modal">
+    <div class="modal-box">
+      <h3 class="text-lg font-bold">Aufgabe erledigt?</h3>
+      <p class="py-4">Hast du <strong id="confirm-task-title"></strong> wirklich erledigt?</p>
+      <div class="modal-action">
+        <button data-testid="confirm-cancel" id="confirm-cancel" class="btn">Abbrechen</button>
+        <button data-testid="confirm-ok" id="confirm-ok" class="btn btn-success">Erledigt!</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>
+
+  <script>
+    let pendingForm: HTMLFormElement | null = null
+    const dialog = document.getElementById('confirm-dialog') as HTMLDialogElement
+    const titleEl = document.getElementById('confirm-task-title') as HTMLElement
+    const cancelBtn = document.getElementById('confirm-cancel') as HTMLButtonElement
+    const okBtn = document.getElementById('confirm-ok') as HTMLButtonElement
+
+    document.querySelectorAll('form[data-task-title]').forEach((form) => {
+      form.addEventListener('submit', (e) => {
+        e.preventDefault()
+        pendingForm = form as HTMLFormElement
+        titleEl.textContent = form.getAttribute('data-task-title') || ''
+        dialog.showModal()
+      })
+    })
+
+    cancelBtn.addEventListener('click', () => {
+      pendingForm = null
+      dialog.close()
+    })
+
+    okBtn.addEventListener('click', () => {
+      if (pendingForm) pendingForm.submit()
+    })
+  </script>
 
   <script define:vars={{ currentPhase, groupMorningEnd, groupEveningStart, groupTimezone }}>
     const parseTime = (timeStr) => {
