@@ -40,9 +40,14 @@ try {
 <Layout title={`${groupName} - Aufgaben`}>
   <div class="min-h-screen bg-base-100 p-4 md:p-8">
     <div class="max-w-3xl mx-auto">
-      <header class="mb-8">
-        <h1 class="text-3xl font-bold">{groupName}</h1>
-        <p class="text-base-content/70">Wähle ein Kind aus</p>
+      <header class="mb-8 flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold">{groupName}</h1>
+          <p class="text-base-content/70">Wähle ein Kind aus</p>
+        </div>
+        <a href={`/group/${groupId}/tasks/overview`} class="btn btn-primary">
+          Alle Aufgaben
+        </a>
       </header>
 
       {error && (
