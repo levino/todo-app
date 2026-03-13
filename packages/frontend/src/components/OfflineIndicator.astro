@@ -1,0 +1,35 @@
+---
+---
+
+<div data-testid="offline-banner" class="hidden alert alert-warning mb-4 sticky top-0 z-50">
+  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 shrink-0 stroke-current" fill="none" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+  </svg>
+  <span>Offline - Aufgaben werden im Nur-Lese-Modus angezeigt</span>
+</div>
+
+<script>
+  const banner = document.querySelector('[data-testid="offline-banner"]')
+
+  const updateOnlineStatus = () => {
+    if (!navigator.onLine) {
+      banner?.classList.remove('hidden')
+      document.querySelectorAll('button[type="submit"], form button').forEach((btn) => {
+        ;(btn as HTMLButtonElement).disabled = true
+      })
+    } else {
+      banner?.classList.add('hidden')
+      document.querySelectorAll('button[type="submit"], form button').forEach((btn) => {
+        ;(btn as HTMLButtonElement).disabled = false
+      })
+    }
+  }
+
+  window.addEventListener('offline', updateOnlineStatus)
+  window.addEventListener('online', updateOnlineStatus)
+  updateOnlineStatus()
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js')
+  }
+</script>
