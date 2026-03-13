@@ -1,5 +1,20 @@
 import type { APIRoute } from 'astro'
 
+function getCurrentPhase(morningEnd: string, eveningStart: string): string {
+  const now = new Date()
+  const currentMinutes = now.getHours() * 60 + now.getMinutes()
+
+  const [morningEndHour, morningEndMin] = (morningEnd || '09:00').split(':').map(Number)
+  const morningEndMinutes = morningEndHour * 60 + morningEndMin
+
+  const [eveningStartHour, eveningStartMin] = (eveningStart || '18:00').split(':').map(Number)
+  const eveningStartMinutes = eveningStartHour * 60 + eveningStartMin
+
+  if (currentMinutes < morningEndMinutes) return 'morning'
+  if (currentMinutes < eveningStartMinutes) return 'afternoon'
+  return 'evening'
+}
+
 function calculateNextDueDate(
   recurrenceType: string | null,
   recurrenceInterval: number | null,
@@ -51,6 +66,33 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
   try {
     const now = new Date()
     const task = await pb.collection('tasks').getOne(taskId)
+
+    if (task.completed) {
+      return Response.redirect(
+        new URL(`/group/${groupId}/tasks/${childId}?error=already-completed`, request.url),
+        303,
+      )
+    }
+
+    const group = await pb.collection('groups').getOne(groupId)
+    const currentPhase = getCurrentPhase(group.morningEnd, group.eveningStart)
+    if (task.timeOfDay !== currentPhase) {
+      return Response.redirect(
+        new URL(`/group/${groupId}/tasks/${childId}?error=wrong-phase`, request.url),
+        303,
+      )
+    }
+
+    if (task.dueDate) {
+      const dueDateStr = task.dueDate.slice(0, 10)
+      const todayStr = now.toISOString().slice(0, 10)
+      if (dueDateStr > todayStr) {
+        return Response.redirect(
+          new URL(`/group/${groupId}/tasks/${childId}?error=not-yet-due`, request.url),
+          303,
+        )
+      }
+    }
 
     const nextDueDate = calculateNextDueDate(
       task.recurrenceType,

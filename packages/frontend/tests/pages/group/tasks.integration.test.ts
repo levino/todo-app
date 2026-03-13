@@ -304,15 +304,14 @@ describe('Tasks Child Page', () => {
   it('should sort overdue tasks before non-overdue tasks', async () => {
     const yesterday = new Date()
     yesterday.setDate(yesterday.getDate() - 1)
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
+    const today = new Date()
 
     await adminPb.collection('tasks').create({
-      title: 'Future Task',
+      title: 'Today Task',
       child: childId,
       priority: 1,
       completed: false,
-      dueDate: tomorrow.toISOString(),
+      dueDate: today.toISOString(),
       timeOfDay: 'afternoon',
     })
     await adminPb.collection('tasks').create({
@@ -330,8 +329,8 @@ describe('Tasks Child Page', () => {
     })
 
     const overdueIndex = html.indexOf('Overdue Task')
-    const futureIndex = html.indexOf('Future Task')
-    expect(overdueIndex).toBeLessThan(futureIndex)
+    const todayIndex = html.indexOf('Today Task')
+    expect(overdueIndex).toBeLessThan(todayIndex)
   })
 
   it('should order tasks by priority', async () => {

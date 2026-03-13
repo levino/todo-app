@@ -5,11 +5,14 @@
 **No code changes without a failing test!**
 
 1. First write a test that fails
-2. Then change the code to make the test pass
-3. Refactor only when tests are green
-4. **RUN THE TESTS** to verify they pass: `npm run docker:test`
+2. **RUN THE TESTS** to confirm the test actually fails: `npm run docker:test`
+3. Only THEN change the production code — the minimum needed to make the test pass
+4. **RUN THE TESTS** again to verify they pass
+5. Refactor only when tests are green
 
 This applies to all bug fixes and new features.
+
+**CRITICAL: NEVER write production code and tests in the same step!** The whole point of TDD is that you SEE the test fail first. Writing both together defeats the purpose — you can't know your test actually catches the bug if you never saw it fail. This is non-negotiable.
 
 **IMPORTANT:** Never run `npm run test:bare` directly on the host machine. Tests require Docker networking to reach `pocketbase-test`. Always use `npm run docker:test` which runs tests inside a container.
 
