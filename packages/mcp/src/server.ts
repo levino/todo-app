@@ -64,6 +64,7 @@ interface TaskRecord {
   recurrenceType: string | null
   recurrenceInterval: number | null
   recurrenceDays: number[] | null
+  timeOfDay: string
   child: string
   collectionId: string
   collectionName: string
@@ -138,12 +139,14 @@ function registerTools() {
       })
 
       interface MembershipWithGroup {
-        expand?: { group?: { id: string; name: string } }
+        expand?: { group?: { id: string; name: string; morningEnd?: string; eveningStart?: string } }
       }
 
       const groups = memberships.items.map((m: MembershipWithGroup) => ({
         id: m.expand?.group?.id,
         name: m.expand?.group?.name,
+        morningEnd: m.expand?.group?.morningEnd || '09:00',
+        eveningStart: m.expand?.group?.eveningStart || '18:00',
       }))
 
       return { content: [{ type: 'text', text: JSON.stringify(groups, null, 2) }] }
@@ -327,6 +330,7 @@ function registerTools() {
         recurrenceType: t.recurrenceType,
         recurrenceInterval: t.recurrenceInterval,
         recurrenceDays: t.recurrenceDays,
+        timeOfDay: t.timeOfDay,
       }))
 
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
@@ -334,10 +338,11 @@ function registerTools() {
   })
 
   tools.set('create_task', {
-    description: 'Create a new task for a child. Supports recurrence: "interval" repeats every N days after completion, "weekly" repeats on specific weekdays.',
+    description: 'Create a new task for a child. timeOfDay is required: "morning" (before school), "afternoon" (general/homework), "evening" (bedtime routine). Supports recurrence: "interval" repeats every N days after completion, "weekly" repeats on specific weekdays.',
     inputSchema: z.object({
       childId: z.string().describe('ID of the child'),
       title: z.string().describe('Task title'),
+      timeOfDay: z.string().describe('Time of day phase: "morning", "afternoon", or "evening"'),
       priority: z.number().optional().describe('Priority (lower number = higher priority, null = lowest)'),
       dueDate: z.string().optional().describe('Due date (ISO 8601, e.g. "2026-03-15")'),
       recurrenceType: z.string().optional().describe('Recurrence type: "interval" (every N days) or "weekly" (specific weekdays)'),
@@ -345,14 +350,15 @@ function registerTools() {
       recurrenceDays: z.array(z.number()).optional().describe('Weekdays for recurrence (0=Sunday, 1=Monday, ..., 6=Saturday)'),
     }),
     handler: async (args, pb) => {
-      const { childId, title, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays } = args as {
-        childId: string; title: string; priority?: number; dueDate?: string;
+      const { childId, title, timeOfDay, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays } = args as {
+        childId: string; title: string; timeOfDay: string; priority?: number; dueDate?: string;
         recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]
       }
 
       const task = await pb.collection('tasks').create({
         title,
         child: childId,
+        timeOfDay,
         priority: priority ?? null,
         completed: false,
         dueDate: dueDate ?? null,
@@ -377,14 +383,16 @@ function registerTools() {
       title: z.string().optional().describe('New title'),
       priority: z.number().optional().describe('New priority'),
       childId: z.string().optional().describe('Reassign to different child'),
+      timeOfDay: z.string().optional().describe('Time of day phase: "morning", "afternoon", or "evening"'),
     }),
     handler: async (args, pb) => {
-      const { taskId, title, priority, childId } = args as { taskId: string; title?: string; priority?: number; childId?: string }
+      const { taskId, title, priority, childId, timeOfDay } = args as { taskId: string; title?: string; priority?: number; childId?: string; timeOfDay?: string }
 
       const updates: Record<string, unknown> = {}
       if (title) updates.title = title
       if (priority !== undefined) updates.priority = priority
       if (childId) updates.child = childId
+      if (timeOfDay) updates.timeOfDay = timeOfDay
 
       await pb.collection('tasks').update(taskId, updates)
 
@@ -487,6 +495,26 @@ function registerTools() {
       })
 
       return { content: [{ type: 'text', text: `Added "${email}" to group` }] }
+    },
+  })
+
+  tools.set('configure_phase_times', {
+    description: 'Configure the time-of-day phase boundaries for a group. Morning phase runs from midnight to morningEnd, afternoon from morningEnd to eveningStart, evening from eveningStart to midnight. Default: morningEnd=09:00, eveningStart=18:00.',
+    inputSchema: z.object({
+      groupId: z.string().describe('ID of the group'),
+      morningEnd: z.string().optional().describe('End of morning phase (HH:MM format, e.g. "09:00")'),
+      eveningStart: z.string().optional().describe('Start of evening phase (HH:MM format, e.g. "18:00")'),
+    }),
+    handler: async (args, pb) => {
+      const { groupId, morningEnd, eveningStart } = args as { groupId: string; morningEnd?: string; eveningStart?: string }
+
+      const updates: Record<string, string> = {}
+      if (morningEnd) updates.morningEnd = morningEnd
+      if (eveningStart) updates.eveningStart = eveningStart
+
+      await pb.collection('groups').update(groupId, updates)
+
+      return { content: [{ type: 'text', text: `Updated phase times for group ${groupId}` }] }
     },
   })
 

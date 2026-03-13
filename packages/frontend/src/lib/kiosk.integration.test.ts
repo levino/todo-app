@@ -34,12 +34,14 @@ describe('Kiosk Mode - Task List', () => {
       child: childId,
       priority: 1,
       completed: false,
+      timeOfDay: 'afternoon',
     })
     const task2 = await pb.collection('tasks').create({
       title: 'Zimmer aufräumen',
       child: childId,
       priority: 2,
       completed: false,
+      timeOfDay: 'afternoon',
     })
     taskIds = [task1.id, task2.id]
   })
