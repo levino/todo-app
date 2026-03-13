@@ -5,7 +5,7 @@
  */
 
 import { Router } from 'express'
-import { validateClient, consumeAuthCode } from '../db.js'
+import { validateClient, consumeAuthCode, saveGrant } from '../db.js'
 import { signAccessToken, verifyCodeChallenge } from '../jwt.js'
 
 const router = Router()
@@ -145,7 +145,7 @@ router.post('/', async (req, res) => {
   // Generate access token
   const issuer = process.env.OAUTH_ISSUER || 'http://localhost:3001'
   const audience = 'family-todo-mcp'
-  const expiresIn = 3600 // 1 hour
+  const expiresIn = 15768000 // ~6 months
 
   const accessToken = await signAccessToken(
     {
@@ -157,6 +157,9 @@ router.post('/', async (req, res) => {
     audience,
     expiresIn
   )
+
+  // Record the grant (user-client connection)
+  saveGrant(authCode.user_id, authCode.client_id)
 
   // Return token response (RFC 6749)
   res.json({

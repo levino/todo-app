@@ -9,6 +9,36 @@ if (!user) {
 
 const mcpBaseUrl = (import.meta.env.PUBLIC_MCP_URL || 'http://localhost:3001').replace(/\/+$/, '')
 const mcpUrl = mcpBaseUrl.endsWith('/mcp') ? mcpBaseUrl : `${mcpBaseUrl}/mcp`
+
+// Fetch active grants for disconnect section
+const mcpInternalUrl = import.meta.env.MCP_INTERNAL_URL || 'http://localhost:3001'
+let grants: { client_id: string; client_name: string | null; created_at: number }[] = []
+let grantsError = ''
+
+try {
+  const grantsRes = await fetch(`${mcpInternalUrl}/oauth/grants?user_id=${user.id}`)
+  if (grantsRes.ok) {
+    grants = await grantsRes.json()
+  }
+} catch (e) {
+  grantsError = 'Verbundene Apps konnten nicht geladen werden'
+}
+
+// Handle disconnect form submission
+if (Astro.request.method === 'POST') {
+  const formData = await Astro.request.formData()
+  const disconnectClientId = formData.get('disconnect_client_id') as string
+  if (disconnectClientId) {
+    try {
+      await fetch(`${mcpInternalUrl}/oauth/grants/${disconnectClientId}?user_id=${user.id}`, {
+        method: 'DELETE',
+      })
+      return Astro.redirect('/admin')
+    } catch (e) {
+      grantsError = 'Trennen fehlgeschlagen'
+    }
+  }
+}
 ---
 
 <Layout title="MCP Verbindung">
@@ -51,6 +81,38 @@ const mcpUrl = mcpBaseUrl.endsWith('/mcp') ? mcpBaseUrl : `${mcpBaseUrl}/mcp`
           <li>"Erstelle eine Aufgabe 'Zähne putzen' für Max"</li>
           <li>"Zeige mir alle Aufgaben von Max"</li>
         </ul>
+      </div>
+    </div>
+
+    <div class="card bg-base-200 mt-6">
+      <div class="card-body">
+        <h2 class="card-title">Verbundene Apps</h2>
+        {grantsError && (
+          <div class="alert alert-error">
+            <span>{grantsError}</span>
+          </div>
+        )}
+        {grants.length === 0 && !grantsError && (
+          <p class="text-sm text-base-content/70">Keine verbundenen Apps.</p>
+        )}
+        {grants.length > 0 && (
+          <div class="space-y-3">
+            {grants.map((grant) => (
+              <div class="flex items-center justify-between bg-base-300 p-4 rounded-lg">
+                <div>
+                  <p class="font-medium">{grant.client_name || 'Unbekannte App'}</p>
+                  <p class="text-xs text-base-content/50">
+                    Verbunden seit {new Date(grant.created_at * 1000).toLocaleDateString('de-DE')}
+                  </p>
+                </div>
+                <form method="POST">
+                  <input type="hidden" name="disconnect_client_id" value={grant.client_id} />
+                  <button type="submit" class="btn btn-error btn-sm">Trennen</button>
+                </form>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
 
