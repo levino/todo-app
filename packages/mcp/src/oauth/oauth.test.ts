@@ -261,7 +261,7 @@ describe('OAuth 2.0 Integration', () => {
       expect(tokenRes.status).toBe(200)
       expect(tokenRes.body.access_token).toBeDefined()
       expect(tokenRes.body.token_type).toBe('Bearer')
-      expect(tokenRes.body.expires_in).toBe(3600)
+      expect(tokenRes.body.expires_in).toBe(15768000)
     })
 
     it('should support Basic auth for token endpoint', async () => {
