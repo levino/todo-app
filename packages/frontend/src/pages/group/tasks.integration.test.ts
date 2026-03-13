@@ -20,7 +20,6 @@ describe('Tasks Index Page', () => {
     adminPb = new PocketBase(POCKETBASE_URL)
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
-    // Create test user
     const email = `test-${Date.now()}@example.com`
     const user = await adminPb.collection('users').create({
       email,
@@ -29,15 +28,12 @@ describe('Tasks Index Page', () => {
     })
     userId = user.id
 
-    // Create user connection
     userPb = new PocketBase(POCKETBASE_URL)
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
-    // Create test group
     const group = await adminPb.collection('groups').create({ name: 'Test Family' })
     groupId = group.id
 
-    // Add user to group
     await adminPb.collection('user_groups').create({
       user: userId,
       group: groupId,
@@ -70,7 +66,7 @@ describe('Tasks Index Page', () => {
 
     expect(html).toContain('Max')
     expect(html).toContain('#FF6B6B')
-    expect(html).toContain('M') // Initial
+    expect(html).toContain('M')
   })
 
   it('should have links to child task pages', async () => {
@@ -124,7 +120,6 @@ describe('Tasks Child Page', () => {
     adminPb = new PocketBase(POCKETBASE_URL)
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
-    // Create test user
     const email = `test-${Date.now()}@example.com`
     const user = await adminPb.collection('users').create({
       email,
@@ -133,15 +128,12 @@ describe('Tasks Child Page', () => {
     })
     userId = user.id
 
-    // Create user connection
     userPb = new PocketBase(POCKETBASE_URL)
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
-    // Create test data
     const group = await adminPb.collection('groups').create({ name: 'Test Family' })
     groupId = group.id
 
-    // Add user to group
     await adminPb.collection('user_groups').create({
       user: userId,
       group: groupId,
@@ -163,6 +155,7 @@ describe('Tasks Child Page', () => {
       child: childId,
       priority: 1,
       completed: false,
+      timeOfDay: 'afternoon',
     })
 
     const html = await container.renderToString(TasksChildPage, {
@@ -172,7 +165,7 @@ describe('Tasks Child Page', () => {
 
     expect(html).toContain('Max')
     expect(html).toContain('#FF6B6B')
-    expect(html).toContain('M') // Initial
+    expect(html).toContain('M')
   })
 
   it('should display tasks for the child', async () => {
@@ -181,12 +174,14 @@ describe('Tasks Child Page', () => {
       child: childId,
       priority: 1,
       completed: false,
+      timeOfDay: 'afternoon',
     })
     await adminPb.collection('tasks').create({
       title: 'Zimmer aufräumen',
       child: childId,
       priority: 2,
       completed: false,
+      timeOfDay: 'afternoon',
     })
 
     const html = await container.renderToString(TasksChildPage, {
@@ -217,12 +212,14 @@ describe('Tasks Child Page', () => {
       priority: 1,
       completed: true,
       completedAt: new Date().toISOString(),
+      timeOfDay: 'afternoon',
     })
     await adminPb.collection('tasks').create({
       title: 'Pending Task',
       child: childId,
       priority: 2,
       completed: false,
+      timeOfDay: 'afternoon',
     })
 
     const html = await container.renderToString(TasksChildPage, {
@@ -268,6 +265,7 @@ describe('Tasks Child Page', () => {
       child: childId,
       priority: 1,
       completed: false,
+      timeOfDay: 'afternoon',
     })
 
     const html = await container.renderToString(TasksChildPage, {
@@ -290,6 +288,7 @@ describe('Tasks Child Page', () => {
       priority: 1,
       completed: false,
       dueDate: yesterday.toISOString(),
+      timeOfDay: 'afternoon',
     })
 
     const html = await container.renderToString(TasksChildPage, {
@@ -314,6 +313,7 @@ describe('Tasks Child Page', () => {
       priority: 1,
       completed: false,
       dueDate: tomorrow.toISOString(),
+      timeOfDay: 'afternoon',
     })
     await adminPb.collection('tasks').create({
       title: 'Overdue Task',
@@ -321,6 +321,7 @@ describe('Tasks Child Page', () => {
       priority: 10,
       completed: false,
       dueDate: yesterday.toISOString(),
+      timeOfDay: 'afternoon',
     })
 
     const html = await container.renderToString(TasksChildPage, {
@@ -339,12 +340,14 @@ describe('Tasks Child Page', () => {
       child: childId,
       priority: 10,
       completed: false,
+      timeOfDay: 'afternoon',
     })
     await adminPb.collection('tasks').create({
       title: 'High Priority',
       child: childId,
       priority: 1,
       completed: false,
+      timeOfDay: 'afternoon',
     })
 
     const html = await container.renderToString(TasksChildPage, {
@@ -356,9 +359,95 @@ describe('Tasks Child Page', () => {
     const lowIndex = html.indexOf('Low Priority')
     expect(highIndex).toBeLessThan(lowIndex)
   })
-})
 
-// Cross-group security is handled by:
-// 1. Page logic: child.group !== groupId check with redirect
-// 2. PocketBase collection rules: restrict child access to group members
-// These work together but are complex to test with AstroContainer
+  it('should only show tasks for the current time-of-day phase', async () => {
+    await adminPb.collection('tasks').create({
+      title: 'Morning Task',
+      child: childId,
+      priority: 1,
+      completed: false,
+      timeOfDay: 'morning',
+    })
+    await adminPb.collection('tasks').create({
+      title: 'Afternoon Task',
+      child: childId,
+      priority: 1,
+      completed: false,
+      timeOfDay: 'afternoon',
+    })
+    await adminPb.collection('tasks').create({
+      title: 'Evening Task',
+      child: childId,
+      priority: 1,
+      completed: false,
+      timeOfDay: 'evening',
+    })
+
+    const html = await container.renderToString(TasksChildPage, {
+      params: { groupId, childId },
+      locals: { pb: userPb, user: userPb.authStore.record },
+    })
+
+    const currentHour = new Date().getHours()
+    if (currentHour < 9) {
+      expect(html).toContain('Morning Task')
+      expect(html).not.toContain('Afternoon Task')
+      expect(html).not.toContain('Evening Task')
+    } else if (currentHour < 18) {
+      expect(html).not.toContain('Morning Task')
+      expect(html).toContain('Afternoon Task')
+      expect(html).not.toContain('Evening Task')
+    } else {
+      expect(html).not.toContain('Morning Task')
+      expect(html).not.toContain('Afternoon Task')
+      expect(html).toContain('Evening Task')
+    }
+  })
+
+  it('should use custom phase times from group settings', async () => {
+    await adminPb.collection('groups').update(groupId, {
+      morningEnd: '23:59',
+      eveningStart: '23:59',
+    })
+
+    await adminPb.collection('tasks').create({
+      title: 'Morning Task Custom',
+      child: childId,
+      priority: 1,
+      completed: false,
+      timeOfDay: 'morning',
+    })
+    await adminPb.collection('tasks').create({
+      title: 'Afternoon Task Custom',
+      child: childId,
+      priority: 1,
+      completed: false,
+      timeOfDay: 'afternoon',
+    })
+
+    const html = await container.renderToString(TasksChildPage, {
+      params: { groupId, childId },
+      locals: { pb: userPb, user: userPb.authStore.record },
+    })
+
+    expect(html).toContain('Morning Task Custom')
+    expect(html).not.toContain('Afternoon Task Custom')
+  })
+
+  it('should show phase indicator', async () => {
+    await adminPb.collection('tasks').create({
+      title: 'Some Task',
+      child: childId,
+      priority: 1,
+      completed: false,
+      timeOfDay: 'afternoon',
+    })
+
+    const html = await container.renderToString(TasksChildPage, {
+      params: { groupId, childId },
+      locals: { pb: userPb, user: userPb.authStore.record },
+    })
+
+    expect(html).toContain('data-testid="phase-indicator"')
+  })
+})

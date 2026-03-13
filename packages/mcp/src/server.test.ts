@@ -294,7 +294,7 @@ describe('MCP Server', () => {
         childId = childRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
       })
 
-      it('should create a task', async () => {
+      it('should create a task with timeOfDay', async () => {
         const res = await request(app)
           .post('/mcp')
           .query({ token: authToken })
@@ -307,6 +307,7 @@ describe('MCP Server', () => {
                 childId,
                 title: 'Brush teeth',
                 priority: 1,
+                timeOfDay: 'morning',
               },
             },
             id: 3,
@@ -315,6 +316,32 @@ describe('MCP Server', () => {
         expect(res.status).toBe(200)
         expect(res.body.result.content[0].text).toContain('Created task')
         expect(res.body.result.content[0].text).toContain('Brush teeth')
+
+        const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+        const task = await adminPb.collection('tasks').getOne(taskId)
+        expect(task.timeOfDay).toBe('morning')
+      })
+
+      it('should reject create_task without timeOfDay', async () => {
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'No phase',
+                priority: 1,
+              },
+            },
+            id: 3,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.error).toBeDefined()
       })
 
       it('should list tasks', async () => {
@@ -327,7 +354,7 @@ describe('MCP Server', () => {
             method: 'tools/call',
             params: {
               name: 'create_task',
-              arguments: { childId, title: 'Task 1', priority: 1 },
+              arguments: { childId, title: 'Task 1', priority: 1, timeOfDay: 'afternoon' },
             },
             id: 3,
           })
@@ -340,7 +367,7 @@ describe('MCP Server', () => {
             method: 'tools/call',
             params: {
               name: 'create_task',
-              arguments: { childId, title: 'Task 2', priority: 2 },
+              arguments: { childId, title: 'Task 2', priority: 2, timeOfDay: 'afternoon' },
             },
             id: 4,
           })
@@ -374,7 +401,7 @@ describe('MCP Server', () => {
             method: 'tools/call',
             params: {
               name: 'create_task',
-              arguments: { childId, title: 'Original', priority: 1 },
+              arguments: { childId, title: 'Original', priority: 1, timeOfDay: 'afternoon' },
             },
             id: 3,
           })
@@ -425,7 +452,7 @@ describe('MCP Server', () => {
             method: 'tools/call',
             params: {
               name: 'create_task',
-              arguments: { childId, title: 'To Delete', priority: 1 },
+              arguments: { childId, title: 'To Delete', priority: 1, timeOfDay: 'afternoon' },
             },
             id: 3,
           })
@@ -478,6 +505,7 @@ describe('MCP Server', () => {
               arguments: {
                 childId,
                 title: 'Duschen',
+                timeOfDay: 'morning',
                 recurrenceType: 'interval',
                 recurrenceInterval: 2,
                 dueDate: '2026-03-15T00:00:00Z',
@@ -510,6 +538,7 @@ describe('MCP Server', () => {
               arguments: {
                 childId,
                 title: 'Hausaufgaben',
+                timeOfDay: 'afternoon',
                 recurrenceType: 'weekly',
                 recurrenceDays: [1, 2, 3, 4, 5],
                 dueDate: '2026-03-16T00:00:00Z',
@@ -528,6 +557,41 @@ describe('MCP Server', () => {
         expect(task.recurrenceDays).toEqual([1, 2, 3, 4, 5])
       })
 
+      it('should list tasks with timeOfDay', async () => {
+        await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Morning Task',
+                timeOfDay: 'morning',
+              },
+            },
+            id: 3,
+          })
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'list_tasks',
+              arguments: { childId },
+            },
+            id: 4,
+          })
+
+        const tasks = JSON.parse(res.body.result.content[0].text)
+        expect(tasks[0].timeOfDay).toBe('morning')
+      })
+
       it('should list tasks with recurrence info', async () => {
         await request(app)
           .post('/mcp')
@@ -540,6 +604,7 @@ describe('MCP Server', () => {
               arguments: {
                 childId,
                 title: 'Recurring Task',
+                timeOfDay: 'afternoon',
                 recurrenceType: 'interval',
                 recurrenceInterval: 3,
                 dueDate: '2026-03-15T00:00:00Z',
@@ -567,6 +632,38 @@ describe('MCP Server', () => {
         expect(tasks[0].dueDate).toContain('2026-03-15')
       })
 
+      it('should update task timeOfDay', async () => {
+        const createRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: { childId, title: 'Move me', priority: 1, timeOfDay: 'morning' },
+            },
+            id: 3,
+          })
+        const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'update_task',
+              arguments: { taskId, timeOfDay: 'evening' },
+            },
+            id: 4,
+          })
+
+        const task = await adminPb.collection('tasks').getOne(taskId)
+        expect(task.timeOfDay).toBe('evening')
+      })
+
       it('should reset a completed task', async () => {
         // Create task
         const createRes = await request(app)
@@ -577,7 +674,7 @@ describe('MCP Server', () => {
             method: 'tools/call',
             params: {
               name: 'create_task',
-              arguments: { childId, title: 'Recurring', priority: 1 },
+              arguments: { childId, title: 'Recurring', priority: 1, timeOfDay: 'afternoon' },
             },
             id: 3,
           })
@@ -609,6 +706,90 @@ describe('MCP Server', () => {
         // Verify task is incomplete
         const task = await adminPb.collection('tasks').getOne(taskId)
         expect(task.completed).toBe(false)
+      })
+    })
+
+    describe('Phase Time Tools', () => {
+      let groupId: string
+
+      beforeEach(async () => {
+        const groupRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_group',
+              arguments: { name: 'Phase Test Family' },
+            },
+            id: 1,
+          })
+        groupId = groupRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+      })
+
+      it('should configure phase times for a group', async () => {
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'configure_phase_times',
+              arguments: {
+                groupId,
+                morningEnd: '10:00',
+                eveningStart: '19:00',
+              },
+            },
+            id: 2,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.result.content[0].text).toContain('Updated phase times')
+
+        const group = await adminPb.collection('groups').getOne(groupId)
+        expect(group.morningEnd).toBe('10:00')
+        expect(group.eveningStart).toBe('19:00')
+      })
+
+      it('should list groups with phase times', async () => {
+        await adminPb.collection('groups').update(groupId, {
+          morningEnd: '08:30',
+          eveningStart: '17:30',
+        })
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'list_groups',
+              arguments: {},
+            },
+            id: 2,
+          })
+
+        const groups = JSON.parse(res.body.result.content[0].text)
+        expect(groups[0].morningEnd).toBe('08:30')
+        expect(groups[0].eveningStart).toBe('17:30')
+      })
+
+      it('should be listed in tools/list', async () => {
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/list',
+            id: 1,
+          })
+
+        const toolNames = res.body.result.tools.map((t: { name: string }) => t.name)
+        expect(toolNames).toContain('configure_phase_times')
       })
     })
   })

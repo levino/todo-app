@@ -44,6 +44,7 @@ describe('Stats Page', () => {
         child: child.id,
         priority: i,
         completed: false,
+        timeOfDay: 'afternoon',
       })
     }
 

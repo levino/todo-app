@@ -697,6 +697,7 @@ describe('OAuth 2.0 Integration', () => {
               childId,
               title: 'Brush teeth',
               priority: 1,
+              timeOfDay: 'morning',
             },
           },
           id: 3,
@@ -848,7 +849,7 @@ describe('OAuth 2.0 Integration', () => {
           method: 'tools/call',
           params: {
             name: 'create_task',
-            arguments: { childId: child1Id, title: 'Hausaufgaben machen', priority: 1 },
+            arguments: { childId: child1Id, title: 'Hausaufgaben machen', priority: 1, timeOfDay: 'afternoon' },
           },
           id: 6,
         })
@@ -862,7 +863,7 @@ describe('OAuth 2.0 Integration', () => {
           method: 'tools/call',
           params: {
             name: 'create_task',
-            arguments: { childId: child1Id, title: 'Zimmer aufräumen', priority: 2 },
+            arguments: { childId: child1Id, title: 'Zimmer aufräumen', priority: 2, timeOfDay: 'afternoon' },
           },
           id: 7,
         })
