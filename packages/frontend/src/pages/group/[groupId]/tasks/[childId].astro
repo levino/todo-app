@@ -186,6 +186,7 @@ const showSwitcher = siblings.length > 1
                 >
                   <form method="POST" action={`/api/groups/${groupId}/tasks/${task.id}/complete`}>
                     <input type="hidden" name="childId" value={childId} />
+                    <input type="hidden" name="completedBy" value={childId} />
                     <button
                       type="submit"
                       data-testid="complete-button"

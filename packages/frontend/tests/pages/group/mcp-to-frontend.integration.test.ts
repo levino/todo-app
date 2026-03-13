@@ -3,7 +3,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
 import request from 'supertest'
 import { app } from '@family-todo/mcp/src/server.js'
-import TasksChildPage from './[groupId]/tasks/[childId].astro'
+import TasksChildPage from '../../../src/pages/group/[groupId]/tasks/[childId].astro'
 import { resetPocketBase } from '@/lib/pocketbase'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'

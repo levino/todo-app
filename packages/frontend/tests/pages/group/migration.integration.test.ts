@@ -1,7 +1,7 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import PocketBase from 'pocketbase'
-import TasksChildPage from './[groupId]/tasks/[childId].astro'
+import TasksChildPage from '../../../src/pages/group/[groupId]/tasks/[childId].astro'
 import { resetPocketBase } from '@/lib/pocketbase'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'

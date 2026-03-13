@@ -6,8 +6,8 @@ import {
   addUserToGroup,
   removeUserFromGroup,
   getInitials,
-} from './groups'
-import { resetPocketBase } from './pocketbase'
+} from '../../src/lib/groups'
+import { resetPocketBase } from '../../src/lib/pocketbase'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
