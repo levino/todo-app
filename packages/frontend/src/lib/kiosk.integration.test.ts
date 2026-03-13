@@ -29,13 +29,13 @@ describe('Kiosk Mode - Task List', () => {
     })
     childId = child.id
 
-    const task1 = await pb.collection('kiosk_tasks').create({
+    const task1 = await pb.collection('tasks').create({
       title: 'Zähne putzen',
       child: childId,
       priority: 1,
       completed: false,
     })
-    const task2 = await pb.collection('kiosk_tasks').create({
+    const task2 = await pb.collection('tasks').create({
       title: 'Zimmer aufräumen',
       child: childId,
       priority: 2,
@@ -63,7 +63,7 @@ describe('Kiosk Mode - Task List', () => {
   })
 
   it('should fetch tasks for a specific child', async () => {
-    const result = await pb.collection('kiosk_tasks').getList(1, 100, {
+    const result = await pb.collection('tasks').getList(1, 100, {
       filter: `child = "${childId}" && completed = false`,
       sort: 'priority',
     })
@@ -75,12 +75,12 @@ describe('Kiosk Mode - Task List', () => {
 
   it('should only return incomplete tasks', async () => {
     // Mark one task as completed
-    await pb.collection('kiosk_tasks').update(taskIds[0], {
+    await pb.collection('tasks').update(taskIds[0], {
       completed: true,
       completedAt: new Date().toISOString(),
     })
 
-    const result = await pb.collection('kiosk_tasks').getList(1, 100, {
+    const result = await pb.collection('tasks').getList(1, 100, {
       filter: `child = "${childId}" && completed = false`,
     })
 
@@ -102,12 +102,12 @@ describe('Kiosk Mode - Task List', () => {
     const taskId = taskIds[0]
     const beforeComplete = new Date()
 
-    await pb.collection('kiosk_tasks').update(taskId, {
+    await pb.collection('tasks').update(taskId, {
       completed: true,
       completedAt: new Date().toISOString(),
     })
 
-    const task = await pb.collection('kiosk_tasks').getOne(taskId)
+    const task = await pb.collection('tasks').getOne(taskId)
     expect(task.completed).toBe(true)
     expect(task.completedAt).toBeDefined()
     expect(new Date(task.completedAt).getTime()).toBeGreaterThanOrEqual(beforeComplete.getTime())

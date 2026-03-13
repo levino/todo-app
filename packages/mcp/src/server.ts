@@ -59,6 +59,11 @@ interface TaskRecord {
   priority: number | null
   completed: boolean
   completedAt: string | null
+  dueDate: string | null
+  lastCompletedAt: string | null
+  recurrenceType: string | null
+  recurrenceInterval: number | null
+  recurrenceDays: number[] | null
   child: string
   collectionId: string
   collectionName: string
@@ -74,6 +79,37 @@ export const CHILD_COLORS = [
   { name: 'Lila', value: '#B197FC' },
   { name: 'Pink', value: '#F783AC' },
 ]
+
+// Calculate next due date based on recurrence
+export function calculateNextDueDate(
+  recurrenceType: string | null,
+  recurrenceInterval: number | null,
+  recurrenceDays: number[] | null,
+  completedAt: Date,
+): string | null {
+  if (recurrenceType === 'interval' && recurrenceInterval) {
+    const next = new Date(completedAt)
+    next.setDate(next.getDate() + recurrenceInterval)
+    return next.toISOString()
+  }
+
+  if (recurrenceType === 'weekly' && recurrenceDays && recurrenceDays.length > 0) {
+    const sorted = [...recurrenceDays].sort((a, b) => a - b)
+    const currentDay = completedAt.getDay()
+
+    // Find the next weekday after today
+    const nextDay = sorted.find((d) => d > currentDay) ?? sorted[0]
+    const daysUntil = nextDay > currentDay
+      ? nextDay - currentDay
+      : 7 - currentDay + nextDay
+
+    const next = new Date(completedAt)
+    next.setDate(next.getDate() + daysUntil)
+    return next.toISOString()
+  }
+
+  return null
+}
 
 // Tool registry
 interface Tool {
@@ -151,11 +187,11 @@ function registerTools() {
       })
 
       for (const child of children.items) {
-        const tasks = await pb.collection('kiosk_tasks').getList(1, 1000, {
+        const tasks = await pb.collection('tasks').getList(1, 1000, {
           filter: `child = "${child.id}"`,
         })
         for (const task of tasks.items) {
-          await pb.collection('kiosk_tasks').delete(task.id)
+          await pb.collection('tasks').delete(task.id)
         }
         await pb.collection('children').delete(child.id)
       }
@@ -249,11 +285,11 @@ function registerTools() {
       const { childId } = args as { childId: string }
 
       // Delete all tasks for this child
-      const tasks = await pb.collection('kiosk_tasks').getList(1, 1000, {
+      const tasks = await pb.collection('tasks').getList(1, 1000, {
         filter: `child = "${childId}"`,
       })
       for (const task of tasks.items) {
-        await pb.collection('kiosk_tasks').delete(task.id)
+        await pb.collection('tasks').delete(task.id)
       }
 
       // Delete the child
@@ -278,7 +314,7 @@ function registerTools() {
         ? `child = "${childId}"`
         : `child = "${childId}" && completed = false`
 
-      const tasks = await pb.collection<TaskRecord>('kiosk_tasks').getList(1, 100, { filter })
+      const tasks = await pb.collection<TaskRecord>('tasks').getList(1, 100, { filter })
 
       const result = tasks.items.map((t) => ({
         id: t.id,
@@ -286,6 +322,11 @@ function registerTools() {
         priority: t.priority,
         completed: t.completed,
         completedAt: t.completedAt,
+        dueDate: t.dueDate,
+        lastCompletedAt: t.lastCompletedAt,
+        recurrenceType: t.recurrenceType,
+        recurrenceInterval: t.recurrenceInterval,
+        recurrenceDays: t.recurrenceDays,
       }))
 
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] }
@@ -293,23 +334,39 @@ function registerTools() {
   })
 
   tools.set('create_task', {
-    description: 'Create a new task for a child',
+    description: 'Create a new task for a child. Supports recurrence: "interval" repeats every N days after completion, "weekly" repeats on specific weekdays.',
     inputSchema: z.object({
       childId: z.string().describe('ID of the child'),
       title: z.string().describe('Task title'),
       priority: z.number().optional().describe('Priority (lower number = higher priority, null = lowest)'),
+      dueDate: z.string().optional().describe('Due date (ISO 8601, e.g. "2026-03-15")'),
+      recurrenceType: z.string().optional().describe('Recurrence type: "interval" (every N days) or "weekly" (specific weekdays)'),
+      recurrenceInterval: z.number().optional().describe('Days between recurrences (for interval type)'),
+      recurrenceDays: z.array(z.number()).optional().describe('Weekdays for recurrence (0=Sunday, 1=Monday, ..., 6=Saturday)'),
     }),
     handler: async (args, pb) => {
-      const { childId, title, priority } = args as { childId: string; title: string; priority?: number }
+      const { childId, title, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays } = args as {
+        childId: string; title: string; priority?: number; dueDate?: string;
+        recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]
+      }
 
-      const task = await pb.collection('kiosk_tasks').create({
+      const task = await pb.collection('tasks').create({
         title,
         child: childId,
         priority: priority ?? null,
         completed: false,
+        dueDate: dueDate ?? null,
+        recurrenceType: recurrenceType ?? null,
+        recurrenceInterval: recurrenceInterval ?? null,
+        recurrenceDays: recurrenceDays ?? null,
       })
 
-      return { content: [{ type: 'text', text: `Created task "${title}" (ID: ${task.id})` }] }
+      const parts = [`Created task "${title}" (ID: ${task.id})`]
+      if (recurrenceType === 'interval') parts.push(`Repeats every ${recurrenceInterval} days`)
+      if (recurrenceType === 'weekly') parts.push(`Repeats on weekdays: ${recurrenceDays?.join(', ')}`)
+      if (dueDate) parts.push(`Due: ${dueDate}`)
+
+      return { content: [{ type: 'text', text: parts.join('. ') }] }
     },
   })
 
@@ -329,7 +386,7 @@ function registerTools() {
       if (priority !== undefined) updates.priority = priority
       if (childId) updates.child = childId
 
-      await pb.collection('kiosk_tasks').update(taskId, updates)
+      await pb.collection('tasks').update(taskId, updates)
 
       return { content: [{ type: 'text', text: `Updated task ${taskId}` }] }
     },
@@ -343,7 +400,7 @@ function registerTools() {
     handler: async (args, pb) => {
       const { taskId } = args as { taskId: string }
 
-      await pb.collection('kiosk_tasks').delete(taskId)
+      await pb.collection('tasks').delete(taskId)
 
       return { content: [{ type: 'text', text: `Deleted task ${taskId}` }] }
     },
@@ -357,7 +414,7 @@ function registerTools() {
     handler: async (args, pb) => {
       const { taskId } = args as { taskId: string }
 
-      await pb.collection('kiosk_tasks').update(taskId, {
+      await pb.collection('tasks').update(taskId, {
         completed: false,
         completedAt: null,
       })
@@ -475,6 +532,8 @@ function zodToJsonSchema(schema: z.ZodType): object {
         properties[key] = { type: 'number', description: zodValue.description }
       } else if (zodValue instanceof z.ZodBoolean) {
         properties[key] = { type: 'boolean', description: zodValue.description }
+      } else if (zodValue instanceof z.ZodArray) {
+        properties[key] = { type: 'array', items: { type: 'number' }, description: zodValue.description }
       } else if (zodValue instanceof z.ZodOptional) {
         const inner = zodValue._def.innerType
         if (inner instanceof z.ZodString) {
@@ -483,6 +542,8 @@ function zodToJsonSchema(schema: z.ZodType): object {
           properties[key] = { type: 'number', description: inner.description }
         } else if (inner instanceof z.ZodBoolean) {
           properties[key] = { type: 'boolean', description: inner.description }
+        } else if (inner instanceof z.ZodArray) {
+          properties[key] = { type: 'array', items: { type: 'number' }, description: inner.description }
         }
       } else {
         properties[key] = { type: 'string' }

@@ -9,13 +9,15 @@ interface Child {
   group: string
 }
 
-interface KioskTask {
+interface Task {
   id: string
   title: string
   child: string
   priority: number | null
   completed: boolean
   completedAt: string | null
+  dueDate: string | null
+  recurrenceType: string | null
 }
 
 const { groupId, childId } = Astro.params
@@ -27,7 +29,7 @@ if (!user || !groupId || !childId) {
 
 let child: Child | null = null
 let siblings: Child[] = []
-let tasks: KioskTask[] = []
+let tasks: Task[] = []
 let error = ''
 
 try {
@@ -52,12 +54,16 @@ try {
 
   // Fetch incomplete tasks for this child
   try {
-    const result = await pb.collection('kiosk_tasks').getList<KioskTask>(1, 100, {
+    const result = await pb.collection('tasks').getList<Task>(1, 100, {
       filter: `child = "${childId}" && completed = false`,
     })
-    // Sort tasks: prioritized tasks first (lower number = higher priority),
-    // 0/null/undefined priority treated as lowest (infinity)
+    const now = new Date()
+    // Sort tasks: overdue first, then by priority
     tasks = result.items.sort((a, b) => {
+      const overdueA = a.dueDate && new Date(a.dueDate) < now ? 1 : 0
+      const overdueB = b.dueDate && new Date(b.dueDate) < now ? 1 : 0
+      if (overdueA !== overdueB) return overdueB - overdueA // overdue first
+
       const priorityA = (a.priority === null || a.priority === undefined || a.priority === 0) ? Infinity : a.priority
       const priorityB = (b.priority === null || b.priority === undefined || b.priority === 0) ? Infinity : b.priority
       return priorityA - priorityB
@@ -121,27 +127,39 @@ const showSwitcher = siblings.length > 1
           </div>
         ) : (
           <ul class="space-y-3">
-            {tasks.map((task) => (
-              <li
-                data-testid="task-item"
-                class="flex items-center gap-4 p-4 bg-base-200 rounded-xl min-h-[56px]"
-              >
-                <form method="POST" action={`/api/groups/${groupId}/tasks/${task.id}/complete`}>
-                  <input type="hidden" name="childId" value={childId} />
-                  <button
-                    type="submit"
-                    data-testid="complete-button"
-                    class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px]"
-                    aria-label={`${task.title} erledigen`}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </button>
-                </form>
-                <span class="text-xl md:text-2xl flex-1">{task.title}</span>
-              </li>
-            ))}
+            {tasks.map((task) => {
+              const isOverdue = task.dueDate && new Date(task.dueDate) < new Date()
+              return (
+                <li
+                  data-testid="task-item"
+                  data-overdue={isOverdue ? "true" : undefined}
+                  class:list={[
+                    'flex items-center gap-4 p-4 rounded-xl min-h-[56px]',
+                    isOverdue ? 'bg-error/10 border-2 border-error' : 'bg-base-200',
+                  ]}
+                >
+                  <form method="POST" action={`/api/groups/${groupId}/tasks/${task.id}/complete`}>
+                    <input type="hidden" name="childId" value={childId} />
+                    <button
+                      type="submit"
+                      data-testid="complete-button"
+                      class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px]"
+                      aria-label={`${task.title} erledigen`}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                  </form>
+                  <div class="flex-1">
+                    <span class="text-xl md:text-2xl">{task.title}</span>
+                    {isOverdue && (
+                      <span data-testid="overdue-badge" class="badge badge-error badge-sm ml-2">Überfällig</span>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
           </ul>
         )}
 

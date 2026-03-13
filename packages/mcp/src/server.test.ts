@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach, beforeAll } from 'vitest'
 import request from 'supertest'
 import PocketBase from 'pocketbase'
-import { app } from './server.js'
+import { app, calculateNextDueDate } from './server.js'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -466,6 +466,107 @@ describe('MCP Server', () => {
         expect(tasks).toHaveLength(0)
       })
 
+      it('should create a recurring interval task', async () => {
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Duschen',
+                recurrenceType: 'interval',
+                recurrenceInterval: 2,
+                dueDate: '2026-03-15T00:00:00Z',
+              },
+            },
+            id: 3,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.result.content[0].text).toContain('Created task')
+        expect(res.body.result.content[0].text).toContain('Repeats every 2 days')
+
+        // Verify fields in DB
+        const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+        const task = await adminPb.collection('tasks').getOne(taskId)
+        expect(task.recurrenceType).toBe('interval')
+        expect(task.recurrenceInterval).toBe(2)
+        expect(task.dueDate).toContain('2026-03-15')
+      })
+
+      it('should create a recurring weekly task', async () => {
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Hausaufgaben',
+                recurrenceType: 'weekly',
+                recurrenceDays: [1, 2, 3, 4, 5],
+                dueDate: '2026-03-16T00:00:00Z',
+              },
+            },
+            id: 3,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.result.content[0].text).toContain('Created task')
+        expect(res.body.result.content[0].text).toContain('Repeats on weekdays')
+
+        const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+        const task = await adminPb.collection('tasks').getOne(taskId)
+        expect(task.recurrenceType).toBe('weekly')
+        expect(task.recurrenceDays).toEqual([1, 2, 3, 4, 5])
+      })
+
+      it('should list tasks with recurrence info', async () => {
+        await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Recurring Task',
+                recurrenceType: 'interval',
+                recurrenceInterval: 3,
+                dueDate: '2026-03-15T00:00:00Z',
+              },
+            },
+            id: 3,
+          })
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'list_tasks',
+              arguments: { childId },
+            },
+            id: 4,
+          })
+
+        const tasks = JSON.parse(res.body.result.content[0].text)
+        expect(tasks[0].recurrenceType).toBe('interval')
+        expect(tasks[0].recurrenceInterval).toBe(3)
+        expect(tasks[0].dueDate).toContain('2026-03-15')
+      })
+
       it('should reset a completed task', async () => {
         // Create task
         const createRes = await request(app)
@@ -483,7 +584,7 @@ describe('MCP Server', () => {
         const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
 
         // Mark as completed directly in DB
-        await adminPb.collection('kiosk_tasks').update(taskId, {
+        await adminPb.collection('tasks').update(taskId, {
           completed: true,
           completedAt: new Date().toISOString(),
         })
@@ -506,9 +607,39 @@ describe('MCP Server', () => {
         expect(res.body.result.content[0].text).toContain('Reset task')
 
         // Verify task is incomplete
-        const task = await adminPb.collection('kiosk_tasks').getOne(taskId)
+        const task = await adminPb.collection('tasks').getOne(taskId)
         expect(task.completed).toBe(false)
       })
     })
+  })
+})
+
+describe('calculateNextDueDate', () => {
+  it('should calculate interval-based next date', () => {
+    const completed = new Date('2026-03-13T10:00:00Z')
+    const result = calculateNextDueDate('interval', 3, null, completed)
+    expect(result).toContain('2026-03-16')
+  })
+
+  it('should calculate weekly next date (next weekday)', () => {
+    // 2026-03-13 is a Friday (day 5)
+    const completed = new Date('2026-03-13T10:00:00Z')
+    // Schedule for Mon(1), Wed(3) → next should be Monday
+    const result = calculateNextDueDate('weekly', null, [1, 3], completed)
+    expect(result).toContain('2026-03-16') // Monday
+  })
+
+  it('should wrap around to next week if no later day this week', () => {
+    // 2026-03-13 is a Friday (day 5)
+    const completed = new Date('2026-03-13T10:00:00Z')
+    // Schedule for Tuesday(2) only → next Tuesday
+    const result = calculateNextDueDate('weekly', null, [2], completed)
+    expect(result).toContain('2026-03-17') // next Tuesday
+  })
+
+  it('should return null for non-recurring tasks', () => {
+    const completed = new Date('2026-03-13T10:00:00Z')
+    expect(calculateNextDueDate(null, null, null, completed)).toBeNull()
+    expect(calculateNextDueDate('', null, null, completed)).toBeNull()
   })
 })
