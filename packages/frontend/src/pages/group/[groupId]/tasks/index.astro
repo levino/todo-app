@@ -353,7 +353,7 @@ const showSwitcher = selectedChild && siblings.length > 1
                 ) : (
                   <ul class="space-y-3">
                     {tasks.map((task) => {
-                      const isOverdue = task.dueDate && new Date(task.dueDate) < new Date()
+                      const isOverdue = task.dueDate && task.dueDate.slice(0, 10) < todayStr
                       return (
                         <li
                           data-testid="task-item"
