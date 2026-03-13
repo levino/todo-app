@@ -11,18 +11,6 @@ import PocketBase from 'pocketbase'
 import { verifyAccessToken } from './jwt.js'
 import { isGrantActive } from './db.js'
 
-// Debug logging - enable via DEBUG_MCP=true
-const DEBUG = process.env.DEBUG_MCP === 'true'
-
-function debugLog(category: string, message: string, data?: unknown) {
-  if (!DEBUG) return
-  const timestamp = new Date().toISOString()
-  console.log(`[${timestamp}] [DEBUG:${category}] ${message}`)
-  if (data !== undefined) {
-    console.log(JSON.stringify(data, null, 2))
-  }
-}
-
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://localhost:8090'
 
 // Singleton admin PocketBase client
@@ -41,7 +29,6 @@ async function getAdminPb(): Promise<PocketBase> {
     const email = process.env.POCKETBASE_ADMIN_EMAIL || 'admin@test.local'
     const password = process.env.POCKETBASE_ADMIN_PASSWORD || 'testtest123'
     await adminPb.collection('_superusers').authWithPassword(email, password)
-    console.log('[OAuth] Admin authenticated')
   }
 
   return adminPb
@@ -53,14 +40,7 @@ async function getAdminPb(): Promise<PocketBase> {
  */
 async function impersonateUser(userId: string): Promise<PocketBase> {
   const admin = await getAdminPb()
-
-  // Use PocketBase impersonation API
-  // Duration in seconds (15768000 = ~6 months, matching OAuth token lifetime)
-  const userPb = await admin.collection('users').impersonate(userId, 15768000)
-
-  console.log(`[OAuth] Impersonated user: ${userPb.authStore.record?.id}, token valid: ${userPb.authStore.isValid}`)
-
-  return userPb
+  return admin.collection('users').impersonate(userId, 15768000)
 }
 
 /**
@@ -73,15 +53,8 @@ export async function authenticateJWT(
   next: NextFunction
 ): Promise<void> {
   const authHeader = req.headers.authorization
-  console.log(`[OAuth] Auth header: ${authHeader ? authHeader.substring(0, 50) + '...' : 'MISSING'}`)
-  debugLog('AUTH', 'JWT auth attempt', {
-    authHeaderPresent: !!authHeader,
-    authHeaderPrefix: authHeader?.substring(0, 20),
-  })
 
   if (!authHeader?.startsWith('Bearer ')) {
-    console.log(`[OAuth] Invalid auth header format`)
-    debugLog('AUTH', 'Invalid auth header format', { authHeader })
     res.status(401).json({
       jsonrpc: '2.0',
       error: {
@@ -96,19 +69,8 @@ export async function authenticateJWT(
   const issuer = process.env.OAUTH_ISSUER || 'http://localhost:3001'
   const audience = 'family-todo-mcp'
 
-  console.log(`[OAuth] Verifying JWT, issuer=${issuer}`)
-  debugLog('AUTH', 'Verifying JWT', {
-    tokenLength: token.length,
-    tokenPrefix: token.substring(0, 50),
-    issuer,
-    audience,
-  })
-
-  // Verify JWT
   const claims = await verifyAccessToken(token, issuer, audience)
   if (!claims) {
-    console.log(`[OAuth] JWT verification failed`)
-    debugLog('AUTH', 'JWT verification FAILED', { tokenPrefix: token.substring(0, 100) })
     res.status(401).json({
       jsonrpc: '2.0',
       error: {
@@ -119,12 +81,7 @@ export async function authenticateJWT(
     return
   }
 
-  console.log(`[OAuth] JWT verified, sub=${claims.sub}`)
-  debugLog('AUTH', 'JWT verified successfully', { claims })
-
-  // Check if grant has been revoked
   if (claims.client_id && !isGrantActive(claims.sub, claims.client_id)) {
-    console.log(`[OAuth] Grant revoked for user=${claims.sub}, client=${claims.client_id}`)
     res.status(401).json({
       jsonrpc: '2.0',
       error: {
@@ -136,19 +93,10 @@ export async function authenticateJWT(
   }
 
   try {
-    // Impersonate the user
     const userPb = await impersonateUser(claims.sub)
     req.pb = userPb
-    console.log(`[OAuth] Request authenticated for user ${claims.sub}`)
-    debugLog('AUTH', 'User impersonated successfully', {
-      userId: claims.sub,
-      authStoreValid: userPb.authStore.isValid,
-      authStoreRecordId: userPb.authStore.record?.id,
-    })
     next()
-  } catch (error) {
-    console.error('Failed to impersonate user:', error)
-    debugLog('AUTH', 'Impersonation FAILED', { error: String(error), userId: claims.sub })
+  } catch {
     res.status(500).json({
       jsonrpc: '2.0',
       error: {
@@ -181,19 +129,14 @@ export async function authenticatePocketBase(
     return
   }
 
-  // Create PocketBase client and save the token
   const pb = new PocketBase(POCKETBASE_URL)
   pb.authStore.save(token, null)
 
-  // Validate the token by refreshing auth
   try {
-    const authData = await pb.collection('users').authRefresh()
-    // After refresh, authStore.record should be populated
-    console.log(`[PB Auth] Token validated for user ${authData.record.id}`)
+    await pb.collection('users').authRefresh()
     req.pb = pb
     next()
-  } catch (error) {
-    console.log(`[PB Auth] Invalid token: ${error}`)
+  } catch {
     res.status(401).json({
       jsonrpc: '2.0',
       error: {
@@ -207,10 +150,6 @@ export async function authenticatePocketBase(
 /**
  * Flexible authentication middleware.
  * Supports both Bearer token (OAuth JWT) and query param token (PocketBase).
- *
- * Priority:
- * 1. Bearer token in Authorization header → OAuth JWT flow
- * 2. Query param token → PocketBase direct auth
  */
 export async function authenticateFlexible(
   req: Request & { pb?: PocketBase },
@@ -220,27 +159,14 @@ export async function authenticateFlexible(
   const authHeader = req.headers.authorization
   const queryToken = req.query.token as string | undefined
 
-  debugLog('AUTH', 'Flexible auth check', {
-    hasBearerToken: authHeader?.startsWith('Bearer '),
-    hasQueryToken: !!queryToken,
-    path: req.path,
-    method: req.method,
-  })
-
-  // Check for Bearer token first (OAuth JWT)
   if (authHeader?.startsWith('Bearer ')) {
-    debugLog('AUTH', 'Using Bearer token (OAuth JWT)')
     return authenticateJWT(req, res, next)
   }
 
-  // Fall back to query param token (PocketBase)
   if (queryToken) {
-    debugLog('AUTH', 'Using query param token (PocketBase)')
     return authenticatePocketBase(req, res, next)
   }
 
-  // No authentication provided
-  debugLog('AUTH', 'No authentication provided')
   res.status(401).json({
     jsonrpc: '2.0',
     error: {

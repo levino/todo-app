@@ -9,18 +9,6 @@ import * as jose from 'jose'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 
-// Debug logging - enable via DEBUG_MCP=true
-const DEBUG = process.env.DEBUG_MCP === 'true'
-
-function debugLog(category: string, message: string, data?: unknown) {
-  if (!DEBUG) return
-  const timestamp = new Date().toISOString()
-  console.log(`[${timestamp}] [DEBUG:${category}] ${message}`)
-  if (data !== undefined) {
-    console.log(JSON.stringify(data, null, 2))
-  }
-}
-
 const ALGORITHM = 'RS256'
 const KEY_ID = 'oauth-key-1'
 
@@ -107,13 +95,10 @@ export async function initKeys(keyPath?: string): Promise<void> {
 
 /**
  * Derive public key PEM from private key PEM.
- * This is a simplified approach - in production you'd store both.
  */
 async function derivePublicKeyPEM(privatePem: string): Promise<string> {
   const privateKeyObj = await jose.importPKCS8(privatePem, ALGORITHM)
-  // Export as JWK, then re-import as public only
   const jwk = await jose.exportJWK(privateKeyObj)
-  // Remove private components
   delete jwk.d
   delete jwk.p
   delete jwk.q
@@ -180,33 +165,12 @@ export async function verifyAccessToken(
     throw new Error('Keys not initialized. Call initKeys first.')
   }
 
-  debugLog('JWT', 'Verifying token', {
-    tokenLength: token.length,
-    expectedIssuer: issuer,
-    expectedAudience: audience,
-  })
-
-  // Decode header without verification to see what we're dealing with
-  try {
-    const parts = token.split('.')
-    if (parts.length === 3) {
-      const headerJson = Buffer.from(parts[0], 'base64url').toString()
-      const payloadJson = Buffer.from(parts[1], 'base64url').toString()
-      debugLog('JWT', 'Token header (unverified)', JSON.parse(headerJson))
-      debugLog('JWT', 'Token payload (unverified)', JSON.parse(payloadJson))
-    }
-  } catch (e) {
-    debugLog('JWT', 'Failed to decode token parts', { error: String(e) })
-  }
-
   try {
     const { payload } = await jose.jwtVerify(token, publicKey, {
       issuer,
       audience,
       algorithms: [ALGORITHM],
     })
-
-    debugLog('JWT', 'Token verified successfully', { payload })
 
     return {
       iss: payload.iss as string,
@@ -217,12 +181,7 @@ export async function verifyAccessToken(
       client_id: payload.client_id as string,
       scope: payload.scope as string | undefined,
     }
-  } catch (error) {
-    debugLog('JWT', 'Token verification FAILED', {
-      error: String(error),
-      errorName: error instanceof Error ? error.name : 'unknown',
-      errorMessage: error instanceof Error ? error.message : 'unknown',
-    })
+  } catch {
     return null
   }
 }
