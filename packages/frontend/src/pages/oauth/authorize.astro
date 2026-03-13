@@ -33,11 +33,10 @@ if (!clientId) {
   error = 'Invalid code_challenge_method. Only "S256" is supported.'
 }
 
-// Redirect to login if not authenticated
-if (!user && !error) {
-  const returnUrl = encodeURIComponent(Astro.request.url)
-  return Astro.redirect(`/login?next=${returnUrl}`)
-}
+// Show inline login form if not authenticated (no redirect, preserves OAuth params)
+const needsLogin = !user && !error
+const parsedUrl = new URL(Astro.request.url)
+const currentPath = parsedUrl.pathname + parsedUrl.search
 
 // Fetch client info from MCP server
 let clientName = ''
@@ -105,6 +104,47 @@ if (Astro.request.method === 'POST' && user && !error && !clientError) {
             <div class="card-actions mt-4">
               <a href="/" class="btn btn-ghost">Zur Startseite</a>
             </div>
+          </>
+        ) : needsLogin ? (
+          <>
+            <h2 class="card-title text-2xl font-bold text-center justify-center mb-6">
+              Anmelden
+            </h2>
+            <p class="text-sm text-base-content/70 mb-4">
+              Bitte melde dich an, um den Zugriff zu autorisieren.
+            </p>
+            <form method="POST" action="/api/auth/login" class="space-y-4">
+              <input type="hidden" name="next" value={currentPath} />
+              <fieldset>
+                <label class="label" for="email">E-Mail</label>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  placeholder="name@example.com"
+                  class="input w-full"
+                  required
+                  autocomplete="email"
+                />
+              </fieldset>
+              <fieldset>
+                <label class="label" for="password">Passwort</label>
+                <input
+                  type="password"
+                  id="password"
+                  name="password"
+                  placeholder="********"
+                  class="input w-full"
+                  required
+                  autocomplete="current-password"
+                />
+              </fieldset>
+              <div class="mt-6">
+                <button type="submit" class="btn btn-primary w-full">
+                  Anmelden
+                </button>
+              </div>
+            </form>
           </>
         ) : (
           <>
