@@ -2,8 +2,6 @@ name: Protect Migrations
 
 on:
   pull_request:
-    paths:
-      - "packages/api/pocketbase/pb_migrations/**"
 
 jobs:
   check-migrations:
@@ -36,4 +34,4 @@ jobs:
             exit 1
           fi
 
-          echo "All good — only new migration files detected."
+          echo "All good — no migration files were modified or deleted."
