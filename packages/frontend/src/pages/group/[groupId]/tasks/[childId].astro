@@ -56,13 +56,22 @@ if (!user || !groupId || !childId) {
   return Astro.redirect('/login')
 }
 
+const errorParam = Astro.url.searchParams.get('error')
+const errorMessages: Record<string, string> = {
+  'wrong-phase': 'Diese Aufgabe ist gerade nicht dran.',
+  'not-yet-due': 'Diese Aufgabe ist noch nicht fällig.',
+  'already-completed': 'Diese Aufgabe wurde bereits erledigt.',
+  'complete-failed': 'Fehler beim Abschließen der Aufgabe.',
+}
+
 let child: Child | null = null
 let siblings: Child[] = []
 let tasks: Task[] = []
-let error = ''
+let error = errorParam ? (errorMessages[errorParam] || '') : ''
 let currentPhase = 'afternoon'
 let groupMorningEnd = '09:00'
 let groupEveningStart = '18:00'
+const todayStr = new Date().toISOString().slice(0, 10)
 
 try {
   child = await pb.collection('children').getOne<Child>(childId)
@@ -87,13 +96,14 @@ try {
   }
 
   try {
-    const result = await pb.collection('tasks').getList<Task>(1, 100, {
-      filter: `child = "${childId}" && completed = false && timeOfDay = "${currentPhase}"`,
-    })
     const now = new Date()
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
+    const result = await pb.collection('tasks').getList<Task>(1, 100, {
+      filter: `child = "${childId}" && completed = false && timeOfDay = "${currentPhase}" && (dueDate = "" || dueDate <= "${todayEnd}")`,
+    })
     tasks = result.items.sort((a, b) => {
-      const overdueA = a.dueDate && new Date(a.dueDate) < now ? 1 : 0
-      const overdueB = b.dueDate && new Date(b.dueDate) < now ? 1 : 0
+      const overdueA = a.dueDate && a.dueDate.slice(0, 10) < todayStr ? 1 : 0
+      const overdueB = b.dueDate && b.dueDate.slice(0, 10) < todayStr ? 1 : 0
       if (overdueA !== overdueB) return overdueB - overdueA
 
       const priorityA = (a.priority === null || a.priority === undefined || a.priority === 0) ? Infinity : a.priority
@@ -164,7 +174,7 @@ const showSwitcher = siblings.length > 1
         ) : (
           <ul class="space-y-3">
             {tasks.map((task) => {
-              const isOverdue = task.dueDate && new Date(task.dueDate) < new Date()
+              const isOverdue = task.dueDate && task.dueDate.slice(0, 10) < todayStr
               return (
                 <li
                   data-testid="task-item"
