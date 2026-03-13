@@ -117,7 +117,7 @@ describe('Tasks Page - Child View (?child=id)', () => {
 
   beforeEach(async () => {
     resetPocketBase()
-    currentPhase = getCurrentPhase('09:00', '18:00', 'Europe/Berlin')
+    currentPhase = getCurrentPhase('00:00', '23:59', 'Europe/Berlin')
 
     adminPb = new PocketBase(POCKETBASE_URL)
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')

@@ -60,7 +60,7 @@ describe('Points Display on Task Page', () => {
       child: childId,
       priority: 1,
       completed: false,
-      timeOfDay: getCurrentPhase('09:00', '18:00', 'Europe/Berlin'),
+      timeOfDay: getCurrentPhase('00:00', '23:59', 'Europe/Berlin'),
       points: 10,
     })
 
@@ -81,7 +81,7 @@ describe('Points Display on Task Page', () => {
       child: childId,
       priority: 1,
       completed: false,
-      timeOfDay: getCurrentPhase('09:00', '18:00', 'Europe/Berlin'),
+      timeOfDay: getCurrentPhase('00:00', '23:59', 'Europe/Berlin'),
     })
 
     const request = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
@@ -113,7 +113,7 @@ describe('Points Display on Task Page', () => {
       child: childId,
       priority: 1,
       completed: false,
-      timeOfDay: getCurrentPhase('09:00', '18:00', 'Europe/Berlin'),
+      timeOfDay: getCurrentPhase('00:00', '23:59', 'Europe/Berlin'),
       points: 5,
     })
 
