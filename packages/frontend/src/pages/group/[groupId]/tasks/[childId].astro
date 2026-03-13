@@ -16,6 +16,7 @@ interface Task {
   priority: number | null
   completed: boolean
   completedAt: string | null
+  lastCompletedAt: string | null
   dueDate: string | null
   recurrenceType: string | null
   timeOfDay: string
@@ -67,6 +68,7 @@ const errorMessages: Record<string, string> = {
 let child: Child | null = null
 let siblings: Child[] = []
 let tasks: Task[] = []
+let recentlyCompleted: Task[] = []
 let error = errorParam ? (errorMessages[errorParam] || '') : ''
 let currentPhase = 'afternoon'
 let groupMorningEnd = '09:00'
@@ -112,6 +114,16 @@ try {
     })
   } catch (tasksError) {
     console.error('Tasks fetch error:', tasksError)
+  }
+
+  try {
+    const todayStart = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).toISOString().replace('T', ' ')
+    const recentlyCompletedResult = await pb.collection('tasks').getList<Task>(1, 100, {
+      filter: `child = "${childId}" && ((completed = true && completedAt >= "${todayStart}") || (completed = false && lastCompletedAt >= "${todayStart}" && lastCompletedAt != "" && recurrenceType != ""))`,
+    })
+    recentlyCompleted = recentlyCompletedResult.items
+  } catch (recentError) {
+    console.error('Recently completed fetch error:', recentError)
   }
 } catch (e) {
   console.error('Child fetch error:', e)
@@ -208,6 +220,36 @@ const showSwitcher = siblings.length > 1
               )
             })}
           </ul>
+        )}
+
+        {recentlyCompleted.length > 0 && (
+          <div data-testid="recently-completed" class="mt-8">
+            <h2 class="text-lg font-semibold mb-3 text-base-content/60">Heute erledigt</h2>
+            <ul class="space-y-2">
+              {recentlyCompleted.map((task) => (
+                <li
+                  data-testid="completed-task-item"
+                  class="flex items-center gap-4 p-3 rounded-xl bg-base-200/50 opacity-60"
+                >
+                  <div class="flex-1">
+                    <span class="text-lg line-through">{task.title}</span>
+                    <span class="badge badge-sm badge-outline ml-2">{phaseLabels[task.timeOfDay]}</span>
+                  </div>
+                  <form method="POST" action={`/api/groups/${groupId}/tasks/${task.id}/undo`}>
+                    <input type="hidden" name="childId" value={childId} />
+                    <button
+                      type="submit"
+                      data-testid="undo-button"
+                      class="btn btn-ghost btn-sm"
+                      aria-label={`${task.title} rückgängig machen`}
+                    >
+                      ↩
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         <div class="mt-8 pt-8 border-t border-base-300">

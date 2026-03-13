@@ -205,13 +205,15 @@ describe('Tasks Child Page', () => {
     expect(html).toContain('Alle Aufgaben erledigt!')
   })
 
-  it('should not show completed tasks', async () => {
+  it('should not show completed tasks in active list', async () => {
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
     await adminPb.collection('tasks').create({
       title: 'Completed Task',
       child: childId,
       priority: 1,
       completed: true,
-      completedAt: new Date().toISOString(),
+      completedAt: yesterday.toISOString(),
       timeOfDay: 'afternoon',
     })
     await adminPb.collection('tasks').create({
