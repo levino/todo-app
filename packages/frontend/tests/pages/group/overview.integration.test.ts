@@ -3,7 +3,7 @@ import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest'
 import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
-import { getCurrentPhase } from '@/lib/tasks'
+import { getCurrentPhase, completeTask, undoTask } from '@/lib/tasks'
 
 const POCKETBASE_URL =
   process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
@@ -42,11 +42,11 @@ describe('Tasks Overview Page', () => {
 
     const group = await adminPb.collection('groups').create({
       name: 'Test Family',
-      morningEnd: '09:00',
-      eveningStart: '18:00',
+      morningEnd: '00:00',
+      eveningStart: '23:59',
     })
     groupId = group.id
-    currentPhase = getCurrentPhase('09:00', '18:00', 'Europe/Berlin')
+    currentPhase = getCurrentPhase('00:00', '23:59', 'Europe/Berlin')
 
     await adminPb.collection('user_groups').create({
       user: user.id,
