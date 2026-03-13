@@ -3,7 +3,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
 import request from 'supertest'
 import { app } from '@family-todo/mcp/src/server.js'
-import TasksChildPage from '../../../src/pages/group/[groupId]/tasks/[childId].astro'
+import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
@@ -49,6 +49,13 @@ describe('MCP → Frontend Integration', () => {
     container = await AstroContainer.create()
   })
 
+  const renderChildPage = (groupId: string, childId: string) =>
+    container.renderToString(TasksPage, {
+      params: { groupId },
+      locals: { pb: userPb, user: userPb.authStore.record },
+      request: new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`),
+    })
+
   it('should display tasks created via MCP in the frontend', async () => {
     const groupResult = await mcpCall(authToken, 'create_group', { name: 'MCP Test Family' })
     const groupId = extractId(groupResult.result.content[0].text)
@@ -76,10 +83,7 @@ describe('MCP → Frontend Integration', () => {
       timeOfDay: currentPhase,
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage(groupId, childId)
 
     expect(html).toContain('Emma')
     expect(html).toContain('#FF6B6B')
@@ -119,10 +123,7 @@ describe('MCP → Frontend Integration', () => {
       timeOfDay: 'evening',
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage(groupId, childId)
 
     const currentHour = new Date().getHours()
     if (currentHour < 9) {
@@ -170,10 +171,7 @@ describe('MCP → Frontend Integration', () => {
       timeOfDay: 'afternoon',
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage(groupId, childId)
 
     expect(html).toContain('Immer Morgen')
     expect(html).not.toContain('Nie sichtbar')
@@ -201,10 +199,7 @@ describe('MCP → Frontend Integration', () => {
       timeOfDay: otherPhase,
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage(groupId, childId)
 
     expect(html).toContain('data-testid="celebration"')
     expect(html).toContain('Super gemacht!')
@@ -238,10 +233,7 @@ describe('MCP → Frontend Integration', () => {
       dueDate: yesterday.toISOString(),
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage(groupId, childId)
 
     expect(html).toContain('Überfällige Aufgabe')
     expect(html).toContain('data-overdue="true"')

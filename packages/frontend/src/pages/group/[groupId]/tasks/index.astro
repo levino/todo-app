@@ -1,13 +1,15 @@
 ---
+import { actions } from 'astro:actions'
 import Layout from '@/layouts/Layout.astro'
 import ColoredInitials from '@/components/ColoredInitials.astro'
-
-interface Child {
-  id: string
-  name: string
-  color: string
-  group: string
-}
+import {
+  type Task,
+  type Child,
+  type Group,
+  getCurrentPhase,
+  sortTasks,
+  phaseLabels,
+} from '@/lib/tasks'
 
 const { groupId } = Astro.params
 const { pb, user } = Astro.locals
@@ -16,75 +18,310 @@ if (!user || !groupId) {
   return Astro.redirect('/login')
 }
 
+const selectedChildId = Astro.url.searchParams.get('child')
+
+const actionResult = Astro.getActionResult(actions.completeTask)
+const error = actionResult?.error?.message || ''
+
 let children: Child[] = []
+let tasksByChild: Record<string, Task[]> = {}
+let selectedChild: Child | null = null
+let siblings: Child[] = []
+let recentlyCompleted: Task[] = []
+let currentPhase = 'afternoon'
+let groupMorningEnd = '09:00'
+let groupEveningStart = '18:00'
 let groupName = ''
-let error = ''
 
 try {
-  // Fetch group info
-  const group = await pb.collection('groups').getOne(groupId)
+  const group = await pb.collection('groups').getOne<Group>(groupId)
   groupName = group.name
+  groupMorningEnd = group.morningEnd || '09:00'
+  groupEveningStart = group.eveningStart || '18:00'
+  currentPhase = getCurrentPhase(groupMorningEnd, groupEveningStart)
 
-  // Fetch children in this group
-  const result = await pb.collection('children').getList<Child>(1, 100, {
+  const childrenResult = await pb.collection('children').getList<Child>(1, 100, {
     filter: `group = "${groupId}"`,
     sort: 'name',
   })
-  children = result.items
+  children = childrenResult.items
+
+  if (selectedChildId) {
+    selectedChild = children.find((c) => c.id === selectedChildId) || null
+    if (selectedChild) {
+      siblings = children
+    }
+  }
+
+  const now = new Date()
+  const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
+
+  if (selectedChild) {
+    const result = await pb.collection('tasks').getList<Task>(1, 100, {
+      filter: `child = "${selectedChild.id}" && completed = false && timeOfDay = "${currentPhase}" && (dueDate = "" || dueDate <= "${todayEnd}")`,
+    })
+    tasksByChild[selectedChild.id] = sortTasks(result.items)
+
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().replace('T', ' ')
+    const recentlyCompletedResult = await pb.collection('tasks').getList<Task>(1, 100, {
+      filter: `child = "${selectedChild.id}" && ((completed = true && completedAt >= "${todayStart}") || (completed = false && lastCompletedAt >= "${todayStart}" && lastCompletedAt != "" && recurrenceType != ""))`,
+    })
+    recentlyCompleted = recentlyCompletedResult.items
+  } else {
+    for (const child of children) {
+      const result = await pb.collection('tasks').getList<Task>(1, 100, {
+        filter: `child = "${child.id}" && completed = false && timeOfDay = "${currentPhase}" && (dueDate = "" || dueDate <= "${todayEnd}")`,
+      })
+      tasksByChild[child.id] = sortTasks(result.items)
+    }
+  }
 } catch (e) {
-  console.error('Failed to load children:', e)
-  error = 'Fehler beim Laden der Kinder.'
+  console.error('Page fetch error:', e)
 }
+
+const todayStr = new Date().toISOString().slice(0, 10)
+const showSwitcher = selectedChild && siblings.length > 1
 ---
 
-<Layout title={`${groupName} - Aufgaben`}>
+<Layout title={selectedChild ? `${selectedChild.name} - Aufgaben` : `${groupName} - Aufgaben`}>
   <div class="min-h-screen bg-base-100 p-4 md:p-8">
     <div class="max-w-3xl mx-auto">
-      <header class="mb-8 flex items-center justify-between">
-        <div>
-          <h1 class="text-3xl font-bold">{groupName}</h1>
-          <p class="text-base-content/70">Wähle ein Kind aus</p>
-        </div>
-        <a href={`/group/${groupId}/tasks/overview`} class="btn btn-primary">
-          Alle Aufgaben
-        </a>
-      </header>
-
       {error && (
         <div class="alert alert-error mb-6">
           <span>{error}</span>
         </div>
       )}
 
-      {children.length === 0 && !error && (
-        <div class="text-center py-16">
-          <p class="text-xl text-base-content/70 mb-4">Noch keine Kinder angelegt.</p>
-          <p class="text-base-content/50">Verwende den MCP Server, um Kinder hinzuzufügen.</p>
-          <a href="/admin" class="btn btn-primary mt-4">
-            MCP Verbindung
-          </a>
-        </div>
-      )}
+      {selectedChild ? (
+        <>
+          {showSwitcher && (
+            <nav data-testid="child-switcher" class="flex gap-2 mb-6 overflow-x-auto pb-2">
+              {siblings.map((sibling) => (
+                <a
+                  href={`/group/${groupId}/tasks?child=${sibling.id}`}
+                  data-testid="child-tab"
+                  class:list={[
+                    'flex items-center gap-2 px-4 py-3 rounded-xl min-h-[56px] min-w-[120px] transition-colors',
+                    sibling.id === selectedChildId
+                      ? 'bg-primary text-primary-content font-bold'
+                      : 'bg-base-200 hover:bg-base-300',
+                  ]}
+                >
+                  <ColoredInitials name={sibling.name} color={sibling.color} size="sm" />
+                  <span class="text-lg">{sibling.name}</span>
+                </a>
+              ))}
+            </nav>
+          )}
 
-      {children.length > 0 && (
-        <div class="grid gap-4 sm:grid-cols-2">
-          {children.map((child) => (
-            <a
-              href={`/group/${groupId}/tasks/${child.id}`}
-              class="flex items-center gap-4 p-6 bg-base-200 rounded-xl hover:bg-base-300 transition-colors"
-            >
-              <ColoredInitials name={child.name} color={child.color} size="lg" />
-              <span class="text-2xl font-medium">{child.name}</span>
+          <header class="flex items-center gap-4 mb-4">
+            <ColoredInitials name={selectedChild.name} color={selectedChild.color} size="lg" />
+            <h1 class="text-3xl md:text-4xl font-bold">{selectedChild.name}</h1>
+          </header>
+
+          <div data-testid="phase-indicator" class="badge badge-lg badge-outline mb-8">
+            {phaseLabels[currentPhase]}
+          </div>
+
+          {(() => {
+            const tasks = tasksByChild[selectedChild.id] || []
+            return tasks.length === 0 ? (
+              <div data-testid="celebration" class="text-center py-16">
+                <div data-testid="celebration-emoji" class="text-8xl mb-6">🌟</div>
+                <h2 class="text-3xl md:text-4xl font-bold text-success mb-4">Super gemacht!</h2>
+                <p class="text-xl md:text-2xl text-base-content/70">
+                  Alle Aufgaben erledigt!
+                </p>
+              </div>
+            ) : (
+              <ul class="space-y-3">
+                {tasks.map((task) => {
+                  const isOverdue = task.dueDate && task.dueDate.slice(0, 10) < todayStr
+                  return (
+                    <li
+                      data-testid="task-item"
+                      data-overdue={isOverdue ? "true" : undefined}
+                      class:list={[
+                        'flex items-center gap-4 p-4 rounded-xl min-h-[56px]',
+                        isOverdue ? 'bg-error/10 border-2 border-error' : 'bg-base-200',
+                      ]}
+                    >
+                      <form method="POST" action={actions.completeTask}>
+                        <input type="hidden" name="taskId" value={task.id} />
+                        <input type="hidden" name="childId" value={selectedChild.id} />
+                        <input type="hidden" name="completedBy" value={selectedChild.id} />
+                        <input type="hidden" name="groupId" value={groupId} />
+                        <button
+                          type="submit"
+                          data-testid="complete-button"
+                          class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px]"
+                          aria-label={`${task.title} erledigen`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                          </svg>
+                        </button>
+                      </form>
+                      <div class="flex-1">
+                        <span class="text-xl md:text-2xl">{task.title}</span>
+                        {isOverdue && (
+                          <span data-testid="overdue-badge" class="badge badge-error badge-sm ml-2">Überfällig</span>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )
+          })()}
+
+          {recentlyCompleted.length > 0 && (
+            <div data-testid="recently-completed" class="mt-8">
+              <h2 class="text-lg font-semibold mb-3 text-base-content/60">Heute erledigt</h2>
+              <ul class="space-y-2">
+                {recentlyCompleted.map((task) => (
+                  <li
+                    data-testid="completed-task-item"
+                    class="flex items-center gap-4 p-3 rounded-xl bg-base-200/50 opacity-60"
+                  >
+                    <div class="flex-1">
+                      <span class="text-lg line-through">{task.title}</span>
+                      <span class="badge badge-sm badge-outline ml-2">{phaseLabels[task.timeOfDay]}</span>
+                    </div>
+                    <form method="POST" action={actions.undoTask}>
+                      <input type="hidden" name="taskId" value={task.id} />
+                      <button
+                        type="submit"
+                        data-testid="undo-button"
+                        class="btn btn-ghost btn-sm"
+                        aria-label={`${task.title} rückgängig machen`}
+                      >
+                        ↩
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div class="mt-8 pt-8 border-t border-base-300">
+            <a href={`/group/${groupId}/tasks`} class="btn btn-ghost btn-sm">
+              ← Zurück zur Übersicht
             </a>
-          ))}
-        </div>
-      )}
+          </div>
+        </>
+      ) : (
+        <>
+          <header class="mb-4">
+            <h1 class="text-3xl font-bold">{groupName}</h1>
+          </header>
 
-      <div class="mt-8 pt-8 border-t border-base-300">
-        <a href="/admin" class="btn btn-ghost btn-sm">
-          ← MCP Verbindung
-        </a>
-      </div>
+          <div data-testid="phase-indicator" class="badge badge-lg badge-outline mb-8">
+            {phaseLabels[currentPhase]}
+          </div>
+
+          {children.length === 0 && (
+            <div class="text-center py-16">
+              <p class="text-xl text-base-content/70 mb-4">Noch keine Kinder angelegt.</p>
+              <p class="text-base-content/50">Verwende den MCP Server, um Kinder hinzuzufügen.</p>
+              <a href="/admin" class="btn btn-primary mt-4">
+                MCP Verbindung
+              </a>
+            </div>
+          )}
+
+          {children.map((child) => {
+            const tasks = tasksByChild[child.id] || []
+            return (
+              <section data-testid="child-section" class="mb-8">
+                <header class="flex items-center gap-3 mb-4">
+                  <ColoredInitials name={child.name} color={child.color} size="md" />
+                  <a href={`/group/${groupId}/tasks?child=${child.id}`} class="text-2xl font-bold hover:underline">
+                    {child.name}
+                  </a>
+                </header>
+
+                {tasks.length === 0 ? (
+                  <div data-testid="celebration" class="text-center py-8 bg-base-200 rounded-xl">
+                    <div class="text-5xl mb-2">🌟</div>
+                    <p class="text-lg text-success font-bold">Alles erledigt!</p>
+                  </div>
+                ) : (
+                  <ul class="space-y-3">
+                    {tasks.map((task) => {
+                      const isOverdue = task.dueDate && new Date(task.dueDate) < new Date()
+                      return (
+                        <li
+                          data-testid="task-item"
+                          data-overdue={isOverdue ? "true" : undefined}
+                          class:list={[
+                            'flex items-center gap-4 p-4 rounded-xl min-h-[56px]',
+                            isOverdue ? 'bg-error/10 border-2 border-error' : 'bg-base-200',
+                          ]}
+                        >
+                          <form method="POST" action={actions.completeTask}>
+                            <input type="hidden" name="taskId" value={task.id} />
+                            <input type="hidden" name="childId" value={child.id} />
+                            <input type="hidden" name="completedBy" value={child.id} />
+                            <input type="hidden" name="groupId" value={groupId} />
+                            <button
+                              type="submit"
+                              data-testid="complete-button"
+                              class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px]"
+                              aria-label={`${task.title} erledigen`}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                              </svg>
+                            </button>
+                          </form>
+                          <div class="flex-1">
+                            <span class="text-xl md:text-2xl">{task.title}</span>
+                            {isOverdue && (
+                              <span data-testid="overdue-badge" class="badge badge-error badge-sm ml-2">Überfällig</span>
+                            )}
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </section>
+            )
+          })}
+
+          <div class="mt-8 pt-8 border-t border-base-300">
+            <a href="/admin" class="btn btn-ghost btn-sm">
+              ← MCP Verbindung
+            </a>
+          </div>
+        </>
+      )}
     </div>
   </div>
+
+  <script define:vars={{ currentPhase, groupMorningEnd, groupEveningStart }}>
+    const parseTime = (timeStr) => {
+      const [h, m] = timeStr.split(':').map(Number)
+      return h * 60 + m
+    }
+
+    const morningEndMinutes = parseTime(groupMorningEnd)
+    const eveningStartMinutes = parseTime(groupEveningStart)
+
+    const getPhase = (minutes) => {
+      if (minutes < morningEndMinutes) return 'morning'
+      if (minutes < eveningStartMinutes) return 'afternoon'
+      return 'evening'
+    }
+
+    setInterval(() => {
+      const now = new Date()
+      const minutes = now.getHours() * 60 + now.getMinutes()
+      if (getPhase(minutes) !== currentPhase) {
+        window.location.reload()
+      }
+    }, 60000)
+  </script>
 </Layout>
