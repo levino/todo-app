@@ -19,8 +19,8 @@
     "test:mcp": "npm run test -w @family-todo/mcp",
     "test:frontend": "npm run test -w @family-todo/frontend",
     "docker:reset-test-db": "docker compose -f docker-compose.test.yaml down pocketbase && docker volume rm -f levino-todo-app_pb_data_test && docker compose -f docker-compose.test.yaml up -d pocketbase && sleep 2",
-    "docker:test": "npm run docker:reset-test-db && docker compose -f docker-compose.test.yaml run --rm runner npm test",
-    "docker:test:mcp": "npm run docker:reset-test-db && docker compose -f docker-compose.test.yaml run --rm runner npm run test:mcp",
+    "docker:test": "npm run docker:reset-test-db && docker compose -f docker-compose.test.yaml run --rm runner sh -c '[ -f node_modules/.package-lock.json ] || npm install && npm test'",
+    "docker:test:mcp": "npm run docker:reset-test-db && docker compose -f docker-compose.test.yaml run --rm runner sh -c '[ -f node_modules/.package-lock.json ] || npm install && npm run test:mcp'",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write ."

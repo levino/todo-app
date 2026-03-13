@@ -1,7 +1,9 @@
 import node from '@astrojs/node'
-import tailwind from '@astrojs/tailwind'
 import shipyard from '@levino/shipyard-base'
+import tailwindcss from '@tailwindcss/vite'
 import { defineConfig } from 'astro/config'
+
+import appCss from './src/styles/app.css?url'
 
 export default defineConfig({
   site: 'https://your-site.example.com',
@@ -9,9 +11,12 @@ export default defineConfig({
   adapter: node({
     mode: 'standalone',
   }),
+  vite: {
+    plugins: [tailwindcss()],
+  },
   integrations: [
-    tailwind({ applyBaseStyles: false }),
     shipyard({
+      css: appCss,
       brand: 'Todo App',
       title: 'Todo App',
       tagline: 'A simple todo application',
