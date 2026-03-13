@@ -126,7 +126,7 @@ const displayChildren = selectedChild ? [selectedChild] : children
               href={`/group/${groupId}/tasks?child=${sibling.id}`}
               data-testid="child-tab"
               class:list={[
-                'flex items-center gap-2 px-4 py-3 rounded-xl min-h-[56px] min-w-[120px] transition-colors',
+                'flex items-center gap-2 px-4 py-3 rounded-xl min-h-[56px] min-w-[120px] transition-all duration-150 active:scale-95',
                 sibling.id === selectedChildId
                   ? 'bg-primary text-primary-content font-bold'
                   : 'bg-base-200 hover:bg-base-300',
@@ -201,7 +201,7 @@ const displayChildren = selectedChild ? [selectedChild] : children
             <div data-testid="child-column">
               {!selectedChild && (
                 <header class="flex items-center gap-3 mb-4">
-                  <a href={`/group/${groupId}/tasks?child=${child.id}`} class="flex items-center gap-3 text-2xl font-bold hover:underline">
+                  <a href={`/group/${groupId}/tasks?child=${child.id}`} class="flex items-center gap-3 text-2xl font-bold hover:underline transition-colors duration-150">
                     <ColoredInitials name={child.name} color={child.color} size="md" />
                     {child.name}
                   </a>
@@ -216,7 +216,7 @@ const displayChildren = selectedChild ? [selectedChild] : children
               {tasks.length === 0 ? (
                 selectedChild ? (
                   <div data-testid="celebration" class="text-center py-16">
-                    <div data-testid="celebration-emoji" class="text-8xl mb-6">🌟</div>
+                    <div data-testid="celebration-emoji" class="text-8xl mb-6 animate-bounce">🌟</div>
                     <h2 class="text-3xl md:text-4xl font-bold text-success mb-4">Super gemacht!</h2>
                     <p class="text-xl md:text-2xl text-base-content/70">
                       Alle Aufgaben erledigt!
@@ -224,7 +224,7 @@ const displayChildren = selectedChild ? [selectedChild] : children
                   </div>
                 ) : (
                   <div data-testid="celebration" class="text-center py-8 bg-base-200 rounded-xl">
-                    <div class="text-5xl mb-2">🌟</div>
+                    <div data-testid="celebration-emoji" class="text-5xl mb-2 animate-bounce">🌟</div>
                     <p class="text-lg text-success font-bold">Alles erledigt!</p>
                   </div>
                 )
@@ -237,7 +237,7 @@ const displayChildren = selectedChild ? [selectedChild] : children
                         data-testid="task-item"
                         data-overdue={isOverdue ? "true" : undefined}
                         class:list={[
-                          'flex items-center gap-4 p-4 rounded-xl min-h-[56px] cursor-pointer',
+                          'flex items-center gap-4 p-4 rounded-xl min-h-[56px] transition-transform duration-150 active:scale-[0.97] hover:shadow-md cursor-pointer',
                           isOverdue ? 'bg-error/10 border-2 border-error' : 'bg-base-200',
                         ]}
                       >
@@ -249,7 +249,7 @@ const displayChildren = selectedChild ? [selectedChild] : children
                           <button
                             type="submit"
                             data-testid="complete-button"
-                            class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px]"
+                            class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px] transition-transform duration-150 active:scale-90"
                             aria-label={`${task.title} erledigen`}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -445,5 +445,13 @@ const displayChildren = selectedChild ? [selectedChild] : children
         window.location.reload()
       }
     }, 60000)
+  </script>
+
+  <script is:inline>
+    document.querySelectorAll('.btn-success[type="submit"]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        if (navigator.vibrate) navigator.vibrate(50)
+      })
+    })
   </script>
 </Layout>
