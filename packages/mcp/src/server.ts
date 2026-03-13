@@ -342,7 +342,7 @@ function registerTools() {
     inputSchema: z.object({
       childId: z.string().describe('ID of the child'),
       title: z.string().describe('Task title'),
-      timeOfDay: z.string().describe('Time of day phase: "morning", "afternoon", or "evening"'),
+      timeOfDay: z.enum(['morning', 'afternoon', 'evening']).describe('Time of day phase'),
       priority: z.number().optional().describe('Priority (lower number = higher priority, null = lowest)'),
       dueDate: z.string().optional().describe('Due date (ISO 8601, e.g. "2026-03-15")'),
       recurrenceType: z.string().optional().describe('Recurrence type: "interval" (every N days) or "weekly" (specific weekdays)'),
@@ -383,7 +383,7 @@ function registerTools() {
       title: z.string().optional().describe('New title'),
       priority: z.number().optional().describe('New priority'),
       childId: z.string().optional().describe('Reassign to different child'),
-      timeOfDay: z.string().optional().describe('Time of day phase: "morning", "afternoon", or "evening"'),
+      timeOfDay: z.enum(['morning', 'afternoon', 'evening']).optional().describe('Time of day phase'),
     }),
     handler: async (args, pb) => {
       const { taskId, title, priority, childId, timeOfDay } = args as { taskId: string; title?: string; priority?: number; childId?: string; timeOfDay?: string }
@@ -560,6 +560,8 @@ function zodToJsonSchema(schema: z.ZodType): object {
         properties[key] = { type: 'number', description: zodValue.description }
       } else if (zodValue instanceof z.ZodBoolean) {
         properties[key] = { type: 'boolean', description: zodValue.description }
+      } else if (zodValue instanceof z.ZodEnum) {
+        properties[key] = { type: 'string', enum: zodValue._def.values, description: zodValue.description }
       } else if (zodValue instanceof z.ZodArray) {
         properties[key] = { type: 'array', items: { type: 'number' }, description: zodValue.description }
       } else if (zodValue instanceof z.ZodOptional) {
@@ -570,6 +572,8 @@ function zodToJsonSchema(schema: z.ZodType): object {
           properties[key] = { type: 'number', description: inner.description }
         } else if (inner instanceof z.ZodBoolean) {
           properties[key] = { type: 'boolean', description: inner.description }
+        } else if (inner instanceof z.ZodEnum) {
+          properties[key] = { type: 'string', enum: inner._def.values, description: inner.description }
         } else if (inner instanceof z.ZodArray) {
           properties[key] = { type: 'array', items: { type: 'number' }, description: inner.description }
         }
