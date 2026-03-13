@@ -87,7 +87,7 @@ describe('OAuth Authorize Page', () => {
   })
 
   describe('Unauthenticated User', () => {
-    it('should redirect to login with next parameter', async () => {
+    it('should show inline login form instead of redirecting', async () => {
       const unauthPb = new PocketBase(POCKETBASE_URL)
       const authorizeUrl = `/oauth/authorize?client_id=${mockClientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&code_challenge=test-challenge-that-is-43-chars-minimum`
 
@@ -96,10 +96,12 @@ describe('OAuth Authorize Page', () => {
         locals: { pb: unauthPb, user: undefined },
       })
 
-      expect(response.status).toBe(302)
-      const location = response.headers.get('Location')
-      expect(location).toContain('/login')
-      expect(location).toContain('next=')
+      expect(response.status).toBe(200)
+      const html = await response.text()
+      expect(html).toContain('Anmelden')
+      expect(html).toContain('action="/api/auth/login"')
+      expect(html).toContain('name="next"')
+      expect(html).toContain('/oauth/authorize?')
     })
   })
 
