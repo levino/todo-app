@@ -73,16 +73,17 @@ flowchart TB
 
 ## Phase 3: Reward System 🏆
 
-**Status: Idea**
+**Status: Done**
 
 Motivation through points and rewards.
 
-### Ideas
+### Features
 
-- Points for completed tasks
-- Weekly/monthly goals
-- Virtual or real rewards
-- Family leaderboard
+- Configurable points per task (via MCP)
+- Create/manage rewards (via MCP)
+- Points balance per child in kiosk view
+- Redeem rewards (via MCP)
+- Points history via transaction log
 
 ---
 

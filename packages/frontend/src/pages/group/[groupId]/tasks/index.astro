@@ -12,6 +12,13 @@ import {
   phaseLabels,
 } from '@/lib/tasks'
 
+interface PointTransaction {
+  id: string
+  child: string
+  points: number
+  type: string
+}
+
 const { groupId } = Astro.params
 const { pb, user } = Astro.locals
 
@@ -33,6 +40,7 @@ let currentPhase = 'afternoon'
 let groupMorningEnd = '09:00'
 let groupEveningStart = '18:00'
 let groupName = ''
+let pointsBalance = 0
 
 try {
   const group = await pb.collection('groups').getOne<Group>(groupId)
@@ -68,6 +76,15 @@ try {
       filter: `child = "${selectedChild.id}" && ((completed = true && completedAt >= "${todayStart}") || (completed = false && lastCompletedAt >= "${todayStart}" && lastCompletedAt != "" && recurrenceType != ""))`,
     })
     recentlyCompleted = recentlyCompletedResult.items
+
+    try {
+      const transactionsResult = await pb.collection('point_transactions').getFullList<PointTransaction>({
+        filter: `child = "${selectedChild.id}"`,
+      })
+      pointsBalance = transactionsResult.reduce((sum, t) => sum + t.points, 0)
+    } catch (pointsError) {
+      console.error('Points fetch error:', pointsError)
+    }
   } else {
     for (const child of children) {
       const result = await pb.collection('tasks').getList<Task>(1, 100, {
@@ -121,8 +138,15 @@ const showSwitcher = selectedChild && siblings.length > 1
             <h1 class="text-3xl md:text-4xl font-bold">{selectedChild.name}</h1>
           </header>
 
-          <div data-testid="phase-indicator" class="badge badge-lg badge-outline mb-8">
-            {phaseLabels[currentPhase]}
+          <div class="flex items-center gap-2 mb-8">
+            <div data-testid="phase-indicator" class="badge badge-lg badge-outline">
+              {phaseLabels[currentPhase]}
+            </div>
+            {pointsBalance > 0 && (
+              <div data-testid="points-balance" class="badge badge-lg badge-warning gap-1">
+                {pointsBalance} Punkte
+              </div>
+            )}
           </div>
 
           {(() => {
@@ -168,6 +192,9 @@ const showSwitcher = selectedChild && siblings.length > 1
                         <span class="text-xl md:text-2xl">{task.title}</span>
                         {isOverdue && (
                           <span data-testid="overdue-badge" class="badge badge-error badge-sm ml-2">Überfällig</span>
+                        )}
+                        {task.points && task.points > 0 && (
+                          <span data-testid="task-points" class="badge badge-warning badge-sm ml-2">+{task.points}</span>
                         )}
                       </div>
                     </li>

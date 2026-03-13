@@ -885,6 +885,351 @@ describe('MCP Server', () => {
         expect(toolNames).toContain('configure_phase_times')
       })
     })
+
+    describe('Reward Tools', () => {
+      let groupId: string
+      let childId: string
+
+      beforeEach(async () => {
+        const groupRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_group',
+              arguments: { name: 'Reward Test Family' },
+            },
+            id: 1,
+          })
+        groupId = groupRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        const childRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_child',
+              arguments: { groupId, name: 'Max', color: '#4DABF7' },
+            },
+            id: 2,
+          })
+        childId = childRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+      })
+
+      it('should create a reward', async () => {
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_reward',
+              arguments: {
+                groupId,
+                name: 'Ice Cream',
+                description: 'A scoop of ice cream',
+                pointsCost: 50,
+              },
+            },
+            id: 3,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.result.content[0].text).toContain('Created reward')
+        expect(res.body.result.content[0].text).toContain('Ice Cream')
+      })
+
+      it('should list rewards for a group', async () => {
+        await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_reward',
+              arguments: { groupId, name: 'Ice Cream', pointsCost: 50 },
+            },
+            id: 3,
+          })
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'list_rewards',
+              arguments: { groupId },
+            },
+            id: 4,
+          })
+
+        expect(res.status).toBe(200)
+        const rewards = JSON.parse(res.body.result.content[0].text)
+        expect(rewards).toHaveLength(1)
+        expect(rewards[0].name).toBe('Ice Cream')
+        expect(rewards[0].pointsCost).toBe(50)
+      })
+
+      it('should update a reward', async () => {
+        const createRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_reward',
+              arguments: { groupId, name: 'Ice Cream', pointsCost: 50 },
+            },
+            id: 3,
+          })
+        const rewardId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'update_reward',
+              arguments: { rewardId, name: 'Double Ice Cream', pointsCost: 100 },
+            },
+            id: 4,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.result.content[0].text).toContain('Updated reward')
+      })
+
+      it('should delete a reward', async () => {
+        const createRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_reward',
+              arguments: { groupId, name: 'Ice Cream', pointsCost: 50 },
+            },
+            id: 3,
+          })
+        const rewardId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'delete_reward',
+              arguments: { rewardId },
+            },
+            id: 4,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.result.content[0].text).toContain('Deleted reward')
+      })
+
+      it('should get points balance for a child', async () => {
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'get_points_balance',
+              arguments: { childId },
+            },
+            id: 3,
+          })
+
+        expect(res.status).toBe(200)
+        const result = JSON.parse(res.body.result.content[0].text)
+        expect(result.balance).toBe(0)
+        expect(result.childId).toBe(childId)
+      })
+
+      it('should redeem a reward and deduct points', async () => {
+        await adminPb.collection('point_transactions').create({
+          child: childId,
+          points: 100,
+          type: 'earned',
+          description: 'Test points',
+        })
+
+        const rewardRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_reward',
+              arguments: { groupId, name: 'Ice Cream', pointsCost: 50 },
+            },
+            id: 3,
+          })
+        const rewardId = rewardRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'redeem_reward',
+              arguments: { childId, rewardId },
+            },
+            id: 4,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.result.content[0].text).toContain('Redeemed')
+
+        const balanceRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'get_points_balance',
+              arguments: { childId },
+            },
+            id: 5,
+          })
+
+        const balance = JSON.parse(balanceRes.body.result.content[0].text)
+        expect(balance.balance).toBe(50)
+      })
+
+      it('should reject redemption when insufficient points', async () => {
+        const rewardRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_reward',
+              arguments: { groupId, name: 'Expensive', pointsCost: 1000 },
+            },
+            id: 3,
+          })
+        const rewardId = rewardRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'redeem_reward',
+              arguments: { childId, rewardId },
+            },
+            id: 4,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.result.isError).toBe(true)
+        expect(res.body.result.content[0].text).toContain('Insufficient')
+      })
+
+      it('should create task with points', async () => {
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Bonus Task',
+                timeOfDay: 'morning',
+                points: 10,
+              },
+            },
+            id: 3,
+          })
+
+        expect(res.status).toBe(200)
+        const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+        const task = await adminPb.collection('tasks').getOne(taskId)
+        expect(task.points).toBe(10)
+      })
+
+      it('should list tasks with points field', async () => {
+        await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Points Task',
+                timeOfDay: 'afternoon',
+                points: 5,
+              },
+            },
+            id: 3,
+          })
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'list_tasks',
+              arguments: { childId },
+            },
+            id: 4,
+          })
+
+        const tasks = JSON.parse(res.body.result.content[0].text)
+        expect(tasks[0].points).toBe(5)
+      })
+
+      it('should include reward tools in tools/list', async () => {
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/list',
+            id: 1,
+          })
+
+        const toolNames = res.body.result.tools.map((t: { name: string }) => t.name)
+        expect(toolNames).toContain('create_reward')
+        expect(toolNames).toContain('list_rewards')
+        expect(toolNames).toContain('update_reward')
+        expect(toolNames).toContain('delete_reward')
+        expect(toolNames).toContain('get_points_balance')
+        expect(toolNames).toContain('redeem_reward')
+      })
+    })
   })
 })
 
