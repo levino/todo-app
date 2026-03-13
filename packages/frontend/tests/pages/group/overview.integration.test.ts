@@ -1,5 +1,5 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest'
 import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
@@ -155,5 +155,64 @@ describe('Tasks Overview Page', () => {
     })
 
     expect(html).toContain('name="completedBy"')
+  })
+
+  describe('Heute erledigt section on overview', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('should show recently completed tasks with undo button on overview page', async () => {
+      vi.setSystemTime(new Date('2026-03-10T14:00:00Z'))
+
+      const task = await adminPb.collection('tasks').create({
+        title: 'Zimmer aufräumen',
+        child: child1Id,
+        completed: false,
+        timeOfDay: 'afternoon',
+        priority: 1,
+        dueDate: '2026-03-10',
+      })
+
+      await completeTask(pb, task.id, child1Id, child1Id, groupId)
+
+      const html = await container.renderToString(TasksPage, {
+        params: { groupId },
+        locals: { pb, user: pb.authStore.record },
+      })
+
+      expect(html).toContain('data-testid="recently-completed"')
+      expect(html).toContain('Zimmer aufräumen')
+      expect(html).toContain('data-testid="undo-button"')
+    })
+
+    it('should not show completed task in active list after undo on overview', async () => {
+      vi.setSystemTime(new Date('2026-03-10T14:00:00Z'))
+
+      const task = await adminPb.collection('tasks').create({
+        title: 'Tisch decken',
+        child: child1Id,
+        completed: false,
+        timeOfDay: 'afternoon',
+        priority: 1,
+        dueDate: '2026-03-10',
+      })
+
+      await completeTask(pb, task.id, child1Id, child1Id, groupId)
+      await undoTask(pb, task.id)
+
+      const html = await container.renderToString(TasksPage, {
+        params: { groupId },
+        locals: { pb, user: pb.authStore.record },
+      })
+
+      expect(html).toContain('Tisch decken')
+      expect(html).toContain('data-testid="task-item"')
+      expect(html).not.toContain('data-testid="recently-completed"')
+    })
   })
 })

@@ -36,6 +36,7 @@ let tasksByChild: Record<string, Task[]> = {}
 let selectedChild: Child | null = null
 let siblings: Child[] = []
 let recentlyCompleted: Task[] = []
+let recentlyCompletedByChild: Record<string, Task[]> = {}
 let currentPhase = 'afternoon'
 let groupMorningEnd = '09:00'
 let groupEveningStart = '18:00'
@@ -89,11 +90,17 @@ try {
       console.error('Points fetch error:', pointsError)
     }
   } else {
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().replace('T', ' ')
     for (const child of children) {
       const result = await pb.collection('tasks').getList<Task>(1, 100, {
         filter: `child = "${child.id}" && completed = false && timeOfDay = "${currentPhase}" && (dueDate = "" || dueDate <= "${todayEnd}")`,
       })
       tasksByChild[child.id] = sortTasks(result.items, groupTimezone)
+
+      const recentlyCompletedResult = await pb.collection('tasks').getList<Task>(1, 100, {
+        filter: `child = "${child.id}" && ((completed = true && completedAt >= "${todayStart}") || (completed = false && lastCompletedAt >= "${todayStart}" && lastCompletedAt != "" && recurrenceType != ""))`,
+      })
+      recentlyCompletedByChild[child.id] = recentlyCompletedResult.items
     }
   }
 } catch (e) {
@@ -338,6 +345,39 @@ const showSwitcher = selectedChild && siblings.length > 1
                     })}
                   </ul>
                 )}
+
+                {(() => {
+                  const completed = recentlyCompletedByChild[child.id] || []
+                  return completed.length > 0 && (
+                    <div data-testid="recently-completed" class="mt-4">
+                      <h3 class="text-sm font-semibold mb-2 text-base-content/60">Heute erledigt</h3>
+                      <ul class="space-y-2">
+                        {completed.map((task) => (
+                          <li
+                            data-testid="completed-task-item"
+                            class="flex items-center gap-4 p-3 rounded-xl bg-base-200/50 opacity-60"
+                          >
+                            <div class="flex-1">
+                              <span class="text-lg line-through">{task.title}</span>
+                              <span class="badge badge-sm badge-outline ml-2">{phaseLabels[task.timeOfDay]}</span>
+                            </div>
+                            <form method="POST" action={actions.undoTask}>
+                              <input type="hidden" name="taskId" value={task.id} />
+                              <button
+                                type="submit"
+                                data-testid="undo-button"
+                                class="btn btn-ghost btn-sm"
+                                aria-label={`${task.title} rückgängig machen`}
+                              >
+                                ↩
+                              </button>
+                            </form>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                })()}
               </section>
             )
           })}
