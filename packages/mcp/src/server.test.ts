@@ -8,7 +8,7 @@
 import { describe, it, expect, beforeEach, beforeAll } from 'vitest'
 import request from 'supertest'
 import PocketBase from 'pocketbase'
-import { app, calculateNextDueDate } from './server.js'
+import { app, calculateNextDueDate, calculateInitialDueDate } from './server.js'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -688,6 +688,75 @@ describe('MCP Server', () => {
         expect(task.timeOfDay).toBe('evening')
       })
 
+      it('should auto-set dueDate when creating weekly task without explicit dueDate', async () => {
+        const today = new Date()
+        const todayDay = today.getDay()
+        const nonTodayDays = [0, 1, 2, 3, 4, 5, 6].filter((d) => d !== todayDay)
+        const recurrenceDays = nonTodayDays.slice(0, 2)
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Weekly No DueDate',
+                timeOfDay: 'afternoon',
+                recurrenceType: 'weekly',
+                recurrenceDays,
+              },
+            },
+            id: 3,
+          })
+
+        expect(res.status).toBe(200)
+        const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+        const task = await adminPb.collection('tasks').getOne(taskId)
+        expect(task.dueDate).not.toBe('')
+        expect(task.dueDate).not.toBeNull()
+
+        const dueDate = new Date(task.dueDate)
+        const dueDay = dueDate.getDay()
+        expect(recurrenceDays).toContain(dueDay)
+      })
+
+      it('should set dueDate to today when creating weekly task that includes today', async () => {
+        const today = new Date()
+        const todayDay = today.getDay()
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Weekly Includes Today',
+                timeOfDay: 'afternoon',
+                recurrenceType: 'weekly',
+                recurrenceDays: [todayDay],
+              },
+            },
+            id: 3,
+          })
+
+        expect(res.status).toBe(200)
+        const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+        const task = await adminPb.collection('tasks').getOne(taskId)
+        expect(task.dueDate).not.toBe('')
+        expect(task.dueDate).not.toBeNull()
+
+        const dueDate = new Date(task.dueDate)
+        expect(dueDate.toISOString().slice(0, 10)).toBe(today.toISOString().slice(0, 10))
+      })
+
       it('should reset a completed task', async () => {
         // Create task
         const createRes = await request(app)
@@ -846,5 +915,32 @@ describe('calculateNextDueDate', () => {
     const completed = new Date('2026-03-13T10:00:00Z')
     expect(calculateNextDueDate(null, null, null, completed)).toBeNull()
     expect(calculateNextDueDate('', null, null, completed)).toBeNull()
+  })
+})
+
+describe('calculateInitialDueDate', () => {
+  it('should return today when today is in recurrenceDays', () => {
+    // 2026-03-13 is a Friday (day 5)
+    const today = new Date('2026-03-13T10:00:00Z')
+    const result = calculateInitialDueDate('weekly', null, [5], today)
+    expect(result).toContain('2026-03-13')
+  })
+
+  it('should return next matching day when today is not in recurrenceDays', () => {
+    // 2026-03-13 is a Friday (day 5)
+    const today = new Date('2026-03-13T10:00:00Z')
+    const result = calculateInitialDueDate('weekly', null, [1, 3], today)
+    expect(result).toContain('2026-03-16') // Monday
+  })
+
+  it('should return today for interval type', () => {
+    const today = new Date('2026-03-13T10:00:00Z')
+    const result = calculateInitialDueDate('interval', 3, null, today)
+    expect(result).toContain('2026-03-13')
+  })
+
+  it('should return null for non-recurring tasks', () => {
+    const today = new Date('2026-03-13T10:00:00Z')
+    expect(calculateInitialDueDate(null, null, null, today)).toBeNull()
   })
 })
