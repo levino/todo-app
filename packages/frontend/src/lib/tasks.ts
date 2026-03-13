@@ -120,6 +120,7 @@ export const completeTask = async (
       completedBy: '',
       lastCompletedAt: now.toISOString(),
       dueDate: nextDueDate,
+      previousDueDate: task.dueDate || null,
     })
   } else {
     await pb.collection('tasks').update(taskId, {
@@ -127,6 +128,41 @@ export const completeTask = async (
       completedAt: now.toISOString(),
       completedBy,
       lastCompletedAt: now.toISOString(),
+      previousDueDate: task.dueDate || null,
+    })
+  }
+
+  return {}
+}
+
+export const undoTask = async (
+  pb: import('pocketbase').default,
+  taskId: string,
+): Promise<{ error?: string }> => {
+  const task = await pb.collection('tasks').getOne(taskId)
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().replace('T', ' ')
+
+  const completedToday = task.completed && task.completedAt && task.completedAt >= todayStart
+  const recurringCompletedToday = !task.completed && task.lastCompletedAt && task.lastCompletedAt >= todayStart && task.recurrenceType
+
+  if (!completedToday && !recurringCompletedToday) {
+    return { error: 'not-completed-today' }
+  }
+
+  if (task.recurrenceType && recurringCompletedToday) {
+    await pb.collection('tasks').update(taskId, {
+      dueDate: task.previousDueDate || task.dueDate,
+      lastCompletedAt: null,
+      previousDueDate: null,
+    })
+  } else {
+    await pb.collection('tasks').update(taskId, {
+      completed: false,
+      completedAt: null,
+      completedBy: '',
+      lastCompletedAt: null,
+      previousDueDate: null,
     })
   }
 

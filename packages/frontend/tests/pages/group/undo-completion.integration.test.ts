@@ -3,8 +3,8 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import PocketBase from 'pocketbase'
 import request from 'supertest'
 import { app } from '@family-todo/mcp/src/server.js'
-import TasksChildPage from '../../../src/pages/group/[groupId]/tasks/[childId].astro'
-import { POST as completePost } from '../../../src/pages/api/groups/[groupId]/tasks/[taskId]/complete'
+import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
+import { completeTask, undoTask } from '../../../src/lib/tasks'
 import { resetPocketBase } from '@/lib/pocketbase'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
@@ -82,26 +82,19 @@ describe('Undo Completion Integration Tests', () => {
     }).then((r) => extractId(r.result.content[0].text))
 
   const renderPage = () =>
-    container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
+    container.renderToString(TasksPage, {
+      params: { groupId },
       locals: { pb: userPb, user: userPb.authStore.record },
       request: new Request(
-        `http://localhost/group/${groupId}/tasks/${childId}`,
+        `http://localhost/group/${groupId}/tasks?child=${childId}`,
       ),
     })
 
-  const completeTask = (taskId: string) => {
-    const formData = new FormData()
-    formData.append('childId', childId)
-    return completePost({
-      params: { groupId, taskId },
-      request: new Request(
-        `http://localhost/api/groups/${groupId}/tasks/${taskId}/complete`,
-        { method: 'POST', body: formData },
-      ),
-      locals: { pb: userPb, user: userPb.authStore.record },
-    } as Parameters<typeof completePost>[0])
-  }
+  const doCompleteTask = (taskId: string) =>
+    completeTask(userPb, taskId, childId, childId, groupId)
+
+  const doUndoTask = (taskId: string) =>
+    undoTask(userPb, taskId)
 
   const getTask = (taskId: string) => adminPb.collection('tasks').getOne(taskId)
 
@@ -125,7 +118,7 @@ describe('Undo Completion Integration Tests', () => {
         dueDate: '2026-03-10',
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const html = await renderPage()
 
@@ -145,7 +138,7 @@ describe('Undo Completion Integration Tests', () => {
         dueDate: '2026-03-10',
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const html = await renderPage()
 
@@ -162,7 +155,7 @@ describe('Undo Completion Integration Tests', () => {
         timeOfDay: 'morning',
         dueDate: '2026-03-10',
       })
-      await completeTask(morningTaskId)
+      await doCompleteTask(morningTaskId)
 
       // Create an afternoon task completed via direct DB update (simulating earlier completion)
       await adminPb.collection('tasks').create({
@@ -190,7 +183,7 @@ describe('Undo Completion Integration Tests', () => {
         timeOfDay: 'morning',
         dueDate: '2026-03-09',
       })
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       // Now it's today
       travelTo('2026-03-10T07:00:00Z')
@@ -207,7 +200,7 @@ describe('Undo Completion Integration Tests', () => {
         dueDate: '2026-03-10',
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const html = await renderPage()
 
@@ -218,7 +211,7 @@ describe('Undo Completion Integration Tests', () => {
       expect(html).toContain('Einzige Aufgabe')
     })
 
-    it('undo button has correct form action', async () => {
+    it('undo button has correct form structure', async () => {
       travelTo('2026-03-10T07:00:00Z')
       const taskId = await createTask({
         title: 'Undo Test',
@@ -226,18 +219,19 @@ describe('Undo Completion Integration Tests', () => {
         dueDate: '2026-03-10',
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const html = await renderPage()
 
       expect(html).toContain('data-testid="undo-button"')
-      expect(html).toContain(`/api/groups/${groupId}/tasks/${taskId}/undo`)
+      expect(html).toContain(`value="${taskId}"`)
+      expect(html).toContain('name="taskId"')
     })
   })
 
-  // ====== B. Undo API ======
+  // ====== B. Undo Logic ======
 
-  describe('B. Undo API', () => {
+  describe('B. Undo Logic', () => {
     it('undo non-recurring task: sets completed=false, completedAt=null', async () => {
       travelTo('2026-03-10T07:00:00Z')
       const taskId = await createTask({
@@ -246,26 +240,14 @@ describe('Undo Completion Integration Tests', () => {
         dueDate: '2026-03-10',
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       // Verify task is completed
       const completedTask = await getTask(taskId)
       expect(completedTask.completed).toBe(true)
       expect(completedTask.completedAt).toBeTruthy()
 
-      const { POST: undoPost } = await import('../../../src/pages/api/groups/[groupId]/tasks/[taskId]/undo')
-
-      const formData = new FormData()
-      formData.append('childId', childId)
-
-      await undoPost({
-        params: { groupId, taskId },
-        request: new Request(
-          `http://localhost/api/groups/${groupId}/tasks/${taskId}/undo`,
-          { method: 'POST', body: formData },
-        ),
-        locals: { pb: userPb, user: userPb.authStore.record },
-      } as Parameters<typeof undoPost>[0])
+      await doUndoTask(taskId)
 
       const undoneTask = await getTask(taskId)
       expect(undoneTask.completed).toBe(false)
@@ -285,26 +267,14 @@ describe('Undo Completion Integration Tests', () => {
         dueDate: '2026-03-10',
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       // Verify task has advanced dueDate
       const completedTask = await getTask(taskId)
       expect(completedTask.dueDate.slice(0, 10)).toBe('2026-03-12')
       expect(completedTask.previousDueDate.slice(0, 10)).toBe('2026-03-10')
 
-      const { POST: undoPost } = await import('../../../src/pages/api/groups/[groupId]/tasks/[taskId]/undo')
-
-      const formData = new FormData()
-      formData.append('childId', childId)
-
-      await undoPost({
-        params: { groupId, taskId },
-        request: new Request(
-          `http://localhost/api/groups/${groupId}/tasks/${taskId}/undo`,
-          { method: 'POST', body: formData },
-        ),
-        locals: { pb: userPb, user: userPb.authStore.record },
-      } as Parameters<typeof undoPost>[0])
+      await doUndoTask(taskId)
 
       const undoneTask = await getTask(taskId)
       // dueDate restored to original
@@ -321,60 +291,19 @@ describe('Undo Completion Integration Tests', () => {
         dueDate: '2026-03-09',
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       // Travel to next day
       travelTo('2026-03-10T07:00:00Z')
 
-      const { POST: undoPost } = await import('../../../src/pages/api/groups/[groupId]/tasks/[taskId]/undo')
-
-      const formData = new FormData()
-      formData.append('childId', childId)
-
-      const response = await undoPost({
-        params: { groupId, taskId },
-        request: new Request(
-          `http://localhost/api/groups/${groupId}/tasks/${taskId}/undo`,
-          { method: 'POST', body: formData },
-        ),
-        locals: { pb: userPb, user: userPb.authStore.record },
-      } as Parameters<typeof undoPost>[0])
-
-      expect(response.status).toBe(400)
-    })
-
-    it('undo without auth returns 401', async () => {
-      travelTo('2026-03-10T07:00:00Z')
-      const taskId = await createTask({
-        title: 'Auth Test',
-        timeOfDay: 'morning',
-        dueDate: '2026-03-10',
-      })
-
-      await completeTask(taskId)
-
-      // Import the undo handler dynamically after it exists
-      const { POST: undoPost } = await import('../../../src/pages/api/groups/[groupId]/tasks/[taskId]/undo')
-
-      const formData = new FormData()
-      formData.append('childId', childId)
-
-      const response = await undoPost({
-        params: { groupId, taskId },
-        request: new Request(
-          `http://localhost/api/groups/${groupId}/tasks/${taskId}/undo`,
-          { method: 'POST', body: formData },
-        ),
-        locals: { pb: userPb, user: null },
-      } as Parameters<typeof undoPost>[0])
-
-      expect(response.status).toBe(401)
+      const result = await doUndoTask(taskId)
+      expect(result.error).toBe('not-completed-today')
     })
   })
 
-  // ====== C. complete.ts — previousDueDate ======
+  // ====== C. completeTask saves previousDueDate ======
 
-  describe('C. complete.ts saves previousDueDate', () => {
+  describe('C. completeTask saves previousDueDate', () => {
     it('saves previousDueDate for recurring (interval) task', async () => {
       travelTo('2026-03-10T07:00:00Z')
       const taskId = await createTask({
@@ -385,7 +314,7 @@ describe('Undo Completion Integration Tests', () => {
         dueDate: '2026-03-10',
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const task = await getTask(taskId)
       expect(task.previousDueDate).toBeTruthy()
@@ -401,7 +330,7 @@ describe('Undo Completion Integration Tests', () => {
         dueDate: '2026-03-10',
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const task = await getTask(taskId)
       expect(task.previousDueDate).toBeTruthy()
