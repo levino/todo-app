@@ -1,7 +1,7 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
-import OverviewPage from '../../../src/pages/group/[groupId]/tasks/overview.astro'
+import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
 
 const POCKETBASE_URL =
@@ -81,7 +81,7 @@ describe('Tasks Overview Page', () => {
       timeOfDay: 'afternoon',
     })
 
-    const html = await container.renderToString(OverviewPage, {
+    const html = await container.renderToString(TasksPage, {
       params: { groupId },
       locals: { pb, user: pb.authStore.record },
     })
@@ -100,7 +100,7 @@ describe('Tasks Overview Page', () => {
       timeOfDay: 'afternoon',
     })
 
-    const html = await container.renderToString(OverviewPage, {
+    const html = await container.renderToString(TasksPage, {
       params: { groupId },
       locals: { pb, user: pb.authStore.record },
     })
@@ -111,6 +111,33 @@ describe('Tasks Overview Page', () => {
     expect(html).toContain('data-testid="celebration"')
   })
 
+  it('should not show tasks with future dueDate', async () => {
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+
+    await adminPb.collection('tasks').create({
+      title: 'Future Task',
+      child: child1Id,
+      completed: false,
+      timeOfDay: 'afternoon',
+      dueDate: tomorrow.toISOString(),
+    })
+    await adminPb.collection('tasks').create({
+      title: 'Today Task',
+      child: child1Id,
+      completed: false,
+      timeOfDay: 'afternoon',
+    })
+
+    const html = await container.renderToString(TasksPage, {
+      params: { groupId },
+      locals: { pb, user: pb.authStore.record },
+    })
+
+    expect(html).not.toContain('Future Task')
+    expect(html).toContain('Today Task')
+  })
+
   it('should include completedBy hidden field in forms', async () => {
     await adminPb.collection('tasks').create({
       title: 'Aufräumen',
@@ -119,7 +146,7 @@ describe('Tasks Overview Page', () => {
       timeOfDay: 'afternoon',
     })
 
-    const html = await container.renderToString(OverviewPage, {
+    const html = await container.renderToString(TasksPage, {
       params: { groupId },
       locals: { pb, user: pb.authStore.record },
     })

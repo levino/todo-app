@@ -1,13 +1,12 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
-import TasksIndexPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import TasksChildPage from '../../../src/pages/group/[groupId]/tasks/[childId].astro'
+import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
-describe('Tasks Index Page', () => {
+describe('Tasks Page - Overview (no ?child)', () => {
   let adminPb: PocketBase
   let userPb: PocketBase
   let container: AstroContainer
@@ -43,7 +42,7 @@ describe('Tasks Index Page', () => {
   })
 
   it('should show message when no children exist', async () => {
-    const html = await container.renderToString(TasksIndexPage, {
+    const html = await container.renderToString(TasksPage, {
       params: { groupId },
       locals: { pb: userPb, user: userPb.authStore.record },
     })
@@ -52,14 +51,14 @@ describe('Tasks Index Page', () => {
     expect(html).toContain('MCP Verbindung')
   })
 
-  it('should display children with colored initials', async () => {
+  it('should display children in overview mode', async () => {
     await adminPb.collection('children').create({
       name: 'Max',
       color: '#FF6B6B',
       group: groupId,
     })
 
-    const html = await container.renderToString(TasksIndexPage, {
+    const html = await container.renderToString(TasksPage, {
       params: { groupId },
       locals: { pb: userPb, user: userPb.authStore.record },
     })
@@ -69,19 +68,19 @@ describe('Tasks Index Page', () => {
     expect(html).toContain('M')
   })
 
-  it('should have links to child task pages', async () => {
+  it('should have links to child view via query param', async () => {
     const child = await adminPb.collection('children').create({
       name: 'Max',
       color: '#FF6B6B',
       group: groupId,
     })
 
-    const html = await container.renderToString(TasksIndexPage, {
+    const html = await container.renderToString(TasksPage, {
       params: { groupId },
       locals: { pb: userPb, user: userPb.authStore.record },
     })
 
-    expect(html).toContain(`href="/group/${groupId}/tasks/${child.id}"`)
+    expect(html).toContain(`/group/${groupId}/tasks?child=${child.id}`)
   })
 
   it('should display multiple children', async () => {
@@ -96,7 +95,7 @@ describe('Tasks Index Page', () => {
       group: groupId,
     })
 
-    const html = await container.renderToString(TasksIndexPage, {
+    const html = await container.renderToString(TasksPage, {
       params: { groupId },
       locals: { pb: userPb, user: userPb.authStore.record },
     })
@@ -106,7 +105,7 @@ describe('Tasks Index Page', () => {
   })
 })
 
-describe('Tasks Child Page', () => {
+describe('Tasks Page - Child View (?child=id)', () => {
   let adminPb: PocketBase
   let userPb: PocketBase
   let container: AstroContainer
@@ -149,6 +148,13 @@ describe('Tasks Child Page', () => {
     container = await AstroContainer.create()
   })
 
+  const renderChildPage = (childIdParam: string = childId) =>
+    container.renderToString(TasksPage, {
+      params: { groupId },
+      locals: { pb: userPb, user: userPb.authStore.record },
+      request: new Request(`http://localhost/group/${groupId}/tasks?child=${childIdParam}`),
+    })
+
   it('should render child with colored initials', async () => {
     await adminPb.collection('tasks').create({
       title: 'Test Task',
@@ -158,10 +164,7 @@ describe('Tasks Child Page', () => {
       timeOfDay: 'afternoon',
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage()
 
     expect(html).toContain('Max')
     expect(html).toContain('#FF6B6B')
@@ -184,10 +187,7 @@ describe('Tasks Child Page', () => {
       timeOfDay: 'afternoon',
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage()
 
     expect(html).toContain('Zähne putzen')
     expect(html).toContain('Zimmer aufräumen')
@@ -195,10 +195,7 @@ describe('Tasks Child Page', () => {
   })
 
   it('should show celebration when no tasks exist', async () => {
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage()
 
     expect(html).toContain('data-testid="celebration"')
     expect(html).toContain('Super gemacht!')
@@ -224,10 +221,7 @@ describe('Tasks Child Page', () => {
       timeOfDay: 'afternoon',
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage()
 
     expect(html).not.toContain('Completed Task')
     expect(html).toContain('Pending Task')
@@ -240,28 +234,22 @@ describe('Tasks Child Page', () => {
       group: groupId,
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage()
 
     expect(html).toContain('data-testid="child-switcher"')
     expect(html).toContain('Max')
     expect(html).toContain('Lisa')
-    expect(html).toContain(`href="/group/${groupId}/tasks/${childId}"`)
-    expect(html).toContain(`href="/group/${groupId}/tasks/${child2.id}"`)
+    expect(html).toContain(`/group/${groupId}/tasks?child=${childId}`)
+    expect(html).toContain(`/group/${groupId}/tasks?child=${child2.id}`)
   })
 
   it('should hide child switcher when only one child exists', async () => {
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage()
 
     expect(html).not.toContain('data-testid="child-switcher"')
   })
 
-  it('should have completion form pointing to correct API endpoint', async () => {
+  it('should have completion form with POST method', async () => {
     const task = await adminPb.collection('tasks').create({
       title: 'Test Task',
       child: childId,
@@ -270,14 +258,13 @@ describe('Tasks Child Page', () => {
       timeOfDay: 'afternoon',
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage()
 
-    expect(html).toContain(`action="/api/groups/${groupId}/tasks/${task.id}/complete"`)
     expect(html).toContain('method="POST"')
     expect(html).toContain(`value="${childId}"`)
+    expect(html).toContain(`value="${task.id}"`)
+    expect(html).toContain('name="taskId"')
+    expect(html).toContain('name="groupId"')
   })
 
   it('should highlight overdue tasks', async () => {
@@ -293,10 +280,7 @@ describe('Tasks Child Page', () => {
       timeOfDay: 'afternoon',
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage()
 
     expect(html).toContain('Overdue Task')
     expect(html).toContain('data-overdue="true"')
@@ -325,10 +309,7 @@ describe('Tasks Child Page', () => {
       timeOfDay: 'afternoon',
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage()
 
     const overdueIndex = html.indexOf('Overdue Task')
     const todayIndex = html.indexOf('Today Task')
@@ -351,10 +332,7 @@ describe('Tasks Child Page', () => {
       timeOfDay: 'afternoon',
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage()
 
     const highIndex = html.indexOf('High Priority')
     const lowIndex = html.indexOf('Low Priority')
@@ -384,10 +362,7 @@ describe('Tasks Child Page', () => {
       timeOfDay: 'evening',
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage()
 
     const currentHour = new Date().getHours()
     if (currentHour < 9) {
@@ -426,28 +401,14 @@ describe('Tasks Child Page', () => {
       timeOfDay: 'afternoon',
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage()
 
     expect(html).toContain('Morning Task Custom')
     expect(html).not.toContain('Afternoon Task Custom')
   })
 
   it('should show phase indicator', async () => {
-    await adminPb.collection('tasks').create({
-      title: 'Some Task',
-      child: childId,
-      priority: 1,
-      completed: false,
-      timeOfDay: 'afternoon',
-    })
-
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
-      locals: { pb: userPb, user: userPb.authStore.record },
-    })
+    const html = await renderChildPage()
 
     expect(html).toContain('data-testid="phase-indicator"')
   })

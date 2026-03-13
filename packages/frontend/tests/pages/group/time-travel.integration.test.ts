@@ -3,8 +3,8 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import PocketBase from 'pocketbase'
 import request from 'supertest'
 import { app } from '@family-todo/mcp/src/server.js'
-import TasksChildPage from '../../../src/pages/group/[groupId]/tasks/[childId].astro'
-import { POST } from '../../../src/pages/api/groups/[groupId]/tasks/[taskId]/complete'
+import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
+import { completeTask } from '../../../src/lib/tasks'
 import { resetPocketBase } from '@/lib/pocketbase'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
@@ -81,29 +81,15 @@ describe('Time-Travel Integration Tests', () => {
       ...overrides,
     }).then((r) => extractId(r.result.content[0].text))
 
-  const renderPage = (errorParam?: string) => {
-    const url = errorParam
-      ? `http://localhost/group/${groupId}/tasks/${childId}?error=${errorParam}`
-      : `http://localhost/group/${groupId}/tasks/${childId}`
-    return container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
+  const renderPage = () =>
+    container.renderToString(TasksPage, {
+      params: { groupId },
       locals: { pb: userPb, user: userPb.authStore.record },
-      request: new Request(url),
+      request: new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`),
     })
-  }
 
-  const completeTask = (taskId: string) => {
-    const formData = new FormData()
-    formData.append('childId', childId)
-    return POST({
-      params: { groupId, taskId },
-      request: new Request(
-        `http://localhost/api/groups/${groupId}/tasks/${taskId}/complete`,
-        { method: 'POST', body: formData },
-      ),
-      locals: { pb: userPb, user: userPb.authStore.record },
-    } as Parameters<typeof POST>[0])
-  }
+  const doCompleteTask = (taskId: string) =>
+    completeTask(userPb, taskId, childId, childId, groupId)
 
   const getTask = (taskId: string) => adminPb.collection('tasks').getOne(taskId)
 
@@ -453,7 +439,7 @@ describe('Time-Travel Integration Tests', () => {
       const htmlBefore = await renderPage()
       expect(htmlBefore).toContain('Täglich')
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const htmlAfter = await renderPage()
       // Task disappears from active list
@@ -473,7 +459,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceInterval: 1,
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       travelTo('2026-03-11T14:00:00Z')
       const html = await renderPage()
@@ -490,7 +476,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceInterval: 3,
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       travelTo('2026-03-11T14:00:00Z')
       const htmlDay1 = await renderPage()
@@ -515,7 +501,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceInterval: 1,
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const task = await getTask(taskId)
       expect(task.lastCompletedAt).toBeTruthy()
@@ -532,7 +518,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceInterval: 1,
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const task = await getTask(taskId)
       expect(task.completed).toBe(false)
@@ -548,12 +534,12 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceInterval: 1,
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
       const taskAfter1 = await getTask(taskId)
       expect(taskAfter1.dueDate).toContain('2026-03-11')
 
       travelTo('2026-03-11T14:00:00Z')
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
       const taskAfter2 = await getTask(taskId)
       expect(taskAfter2.dueDate).toContain('2026-03-12')
     })
@@ -568,7 +554,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceInterval: 1,
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const htmlMonday = await renderPage()
       // Not in active task list on Monday (but may be in recently completed)
@@ -589,7 +575,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceInterval: 1,
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
       const task = await getTask(taskId)
       expect(task.dueDate).toContain('2026-03-11')
     })
@@ -598,8 +584,6 @@ describe('Time-Travel Integration Tests', () => {
   // ====== F. Weekly Recurrence ======
 
   describe('F. Weekly Recurrence', () => {
-    // 2026-03-09=Mon(1), 10=Tue(2), 11=Wed(3), 12=Thu(4), 13=Fri(5), 14=Sat(6), 15=Sun(0)
-
     it('weekly Mon/Wed/Fri: complete Monday → dueDate=Wednesday', async () => {
       travelTo('2026-03-09T14:00:00Z') // Monday
       const taskId = await createTask({
@@ -610,7 +594,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceDays: [1, 3, 5],
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
       const task = await getTask(taskId)
       expect(task.dueDate).toContain('2026-03-11') // Wednesday
     })
@@ -625,7 +609,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceDays: [1, 3, 5],
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
       const task = await getTask(taskId)
       expect(task.dueDate).toContain('2026-03-16') // next Monday
     })
@@ -640,7 +624,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceDays: [1, 3, 5],
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       travelTo('2026-03-10T14:00:00Z') // Tuesday
       const html = await renderPage()
@@ -657,7 +641,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceDays: [1, 3, 5],
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       travelTo('2026-03-11T14:00:00Z') // Wednesday
       const html = await renderPage()
@@ -674,7 +658,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceDays: [0, 6],
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
       const task = await getTask(taskId)
       expect(task.dueDate).toContain('2026-03-15') // Sunday
     })
@@ -689,7 +673,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceDays: [0, 6],
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
       const task = await getTask(taskId)
       expect(task.dueDate).toContain('2026-03-21') // next Saturday
     })
@@ -704,7 +688,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceDays: [4],
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
       const task = await getTask(taskId)
       expect(task.dueDate).toContain('2026-03-19') // next Thursday
     })
@@ -719,12 +703,12 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceDays: [1], // Mondays only
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
       const task1 = await getTask(taskId)
       expect(task1.dueDate).toContain('2026-03-16') // next Monday
 
       travelTo('2026-03-16T14:00:00Z') // next Monday
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
       const task2 = await getTask(taskId)
       expect(task2.dueDate).toContain('2026-03-23') // Monday after
     })
@@ -741,7 +725,7 @@ describe('Time-Travel Integration Tests', () => {
         dueDate: '2026-03-10',
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const html = await renderPage()
       expect(html).toContain('data-testid="celebration"')
@@ -758,7 +742,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceInterval: 1,
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const html = await renderPage()
       expect(html).toContain('data-testid="celebration"')
@@ -794,7 +778,7 @@ describe('Time-Travel Integration Tests', () => {
   // ====== H. Server Validation ======
 
   describe('H. Server Validation', () => {
-    it('cannot complete morning task when it is afternoon → error response', async () => {
+    it('cannot complete morning task when it is afternoon → error', async () => {
       travelTo('2026-03-10T07:00:00Z')
       const taskId = await createTask({
         title: 'Morgenaufgabe',
@@ -803,12 +787,11 @@ describe('Time-Travel Integration Tests', () => {
       })
 
       travelTo('2026-03-10T14:00:00Z')
-      const response = await completeTask(taskId)
-      expect(response.status).toBe(303)
-      expect(response.headers.get('location')).toContain('error=wrong-phase')
+      const result = await doCompleteTask(taskId)
+      expect(result.error).toBe('wrong-phase')
     })
 
-    it('cannot complete evening task when it is morning → error response', async () => {
+    it('cannot complete evening task when it is morning → error', async () => {
       travelTo('2026-03-10T20:00:00Z')
       const taskId = await createTask({
         title: 'Abendaufgabe',
@@ -817,12 +800,11 @@ describe('Time-Travel Integration Tests', () => {
       })
 
       travelTo('2026-03-10T07:00:00Z')
-      const response = await completeTask(taskId)
-      expect(response.status).toBe(303)
-      expect(response.headers.get('location')).toContain('error=wrong-phase')
+      const result = await doCompleteTask(taskId)
+      expect(result.error).toBe('wrong-phase')
     })
 
-    it('cannot complete task with dueDate=tomorrow → error response', async () => {
+    it('cannot complete task with dueDate=tomorrow → error', async () => {
       travelTo('2026-03-10T14:00:00Z')
       const taskId = await createTask({
         title: 'Morgen',
@@ -830,12 +812,11 @@ describe('Time-Travel Integration Tests', () => {
         dueDate: '2026-03-11',
       })
 
-      const response = await completeTask(taskId)
-      expect(response.status).toBe(303)
-      expect(response.headers.get('location')).toContain('error=not-yet-due')
+      const result = await doCompleteTask(taskId)
+      expect(result.error).toBe('not-yet-due')
     })
 
-    it('cannot complete task with dueDate=next week → error response', async () => {
+    it('cannot complete task with dueDate=next week → error', async () => {
       travelTo('2026-03-10T14:00:00Z')
       const taskId = await createTask({
         title: 'Nächste Woche',
@@ -843,12 +824,11 @@ describe('Time-Travel Integration Tests', () => {
         dueDate: '2026-03-17',
       })
 
-      const response = await completeTask(taskId)
-      expect(response.status).toBe(303)
-      expect(response.headers.get('location')).toContain('error=not-yet-due')
+      const result = await doCompleteTask(taskId)
+      expect(result.error).toBe('not-yet-due')
     })
 
-    it('cannot complete already-completed task → error response', async () => {
+    it('cannot complete already-completed task → error', async () => {
       travelTo('2026-03-10T14:00:00Z')
       const taskId = await createTask({
         title: 'Einmalig',
@@ -856,56 +836,10 @@ describe('Time-Travel Integration Tests', () => {
         dueDate: '2026-03-10',
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
-      const response = await completeTask(taskId)
-      expect(response.status).toBe(303)
-      expect(response.headers.get('location')).toContain('error=already-completed')
-    })
-
-    it('cannot complete task without childId → 400 error', async () => {
-      travelTo('2026-03-10T14:00:00Z')
-      const taskId = await createTask({
-        title: 'Test',
-        timeOfDay: 'afternoon',
-        dueDate: '2026-03-10',
-      })
-
-      const response = await POST({
-        params: { groupId, taskId },
-        request: new Request(
-          `http://localhost/api/groups/${groupId}/tasks/${taskId}/complete`,
-          { method: 'POST', body: new FormData() },
-        ),
-        locals: { pb: userPb, user: userPb.authStore.record },
-      } as Parameters<typeof POST>[0])
-
-      expect(response.status).toBe(400)
-    })
-
-    it('cannot complete task without auth → 401 error', async () => {
-      travelTo('2026-03-10T14:00:00Z')
-      const taskId = await createTask({
-        title: 'Test',
-        timeOfDay: 'afternoon',
-        dueDate: '2026-03-10',
-      })
-
-      const response = await POST({
-        params: { groupId, taskId },
-        request: new Request(
-          `http://localhost/api/groups/${groupId}/tasks/${taskId}/complete`,
-          { method: 'POST', body: new FormData() },
-        ),
-        locals: { pb: userPb, user: null },
-      } as Parameters<typeof POST>[0])
-
-      expect(response.status).toBe(401)
-    })
-
-    it('error response from completion displays error in UI', async () => {
-      const html = await renderPage('wrong-phase')
-      expect(html).toContain('Diese Aufgabe ist gerade nicht dran')
+      const result = await doCompleteTask(taskId)
+      expect(result.error).toBe('already-completed')
     })
   })
 
@@ -943,7 +877,7 @@ describe('Time-Travel Integration Tests', () => {
         dueDate: '2026-03-10',
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const task = await getTask(taskId)
       expect(task.completed).toBe(true)
@@ -962,7 +896,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceType: 'interval',
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
 
       const task = await getTask(taskId)
       expect(task.completed).toBe(true)
@@ -978,14 +912,12 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceInterval: 1,
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
       const task1 = await getTask(taskId)
       expect(task1.dueDate).toContain('2026-03-11')
 
-      // Second completion should fail because dueDate is now tomorrow
-      const response = await completeTask(taskId)
-      expect(response.status).toBe(303)
-      expect(response.headers.get('location')).toContain('error=not-yet-due')
+      const result = await doCompleteTask(taskId)
+      expect(result.error).toBe('not-yet-due')
     })
   })
 
@@ -1005,15 +937,13 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceInterval: 1,
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
       const completedTask = await getTask(taskId)
-      // After completion, dueDate is advanced to tomorrow
       expect(completedTask.dueDate).toContain('2026-03-11')
 
       await resetTask(taskId)
       const resetTaskResult = await getTask(taskId)
       expect(resetTaskResult.completed).toBe(false)
-      // dueDate should be restored to today, not left at tomorrow
       expect(resetTaskResult.dueDate).toContain('2026-03-10')
     })
 
@@ -1027,7 +957,7 @@ describe('Time-Travel Integration Tests', () => {
         recurrenceInterval: 1,
       })
 
-      await completeTask(taskId)
+      await doCompleteTask(taskId)
       await resetTask(taskId, '2026-03-12')
       const task = await getTask(taskId)
       expect(task.completed).toBe(false)

@@ -1,7 +1,7 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import PocketBase from 'pocketbase'
-import TasksChildPage from '../../../src/pages/group/[groupId]/tasks/[childId].astro'
+import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
@@ -147,9 +147,10 @@ describe('timeOfDay Migration', () => {
       eveningStart: '23:59',
     })
 
-    const html = await container.renderToString(TasksChildPage, {
-      params: { groupId, childId },
+    const html = await container.renderToString(TasksPage, {
+      params: { groupId },
       locals: { pb: userPb, user: userPb.authStore.record },
+      request: new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`),
     })
 
     expect(html).toContain('Migrierte Aufgabe')
