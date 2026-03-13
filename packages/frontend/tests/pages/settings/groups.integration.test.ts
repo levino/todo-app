@@ -7,7 +7,7 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
-import GroupsPage from './groups.astro'
+import GroupsPage from '../../../src/pages/settings/groups.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'

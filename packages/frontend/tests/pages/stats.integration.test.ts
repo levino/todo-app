@@ -1,7 +1,7 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
-import StatsPage from './stats.astro'
+import StatsPage from '../../src/pages/stats.astro'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
