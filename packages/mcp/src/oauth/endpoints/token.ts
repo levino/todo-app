@@ -5,7 +5,7 @@
  */
 
 import { Router } from 'express'
-import { validateClient, consumeAuthCode } from '../db.js'
+import { validateClient, consumeAuthCode, saveGrant } from '../db.js'
 import { signAccessToken, verifyCodeChallenge } from '../jwt.js'
 
 const router = Router()
@@ -157,6 +157,9 @@ router.post('/', async (req, res) => {
     audience,
     expiresIn
   )
+
+  // Record the grant (user-client connection)
+  saveGrant(authCode.user_id, authCode.client_id)
 
   // Return token response (RFC 6749)
   res.json({

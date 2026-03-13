@@ -34,6 +34,7 @@ import registerRouter from './oauth/endpoints/register.js'
 import clientInfoRouter from './oauth/endpoints/client-info.js'
 import tokenRouter from './oauth/endpoints/token.js'
 import authorizeRouter from './oauth/endpoints/authorize.js'
+import grantsRouter from './oauth/endpoints/grants.js'
 import { authenticateFlexible } from './oauth/middleware.js'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL
@@ -644,6 +645,7 @@ app.use('/oauth/register', registerRouter)
 app.use('/oauth/client', clientInfoRouter)
 app.use('/oauth/token', tokenRouter)
 app.use('/oauth/authorize', authorizeRouter)
+app.use('/oauth/grants', grantsRouter)
 
 // MCP endpoint - JSON-RPC handler (supports Bearer token or query param)
 app.post('/mcp', authenticateFlexible, async (req: Request, res: Response) => {
