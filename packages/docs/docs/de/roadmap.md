@@ -101,23 +101,7 @@ Push-Benachrichtigungen für Eltern.
 
 ---
 
-## Phase 5: Offline-Fähigkeit 📴
-
-**Status: Fertig**
-
-Die App funktioniert auch ohne Internetverbindung im Nur-Lese-Modus.
-
-### Umgesetzte Features
-
-- **Service Worker**: Caching von statischen Assets und API-Antworten
-- **Offline-Erkennung**: Automatische Erkennung des Verbindungsstatus
-- **Offline-Banner**: Sichtbare Anzeige wenn die Verbindung verloren geht
-- **Nur-Lese-Modus**: Interaktive Elemente werden im Offline-Modus deaktiviert
-- **Automatische Wiederherstellung**: Banner verschwindet wenn die Verbindung wiederhergestellt wird
-
----
-
-## Phase 6: Multi-Familie 👨‍👩‍👧‍👦
+## Phase 5: Multi-Familie 👨‍👩‍👧‍👦
 
 **Status: Idee**
 

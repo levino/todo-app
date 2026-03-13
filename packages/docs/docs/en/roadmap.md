@@ -101,23 +101,7 @@ Push notifications for parents.
 
 ---
 
-## Phase 5: Offline Support 📴
-
-**Status: Done**
-
-The app works without internet connection in read-only mode.
-
-### Implemented Features
-
-- **Service Worker**: Caching of static assets and API responses
-- **Offline Detection**: Automatic detection of connection status
-- **Offline Banner**: Visible indicator when connection is lost
-- **Read-Only Mode**: Interactive elements are disabled in offline mode
-- **Automatic Recovery**: Banner disappears when connection is restored
-
----
-
-## Phase 6: Multi-Family 👨‍👩‍👧‍👦
+## Phase 5: Multi-Family 👨‍👩‍👧‍👦
 
 **Status: Idea**
 
