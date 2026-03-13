@@ -416,17 +416,29 @@ function registerTools() {
   })
 
   tools.set('reset_task', {
-    description: 'Reset a completed task to incomplete (for recurring tasks)',
+    description: 'Reset a completed task to incomplete (for recurring tasks). Optionally set a specific dueDate; otherwise restores dueDate to lastCompletedAt for recurring tasks.',
     inputSchema: z.object({
       taskId: z.string().describe('ID of the task'),
+      dueDate: z.string().optional().describe('Optional due date to set (ISO date string). If omitted, restores to lastCompletedAt for recurring tasks.'),
     }),
     handler: async (args, pb) => {
-      const { taskId } = args as { taskId: string }
+      const { taskId, dueDate } = args as { taskId: string; dueDate?: string }
 
-      await pb.collection('tasks').update(taskId, {
+      const updateData: Record<string, unknown> = {
         completed: false,
         completedAt: null,
-      })
+      }
+
+      if (dueDate) {
+        updateData.dueDate = dueDate
+      } else {
+        const task = await pb.collection('tasks').getOne(taskId)
+        if (task.lastCompletedAt && task.recurrenceType) {
+          updateData.dueDate = task.lastCompletedAt
+        }
+      }
+
+      await pb.collection('tasks').update(taskId, updateData)
 
       return { content: [{ type: 'text', text: `Reset task ${taskId}` }] }
     },

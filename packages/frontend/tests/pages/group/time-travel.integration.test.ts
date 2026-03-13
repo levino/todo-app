@@ -983,4 +983,50 @@ describe('Time-Travel Integration Tests', () => {
       expect(response.headers.get('location')).toContain('error=not-yet-due')
     })
   })
+
+  // ====== J. Reset Task ======
+
+  describe('J. Reset Task', () => {
+    const resetTask = (taskId: string, dueDate?: string) =>
+      mcpCall(authToken, 'reset_task', { taskId, ...(dueDate ? { dueDate } : {}) })
+
+    it('reset recurring task completed today restores dueDate to today', async () => {
+      travelTo('2026-03-10T14:00:00Z')
+      const taskId = await createTask({
+        title: 'Daily Task',
+        timeOfDay: 'afternoon',
+        dueDate: '2026-03-10',
+        recurrenceType: 'interval',
+        recurrenceInterval: 1,
+      })
+
+      await completeTask(taskId)
+      const completedTask = await getTask(taskId)
+      // After completion, dueDate is advanced to tomorrow
+      expect(completedTask.dueDate).toContain('2026-03-11')
+
+      await resetTask(taskId)
+      const resetTaskResult = await getTask(taskId)
+      expect(resetTaskResult.completed).toBe(false)
+      // dueDate should be restored to today, not left at tomorrow
+      expect(resetTaskResult.dueDate).toContain('2026-03-10')
+    })
+
+    it('reset with explicit dueDate parameter sets that date', async () => {
+      travelTo('2026-03-10T14:00:00Z')
+      const taskId = await createTask({
+        title: 'Custom Reset',
+        timeOfDay: 'morning',
+        dueDate: '2026-03-10',
+        recurrenceType: 'interval',
+        recurrenceInterval: 1,
+      })
+
+      await completeTask(taskId)
+      await resetTask(taskId, '2026-03-12')
+      const task = await getTask(taskId)
+      expect(task.completed).toBe(false)
+      expect(task.dueDate).toContain('2026-03-12')
+    })
+  })
 })
