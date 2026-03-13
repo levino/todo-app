@@ -1,12 +1,14 @@
 ---
 import ShipyardLayout from '@levino/shipyard-base/layouts/Page.astro'
 import PwaHead from '@/components/PwaHead.astro'
+import { ViewTransitions } from 'astro:transitions'
 
 const props = Astro.props
 ---
 
 <ShipyardLayout {...props}>
   <PwaHead slot="head" />
+  <ViewTransitions slot="head" />
   <button
     slot="navbarExtra"
     data-testid="refresh-button"

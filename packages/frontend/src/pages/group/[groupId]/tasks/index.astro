@@ -111,7 +111,7 @@ const displayChildren = selectedChild ? [selectedChild] : children
 ---
 
 <Layout title={selectedChild ? `${selectedChild.name} - Aufgaben` : `${groupName} - Aufgaben`}>
-  <div class="min-h-screen bg-base-100 p-4 md:p-8">
+  <div transition:animate="slide" class="min-h-screen bg-base-100 p-4 md:p-8">
     <div class:list={[selectedChild ? 'max-w-3xl' : 'max-w-6xl', 'mx-auto']}>
       {error && (
         <div class="alert alert-error mb-6">
@@ -142,7 +142,7 @@ const displayChildren = selectedChild ? [selectedChild] : children
       {selectedChild ? (
         <header class="flex items-center gap-4 mb-4">
           <ColoredInitials name={selectedChild.name} color={selectedChild.color} size="lg" />
-          <h1 class="text-3xl md:text-4xl font-bold flex-1">{selectedChild.name}</h1>
+          <h1 transition:name="page-title" class="text-3xl md:text-4xl font-bold flex-1">{selectedChild.name}</h1>
         </header>
       ) : (
         <header class="flex items-center gap-4 mb-4">
@@ -151,7 +151,7 @@ const displayChildren = selectedChild ? [selectedChild] : children
       )}
 
       <div class="flex items-center gap-2 mb-8">
-        <div data-testid="phase-indicator" class="badge badge-lg badge-outline">
+        <div transition:name="phase-indicator" data-testid="phase-indicator" class="badge badge-lg badge-outline">
           {phaseLabels[currentPhase]}
         </div>
         {selectedChild && pointsBalanceByChild[selectedChild.id] > 0 && (
