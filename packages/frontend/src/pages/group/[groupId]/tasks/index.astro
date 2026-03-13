@@ -201,8 +201,8 @@ const displayChildren = selectedChild ? [selectedChild] : children
             <div data-testid="child-column">
               {!selectedChild && (
                 <header class="flex items-center gap-3 mb-4">
-                  <ColoredInitials name={child.name} color={child.color} size="md" />
-                  <a href={`/group/${groupId}/tasks?child=${child.id}`} class="text-2xl font-bold hover:underline">
+                  <a href={`/group/${groupId}/tasks?child=${child.id}`} class="flex items-center gap-3 text-2xl font-bold hover:underline">
+                    <ColoredInitials name={child.name} color={child.color} size="md" />
                     {child.name}
                   </a>
                   {childPoints > 0 && (
@@ -237,7 +237,7 @@ const displayChildren = selectedChild ? [selectedChild] : children
                         data-testid="task-item"
                         data-overdue={isOverdue ? "true" : undefined}
                         class:list={[
-                          'flex items-center gap-4 p-4 rounded-xl min-h-[56px]',
+                          'flex items-center gap-4 p-4 rounded-xl min-h-[56px] cursor-pointer',
                           isOverdue ? 'bg-error/10 border-2 border-error' : 'bg-base-200',
                         ]}
                       >
@@ -397,6 +397,17 @@ const displayChildren = selectedChild ? [selectedChild] : children
 
     okBtn.addEventListener('click', () => {
       if (pendingForm) pendingForm.submit()
+    })
+
+    document.querySelectorAll('[data-testid="task-item"]').forEach((li) => {
+      li.addEventListener('click', (e) => {
+        if ((e.target as Element).closest('button')) return
+        const form = li.querySelector('form[data-task-title]') as HTMLFormElement
+        if (form) {
+          const event = new Event('submit', { cancelable: true, bubbles: true })
+          form.dispatchEvent(event)
+        }
+      })
     })
   </script>
 
