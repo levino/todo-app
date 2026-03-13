@@ -440,7 +440,7 @@ describe('Time-Travel Integration Tests', () => {
   // ====== E. Interval Recurrence ======
 
   describe('E. Interval Recurrence', () => {
-    it('completing daily recurring task: disappears from list', async () => {
+    it('completing daily recurring task: disappears from active list, appears in recently completed', async () => {
       travelTo('2026-03-10T14:00:00Z')
       const taskId = await createTask({
         title: 'Täglich',
@@ -456,7 +456,11 @@ describe('Time-Travel Integration Tests', () => {
       await completeTask(taskId)
 
       const htmlAfter = await renderPage()
-      expect(htmlAfter).not.toContain('Täglich')
+      // Task disappears from active list
+      expect(htmlAfter).not.toContain('data-testid="task-item"')
+      // But appears in recently completed section
+      expect(htmlAfter).toContain('data-testid="recently-completed"')
+      expect(htmlAfter).toContain('Täglich')
     })
 
     it('after traveling to tomorrow: completed daily task reappears', async () => {
@@ -554,7 +558,7 @@ describe('Time-Travel Integration Tests', () => {
       expect(taskAfter2.dueDate).toContain('2026-03-12')
     })
 
-    it('recurring interval=1: complete Monday, shows Tuesday not Monday', async () => {
+    it('recurring interval=1: complete Monday, not in active list Monday, back in active list Tuesday', async () => {
       travelTo('2026-03-09T14:00:00Z') // Monday
       const taskId = await createTask({
         title: 'Täglich',
@@ -567,7 +571,8 @@ describe('Time-Travel Integration Tests', () => {
       await completeTask(taskId)
 
       const htmlMonday = await renderPage()
-      expect(htmlMonday).not.toContain('Täglich')
+      // Not in active task list on Monday (but may be in recently completed)
+      expect(htmlMonday).not.toContain('data-testid="task-item"')
 
       travelTo('2026-03-10T14:00:00Z') // Tuesday
       const htmlTuesday = await renderPage()

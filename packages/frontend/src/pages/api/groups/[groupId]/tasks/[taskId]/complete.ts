@@ -109,6 +109,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         completedBy: '',
         lastCompletedAt: now.toISOString(),
         dueDate: nextDueDate,
+        previousDueDate: task.dueDate || null,
       })
     } else {
       // One-time task: mark as completed
@@ -117,6 +118,7 @@ export const POST: APIRoute = async ({ params, request, locals }) => {
         completedAt: now.toISOString(),
         completedBy,
         lastCompletedAt: now.toISOString(),
+        previousDueDate: task.dueDate || null,
       })
     }
   } catch {
