@@ -27,6 +27,7 @@ if (!user || !groupId) {
 }
 
 const selectedChildId = Astro.url.searchParams.get('child')
+const showFuture = Astro.url.searchParams.get('showFuture') === 'true'
 
 const actionResult = Astro.getActionResult(actions.completeTask)
 const error = actionResult?.error?.message || ''
@@ -37,6 +38,7 @@ let selectedChild: Child | null = null
 let siblings: Child[] = []
 let recentlyCompleted: Task[] = []
 let recentlyCompletedByChild: Record<string, Task[]> = {}
+let futureTasks: Task[] = []
 let currentPhase = 'afternoon'
 let groupMorningEnd = '09:00'
 let groupEveningStart = '18:00'
@@ -88,6 +90,14 @@ try {
       pointsBalance = transactionsResult.reduce((sum, t) => sum + t.points, 0)
     } catch (pointsError) {
       console.error('Points fetch error:', pointsError)
+    }
+
+    if (showFuture) {
+      const futureResult = await pb.collection('tasks').getList<Task>(1, 100, {
+        filter: `child = "${selectedChild.id}" && completed = false && dueDate > "${todayEnd}"`,
+        sort: 'dueDate',
+      })
+      futureTasks = futureResult.items
     }
   } else {
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().replace('T', ' ')
@@ -252,6 +262,41 @@ const showSwitcher = selectedChild && siblings.length > 1
               </ul>
             </div>
           )}
+
+          {showFuture && futureTasks.length > 0 && (
+            <div data-testid="future-tasks-section" class="mt-8">
+              <h2 class="text-lg font-semibold mb-3 text-base-content/60">Zukünftige Aufgaben</h2>
+              <ul class="space-y-2">
+                {futureTasks.map((task) => (
+                  <li
+                    data-testid="future-task-item"
+                    class="flex items-center gap-4 p-3 rounded-xl bg-base-200/30 opacity-50"
+                  >
+                    <div class="flex-1">
+                      <span class="text-lg">{task.title}</span>
+                      {task.dueDate && (
+                        <span data-testid="future-task-date" class="badge badge-sm badge-outline ml-2">
+                          {task.dueDate.slice(0, 10)}
+                        </span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div class="mt-6">
+            <a
+              data-testid="future-tasks-toggle"
+              href={showFuture
+                ? `/group/${groupId}/tasks?child=${selectedChildId}`
+                : `/group/${groupId}/tasks?child=${selectedChildId}&showFuture=true`}
+              class="btn btn-ghost btn-sm"
+            >
+              {showFuture ? 'Zukünftige Aufgaben ausblenden' : 'Zukünftige Aufgaben anzeigen'}
+            </a>
+          </div>
 
           <div class="mt-8 pt-8 border-t border-base-300">
             <a href={`/group/${groupId}/tasks`} class="btn btn-ghost btn-sm">

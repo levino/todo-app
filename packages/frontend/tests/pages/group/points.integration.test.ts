@@ -32,7 +32,11 @@ describe('Points Display on Task Page', () => {
     userPb = new PocketBase(POCKETBASE_URL)
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
-    const group = await adminPb.collection('groups').create({ name: 'Test Family' })
+    const group = await adminPb.collection('groups').create({
+      name: 'Test Family',
+      morningEnd: '00:00',
+      eveningStart: '23:59',
+    })
     groupId = group.id
 
     await adminPb.collection('user_groups').create({
@@ -56,7 +60,7 @@ describe('Points Display on Task Page', () => {
       child: childId,
       priority: 1,
       completed: false,
-      timeOfDay: getCurrentPhase('09:00', '18:00', 'Europe/Berlin'),
+      timeOfDay: getCurrentPhase('00:00', '23:59', 'Europe/Berlin'),
       points: 10,
     })
 
@@ -77,7 +81,7 @@ describe('Points Display on Task Page', () => {
       child: childId,
       priority: 1,
       completed: false,
-      timeOfDay: getCurrentPhase('09:00', '18:00', 'Europe/Berlin'),
+      timeOfDay: getCurrentPhase('00:00', '23:59', 'Europe/Berlin'),
     })
 
     const request = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
@@ -109,7 +113,7 @@ describe('Points Display on Task Page', () => {
       child: childId,
       priority: 1,
       completed: false,
-      timeOfDay: getCurrentPhase('09:00', '18:00', 'Europe/Berlin'),
+      timeOfDay: getCurrentPhase('00:00', '23:59', 'Europe/Berlin'),
       points: 5,
     })
 
