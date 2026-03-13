@@ -35,16 +35,14 @@ const error = actionResult?.error?.message || ''
 let children: Child[] = []
 let tasksByChild: Record<string, Task[]> = {}
 let selectedChild: Child | null = null
-let siblings: Child[] = []
-let recentlyCompleted: Task[] = []
 let recentlyCompletedByChild: Record<string, Task[]> = {}
-let futureTasks: Task[] = []
+let futureTasksByChild: Record<string, Task[]> = {}
 let currentPhase = 'afternoon'
 let groupMorningEnd = '09:00'
 let groupEveningStart = '18:00'
 let groupTimezone = 'Europe/Berlin'
 let groupName = ''
-let pointsBalance = 0
+let pointsBalanceByChild: Record<string, number> = {}
 
 try {
   const group = await pb.collection('groups').getOne<Group>(groupId)
@@ -62,55 +60,45 @@ try {
 
   if (selectedChildId) {
     selectedChild = children.find((c) => c.id === selectedChildId) || null
-    if (selectedChild) {
-      siblings = children
-    }
   }
 
   const now = new Date()
   const todayDateStr = getLocalDateString(groupTimezone, now)
   const todayEnd = todayDateStr + ' 23:59:59.999Z'
+  const todayStart = todayDateStr + ' 00:00:00.000Z'
 
-  if (selectedChild) {
+  const displayChildren = selectedChild ? [selectedChild] : children
+
+  for (const child of displayChildren) {
+    // tasks
     const result = await pb.collection('tasks').getList<Task>(1, 100, {
-      filter: `child = "${selectedChild.id}" && completed = false && timeOfDay = "${currentPhase}" && (dueDate = "" || dueDate <= "${todayEnd}")`,
+      filter: `child = "${child.id}" && completed = false && timeOfDay = "${currentPhase}" && (dueDate = "" || dueDate <= "${todayEnd}")`,
     })
-    tasksByChild[selectedChild.id] = sortTasks(result.items, groupTimezone)
+    tasksByChild[child.id] = sortTasks(result.items, groupTimezone)
 
-    const todayStart = todayDateStr + ' 00:00:00.000Z'
-    const recentlyCompletedResult = await pb.collection('tasks').getList<Task>(1, 100, {
-      filter: `child = "${selectedChild.id}" && ((completed = true && completedAt >= "${todayStart}") || (completed = false && lastCompletedAt >= "${todayStart}" && lastCompletedAt != "" && recurrenceType != ""))`,
+    // recently completed
+    const recentResult = await pb.collection('tasks').getList<Task>(1, 100, {
+      filter: `child = "${child.id}" && ((completed = true && completedAt >= "${todayStart}") || (completed = false && lastCompletedAt >= "${todayStart}" && lastCompletedAt != "" && recurrenceType != ""))`,
     })
-    recentlyCompleted = recentlyCompletedResult.items
+    recentlyCompletedByChild[child.id] = recentResult.items
 
+    // points
     try {
-      const transactionsResult = await pb.collection('point_transactions').getFullList<PointTransaction>({
-        filter: `child = "${selectedChild.id}"`,
+      const txResult = await pb.collection('point_transactions').getFullList<PointTransaction>({
+        filter: `child = "${child.id}"`,
       })
-      pointsBalance = transactionsResult.reduce((sum, t) => sum + t.points, 0)
-    } catch (pointsError) {
-      console.error('Points fetch error:', pointsError)
+      pointsBalanceByChild[child.id] = txResult.reduce((sum, t) => sum + t.points, 0)
+    } catch {
+      pointsBalanceByChild[child.id] = 0
     }
 
+    // future tasks
     if (showFuture) {
       const futureResult = await pb.collection('tasks').getList<Task>(1, 100, {
-        filter: `child = "${selectedChild.id}" && completed = false && dueDate > "${todayEnd}"`,
+        filter: `child = "${child.id}" && completed = false && dueDate > "${todayEnd}"`,
         sort: 'dueDate',
       })
-      futureTasks = futureResult.items
-    }
-  } else {
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().replace('T', ' ')
-    for (const child of children) {
-      const result = await pb.collection('tasks').getList<Task>(1, 100, {
-        filter: `child = "${child.id}" && completed = false && timeOfDay = "${currentPhase}" && (dueDate = "" || dueDate <= "${todayEnd}")`,
-      })
-      tasksByChild[child.id] = sortTasks(result.items, groupTimezone)
-
-      const recentlyCompletedResult = await pb.collection('tasks').getList<Task>(1, 100, {
-        filter: `child = "${child.id}" && ((completed = true && completedAt >= "${todayStart}") || (completed = false && lastCompletedAt >= "${todayStart}" && lastCompletedAt != "" && recurrenceType != ""))`,
-      })
-      recentlyCompletedByChild[child.id] = recentlyCompletedResult.items
+      futureTasksByChild[child.id] = futureResult.items
     }
   }
 } catch (e) {
@@ -118,322 +106,257 @@ try {
 }
 
 const todayStr = getLocalDateString(groupTimezone)
-const showSwitcher = selectedChild && siblings.length > 1
+const showSwitcher = selectedChild && children.length > 1
+const displayChildren = selectedChild ? [selectedChild] : children
 ---
 
 <Layout title={selectedChild ? `${selectedChild.name} - Aufgaben` : `${groupName} - Aufgaben`}>
   <div class="min-h-screen bg-base-100 p-4 md:p-8">
-    <div class="max-w-3xl mx-auto">
+    <div class:list={[selectedChild ? 'max-w-3xl' : 'max-w-6xl', 'mx-auto']}>
       {error && (
         <div class="alert alert-error mb-6">
           <span>{error}</span>
         </div>
       )}
 
-      {selectedChild ? (
-        <>
-          {showSwitcher && (
-            <nav data-testid="child-switcher" class="flex gap-2 mb-6 overflow-x-auto pb-2">
-              {siblings.map((sibling) => (
-                <a
-                  href={`/group/${groupId}/tasks?child=${sibling.id}`}
-                  data-testid="child-tab"
-                  class:list={[
-                    'flex items-center gap-2 px-4 py-3 rounded-xl min-h-[56px] min-w-[120px] transition-colors',
-                    sibling.id === selectedChildId
-                      ? 'bg-primary text-primary-content font-bold'
-                      : 'bg-base-200 hover:bg-base-300',
-                  ]}
-                >
-                  <ColoredInitials name={sibling.name} color={sibling.color} size="sm" />
-                  <span class="text-lg">{sibling.name}</span>
-                </a>
-              ))}
-            </nav>
-          )}
-
-          <header class="flex items-center gap-4 mb-4">
-            <ColoredInitials name={selectedChild.name} color={selectedChild.color} size="lg" />
-            <h1 class="text-3xl md:text-4xl font-bold flex-1">{selectedChild.name}</h1>
-            <button
-              data-testid="refresh-button"
-              class="btn btn-ghost btn-circle"
-              aria-label="Seite neu laden"
-              onclick="window.location.reload()"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-          </header>
-
-          <div class="flex items-center gap-2 mb-8">
-            <div data-testid="phase-indicator" class="badge badge-lg badge-outline">
-              {phaseLabels[currentPhase]}
-            </div>
-            {pointsBalance > 0 && (
-              <div data-testid="points-balance" class="badge badge-lg badge-warning gap-1">
-                {pointsBalance} Punkte
-              </div>
-            )}
-          </div>
-
-          {(() => {
-            const tasks = tasksByChild[selectedChild.id] || []
-            return tasks.length === 0 ? (
-              <div data-testid="celebration" class="text-center py-16">
-                <div data-testid="celebration-emoji" class="text-8xl mb-6">🌟</div>
-                <h2 class="text-3xl md:text-4xl font-bold text-success mb-4">Super gemacht!</h2>
-                <p class="text-xl md:text-2xl text-base-content/70">
-                  Alle Aufgaben erledigt!
-                </p>
-              </div>
-            ) : (
-              <ul class="space-y-3">
-                {tasks.map((task) => {
-                  const isOverdue = task.dueDate && task.dueDate.slice(0, 10) < todayStr
-                  return (
-                    <li
-                      data-testid="task-item"
-                      data-overdue={isOverdue ? "true" : undefined}
-                      class:list={[
-                        'flex items-center gap-4 p-4 rounded-xl min-h-[56px]',
-                        isOverdue ? 'bg-error/10 border-2 border-error' : 'bg-base-200',
-                      ]}
-                    >
-                      <form method="POST" action={actions.completeTask} data-task-title={task.title}>
-                        <input type="hidden" name="taskId" value={task.id} />
-                        <input type="hidden" name="childId" value={selectedChild.id} />
-                        <input type="hidden" name="completedBy" value={selectedChild.id} />
-                        <input type="hidden" name="groupId" value={groupId} />
-                        <button
-                          type="submit"
-                          data-testid="complete-button"
-                          class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px]"
-                          aria-label={`${task.title} erledigen`}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                          </svg>
-                        </button>
-                      </form>
-                      <div class="flex-1">
-                        <span class="text-xl md:text-2xl">{task.title}</span>
-                        {isOverdue && (
-                          <span data-testid="overdue-badge" class="badge badge-error badge-sm ml-2">Überfällig</span>
-                        )}
-                        {task.points && task.points > 0 && (
-                          <span data-testid="task-points" class="badge badge-warning badge-sm ml-2">+{task.points}</span>
-                        )}
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )
-          })()}
-
-          {recentlyCompleted.length > 0 && (
-            <div data-testid="recently-completed" class="mt-8">
-              <h2 class="text-lg font-semibold mb-3 text-base-content/60">Heute erledigt</h2>
-              <ul class="space-y-2">
-                {recentlyCompleted.map((task) => (
-                  <li
-                    data-testid="completed-task-item"
-                    class="flex items-center gap-4 p-3 rounded-xl bg-base-200/50 opacity-60"
-                  >
-                    <div class="flex-1">
-                      <span class="text-lg line-through">{task.title}</span>
-                      <span class="badge badge-sm badge-outline ml-2">{phaseLabels[task.timeOfDay]}</span>
-                    </div>
-                    <form method="POST" action={actions.undoTask}>
-                      <input type="hidden" name="taskId" value={task.id} />
-                      <button
-                        type="submit"
-                        data-testid="undo-button"
-                        class="btn btn-ghost btn-sm"
-                        aria-label={`${task.title} rückgängig machen`}
-                      >
-                        ↩
-                      </button>
-                    </form>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {showFuture && futureTasks.length > 0 && (
-            <div data-testid="future-tasks-section" class="mt-8">
-              <h2 class="text-lg font-semibold mb-3 text-base-content/60">Zukünftige Aufgaben</h2>
-              <ul class="space-y-2">
-                {futureTasks.map((task) => (
-                  <li
-                    data-testid="future-task-item"
-                    class="flex items-center gap-4 p-3 rounded-xl bg-base-200/30 opacity-50"
-                  >
-                    <div class="flex-1">
-                      <span class="text-lg">{task.title}</span>
-                      {task.dueDate && (
-                        <span data-testid="future-task-date" class="badge badge-sm badge-outline ml-2">
-                          {task.dueDate.slice(0, 10)}
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div class="mt-6">
+      {showSwitcher && (
+        <nav data-testid="child-switcher" class="flex gap-2 mb-6 overflow-x-auto pb-2">
+          {children.map((sibling) => (
             <a
-              data-testid="future-tasks-toggle"
-              href={showFuture
-                ? `/group/${groupId}/tasks?child=${selectedChildId}`
-                : `/group/${groupId}/tasks?child=${selectedChildId}&showFuture=true`}
-              class="btn btn-ghost btn-sm"
+              href={`/group/${groupId}/tasks?child=${sibling.id}`}
+              data-testid="child-tab"
+              class:list={[
+                'flex items-center gap-2 px-4 py-3 rounded-xl min-h-[56px] min-w-[120px] transition-colors',
+                sibling.id === selectedChildId
+                  ? 'bg-primary text-primary-content font-bold'
+                  : 'bg-base-200 hover:bg-base-300',
+              ]}
             >
-              {showFuture ? 'Zukünftige Aufgaben ausblenden' : 'Zukünftige Aufgaben anzeigen'}
+              <ColoredInitials name={sibling.name} color={sibling.color} size="sm" />
+              <span class="text-lg">{sibling.name}</span>
             </a>
-          </div>
+          ))}
+        </nav>
+      )}
 
-          <div class="mt-8 pt-8 border-t border-base-300">
-            <a href={`/group/${groupId}/tasks`} class="btn btn-ghost btn-sm">
-              ← Zurück zur Übersicht
-            </a>
-          </div>
-        </>
+      {selectedChild ? (
+        <header class="flex items-center gap-4 mb-4">
+          <ColoredInitials name={selectedChild.name} color={selectedChild.color} size="lg" />
+          <h1 class="text-3xl md:text-4xl font-bold flex-1">{selectedChild.name}</h1>
+          <button
+            data-testid="refresh-button"
+            class="btn btn-ghost btn-circle"
+            aria-label="Seite neu laden"
+            onclick="window.location.reload()"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </header>
       ) : (
-        <>
-          <header class="flex items-center gap-4 mb-4">
-            <h1 class="text-3xl font-bold flex-1">{groupName}</h1>
-            <button
-              data-testid="refresh-button"
-              class="btn btn-ghost btn-circle"
-              aria-label="Seite neu laden"
-              onclick="window.location.reload()"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
-          </header>
+        <header class="flex items-center gap-4 mb-4">
+          <h1 class="text-3xl font-bold flex-1">{groupName}</h1>
+          <button
+            data-testid="refresh-button"
+            class="btn btn-ghost btn-circle"
+            aria-label="Seite neu laden"
+            onclick="window.location.reload()"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </header>
+      )}
 
-          <div data-testid="phase-indicator" class="badge badge-lg badge-outline mb-8">
-            {phaseLabels[currentPhase]}
+      <div class="flex items-center gap-2 mb-8">
+        <div data-testid="phase-indicator" class="badge badge-lg badge-outline">
+          {phaseLabels[currentPhase]}
+        </div>
+        {selectedChild && pointsBalanceByChild[selectedChild.id] > 0 && (
+          <div data-testid="points-balance" class="badge badge-lg badge-warning gap-1">
+            {pointsBalanceByChild[selectedChild.id]} Punkte
           </div>
+        )}
+      </div>
 
-          {children.length === 0 && (
-            <div class="text-center py-16">
-              <p class="text-xl text-base-content/70 mb-4">Noch keine Kinder angelegt.</p>
-              <p class="text-base-content/50">Verwende den MCP Server, um Kinder hinzuzufügen.</p>
-              <a href="/admin" class="btn btn-primary mt-4">
-                MCP Verbindung
-              </a>
-            </div>
-          )}
+      {children.length === 0 && !selectedChild && (
+        <div class="text-center py-16">
+          <p class="text-xl text-base-content/70 mb-4">Noch keine Kinder angelegt.</p>
+          <p class="text-base-content/50">Verwende den MCP Server, um Kinder hinzuzufügen.</p>
+          <a href="/admin" class="btn btn-primary mt-4">
+            MCP Verbindung
+          </a>
+        </div>
+      )}
 
-          {children.map((child) => {
-            const tasks = tasksByChild[child.id] || []
-            return (
-              <section data-testid="child-section" class="mb-8">
+      <div class={selectedChild ? '' : 'grid gap-6 md:grid-cols-2'}>
+        {displayChildren.map((child) => {
+          const tasks = tasksByChild[child.id] || []
+          const completed = recentlyCompletedByChild[child.id] || []
+          const futureTasks = futureTasksByChild[child.id] || []
+          const childPoints = pointsBalanceByChild[child.id] || 0
+          return (
+            <div data-testid="child-column">
+              {!selectedChild && (
                 <header class="flex items-center gap-3 mb-4">
                   <ColoredInitials name={child.name} color={child.color} size="md" />
                   <a href={`/group/${groupId}/tasks?child=${child.id}`} class="text-2xl font-bold hover:underline">
                     {child.name}
                   </a>
+                  {childPoints > 0 && (
+                    <div data-testid="points-balance" class="badge badge-warning badge-sm gap-1">
+                      {childPoints} Punkte
+                    </div>
+                  )}
                 </header>
+              )}
 
-                {tasks.length === 0 ? (
+              {tasks.length === 0 ? (
+                selectedChild ? (
+                  <div data-testid="celebration" class="text-center py-16">
+                    <div data-testid="celebration-emoji" class="text-8xl mb-6">🌟</div>
+                    <h2 class="text-3xl md:text-4xl font-bold text-success mb-4">Super gemacht!</h2>
+                    <p class="text-xl md:text-2xl text-base-content/70">
+                      Alle Aufgaben erledigt!
+                    </p>
+                  </div>
+                ) : (
                   <div data-testid="celebration" class="text-center py-8 bg-base-200 rounded-xl">
                     <div class="text-5xl mb-2">🌟</div>
                     <p class="text-lg text-success font-bold">Alles erledigt!</p>
                   </div>
-                ) : (
-                  <ul class="space-y-3">
-                    {tasks.map((task) => {
-                      const isOverdue = task.dueDate && task.dueDate.slice(0, 10) < todayStr
-                      return (
-                        <li
-                          data-testid="task-item"
-                          data-overdue={isOverdue ? "true" : undefined}
-                          class:list={[
-                            'flex items-center gap-4 p-4 rounded-xl min-h-[56px]',
-                            isOverdue ? 'bg-error/10 border-2 border-error' : 'bg-base-200',
-                          ]}
-                        >
-                          <form method="POST" action={actions.completeTask} data-task-title={task.title}>
-                            <input type="hidden" name="taskId" value={task.id} />
-                            <input type="hidden" name="childId" value={child.id} />
-                            <input type="hidden" name="completedBy" value={child.id} />
-                            <input type="hidden" name="groupId" value={groupId} />
-                            <button
-                              type="submit"
-                              data-testid="complete-button"
-                              class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px]"
-                              aria-label={`${task.title} erledigen`}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
-                              </svg>
-                            </button>
-                          </form>
-                          <div class="flex-1">
-                            <span class="text-xl md:text-2xl">{task.title}</span>
-                            {isOverdue && (
-                              <span data-testid="overdue-badge" class="badge badge-error badge-sm ml-2">Überfällig</span>
-                            )}
-                          </div>
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )}
-
-                {(() => {
-                  const completed = recentlyCompletedByChild[child.id] || []
-                  return completed.length > 0 && (
-                    <div data-testid="recently-completed" class="mt-4">
-                      <h3 class="text-sm font-semibold mb-2 text-base-content/60">Heute erledigt</h3>
-                      <ul class="space-y-2">
-                        {completed.map((task) => (
-                          <li
-                            data-testid="completed-task-item"
-                            class="flex items-center gap-4 p-3 rounded-xl bg-base-200/50 opacity-60"
+                )
+              ) : (
+                <ul class="space-y-3">
+                  {tasks.map((task) => {
+                    const isOverdue = task.dueDate && task.dueDate.slice(0, 10) < todayStr
+                    return (
+                      <li
+                        data-testid="task-item"
+                        data-overdue={isOverdue ? "true" : undefined}
+                        class:list={[
+                          'flex items-center gap-4 p-4 rounded-xl min-h-[56px]',
+                          isOverdue ? 'bg-error/10 border-2 border-error' : 'bg-base-200',
+                        ]}
+                      >
+                        <form method="POST" action={actions.completeTask} data-task-title={task.title}>
+                          <input type="hidden" name="taskId" value={task.id} />
+                          <input type="hidden" name="childId" value={child.id} />
+                          <input type="hidden" name="completedBy" value={child.id} />
+                          <input type="hidden" name="groupId" value={groupId} />
+                          <button
+                            type="submit"
+                            data-testid="complete-button"
+                            class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px]"
+                            aria-label={`${task.title} erledigen`}
                           >
-                            <div class="flex-1">
-                              <span class="text-lg line-through">{task.title}</span>
-                              <span class="badge badge-sm badge-outline ml-2">{phaseLabels[task.timeOfDay]}</span>
-                            </div>
-                            <form method="POST" action={actions.undoTask}>
-                              <input type="hidden" name="taskId" value={task.id} />
-                              <button
-                                type="submit"
-                                data-testid="undo-button"
-                                class="btn btn-ghost btn-sm"
-                                aria-label={`${task.title} rückgängig machen`}
-                              >
-                                ↩
-                              </button>
-                            </form>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )
-                })()}
-              </section>
-            )
-          })}
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                            </svg>
+                          </button>
+                        </form>
+                        <div class="flex-1">
+                          <span class="text-xl md:text-2xl">{task.title}</span>
+                          {isOverdue && (
+                            <span data-testid="overdue-badge" class="badge badge-error badge-sm ml-2">Überfällig</span>
+                          )}
+                          {task.points && task.points > 0 && (
+                            <span data-testid="task-points" class="badge badge-warning badge-sm ml-2">+{task.points}</span>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
 
-          <div class="mt-8 pt-8 border-t border-base-300">
-            <a href="/admin" class="btn btn-ghost btn-sm">
-              ← MCP Verbindung
-            </a>
-          </div>
-        </>
+              {completed.length > 0 && (
+                <div data-testid="recently-completed" class={selectedChild ? 'mt-8' : 'mt-4'}>
+                  <h2 class:list={[
+                    'font-semibold text-base-content/60',
+                    selectedChild ? 'text-lg mb-3' : 'text-sm mb-2',
+                  ]}>Heute erledigt</h2>
+                  <ul class="space-y-2">
+                    {completed.map((task) => (
+                      <li
+                        data-testid="completed-task-item"
+                        class="flex items-center gap-4 p-3 rounded-xl bg-base-200/50 opacity-60"
+                      >
+                        <div class="flex-1">
+                          <span class="text-lg line-through">{task.title}</span>
+                          <span class="badge badge-sm badge-outline ml-2">{phaseLabels[task.timeOfDay]}</span>
+                        </div>
+                        <form method="POST" action={actions.undoTask}>
+                          <input type="hidden" name="taskId" value={task.id} />
+                          <button
+                            type="submit"
+                            data-testid="undo-button"
+                            class="btn btn-ghost btn-sm"
+                            aria-label={`${task.title} rückgängig machen`}
+                          >
+                            ↩
+                          </button>
+                        </form>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {selectedChild && showFuture && futureTasks.length > 0 && (
+                <div data-testid="future-tasks-section" class="mt-8">
+                  <h2 class="text-lg font-semibold mb-3 text-base-content/60">Zukünftige Aufgaben</h2>
+                  <ul class="space-y-2">
+                    {futureTasks.map((task) => (
+                      <li
+                        data-testid="future-task-item"
+                        class="flex items-center gap-4 p-3 rounded-xl bg-base-200/30 opacity-50"
+                      >
+                        <div class="flex-1">
+                          <span class="text-lg">{task.title}</span>
+                          {task.dueDate && (
+                            <span data-testid="future-task-date" class="badge badge-sm badge-outline ml-2">
+                              {task.dueDate.slice(0, 10)}
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {selectedChild && (
+        <div class="mt-6">
+          <a
+            data-testid="future-tasks-toggle"
+            href={showFuture
+              ? `/group/${groupId}/tasks?child=${selectedChildId}`
+              : `/group/${groupId}/tasks?child=${selectedChildId}&showFuture=true`}
+            class="btn btn-ghost btn-sm"
+          >
+            {showFuture ? 'Zukünftige Aufgaben ausblenden' : 'Zukünftige Aufgaben anzeigen'}
+          </a>
+        </div>
       )}
+
+      <div class="mt-8 pt-8 border-t border-base-300">
+        {selectedChild ? (
+          <a href={`/group/${groupId}/tasks`} class="btn btn-ghost btn-sm">
+            ← Zurück zur Übersicht
+          </a>
+        ) : (
+          <a href="/admin" class="btn btn-ghost btn-sm">
+            ← MCP Verbindung
+          </a>
+        )}
+      </div>
     </div>
   </div>
 
