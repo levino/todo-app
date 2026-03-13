@@ -20,7 +20,6 @@ services:
 
   runner:
     image: node:22
-    user: "node"
     working_dir: /app
     environment:
       - POCKETBASE_URL=http://pocketbase:8090

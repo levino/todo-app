@@ -1,7 +1,6 @@
 ---
 import AuthLayout from '@/layouts/AuthLayout.astro'
 
-// Get error message from URL params if redirected after failed signup
 const error = Astro.url.searchParams.get('error')
 ---
 
@@ -20,54 +19,48 @@ const error = Astro.url.searchParams.get('error')
         )}
 
         <form method="POST" action="/api/auth/signup" class="space-y-4">
-          <div class="form-control">
-            <label class="label" for="email">
-              <span class="label-text">E-Mail</span>
-            </label>
+          <fieldset>
+            <label class="label" for="email">E-Mail</label>
             <input
               type="email"
               id="email"
               name="email"
               placeholder="name@example.com"
-              class="input input-bordered w-full"
+              class="input w-full"
               required
               autocomplete="email"
             />
-          </div>
+          </fieldset>
 
-          <div class="form-control">
-            <label class="label" for="password">
-              <span class="label-text">Passwort</span>
-            </label>
+          <fieldset>
+            <label class="label" for="password">Passwort</label>
             <input
               type="password"
               id="password"
               name="password"
               placeholder="********"
-              class="input input-bordered w-full"
+              class="input w-full"
               required
               minlength="8"
               autocomplete="new-password"
             />
-          </div>
+          </fieldset>
 
-          <div class="form-control">
-            <label class="label" for="passwordConfirm">
-              <span class="label-text">Passwort bestätigen</span>
-            </label>
+          <fieldset>
+            <label class="label" for="passwordConfirm">Passwort bestätigen</label>
             <input
               type="password"
               id="passwordConfirm"
               name="passwordConfirm"
               placeholder="********"
-              class="input input-bordered w-full"
+              class="input w-full"
               required
               minlength="8"
               autocomplete="new-password"
             />
-          </div>
+          </fieldset>
 
-          <div class="form-control mt-6">
+          <div class="mt-6">
             <button type="submit" class="btn btn-primary w-full">
               Registrieren
             </button>
