@@ -9,22 +9,10 @@
  */
 
 import express from 'express'
-import type { Request, Response, NextFunction } from 'express'
+import type { Request, Response } from 'express'
 import cors from 'cors'
 import PocketBase from 'pocketbase'
 import { z } from 'zod'
-
-// Debug logging - enable via DEBUG_MCP=true
-const DEBUG = process.env.DEBUG_MCP === 'true'
-
-function debugLog(category: string, message: string, data?: unknown) {
-  if (!DEBUG) return
-  const timestamp = new Date().toISOString()
-  console.log(`[${timestamp}] [DEBUG:${category}] ${message}`)
-  if (data !== undefined) {
-    console.log(JSON.stringify(data, null, 2))
-  }
-}
 
 // OAuth modules
 import { initOAuthDb } from './oauth/db.js'
@@ -849,32 +837,6 @@ app.use(cors({
 app.use(express.json())
 app.use(express.urlencoded({ extended: true })) // For OAuth token endpoint
 
-// Request logging (after body parsers so we can log the body)
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const timestamp = new Date().toISOString()
-  console.log(`[${timestamp}] ${req.method} ${req.path}`)
-
-  if (DEBUG) {
-    debugLog('REQUEST', `${req.method} ${req.originalUrl}`, {
-      headers: req.headers,
-      query: req.query,
-      body: req.body,
-    })
-
-    // Capture response
-    const originalSend = res.send.bind(res)
-    res.send = function(body: unknown) {
-      debugLog('RESPONSE', `${req.method} ${req.originalUrl} -> ${res.statusCode}`, {
-        statusCode: res.statusCode,
-        body: typeof body === 'string' ? (() => { try { return JSON.parse(body) } catch { return body } })() : body,
-      })
-      return originalSend(body)
-    }
-  }
-
-  next()
-})
-
 // Health check
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' })
@@ -892,7 +854,7 @@ app.use('/oauth/grants', grantsRouter)
 app.post('/mcp', authenticateFlexible, async (req: Request, res: Response) => {
   const pb = (req as Request & { pb: PocketBase }).pb
   const { jsonrpc, method, params, id } = req.body
-  console.log(`[MCP] Request: method=${method}, id=${id}`)
+
 
   if (jsonrpc !== '2.0') {
     res.status(400).json({
@@ -992,8 +954,7 @@ app.post('/mcp', authenticateFlexible, async (req: Request, res: Response) => {
 })
 
 // Handle GET /mcp - Claude might be checking for SSE or metadata
-app.get('/mcp', (req, res) => {
-  console.log(`[MCP] GET request - headers: ${JSON.stringify(req.headers.accept)}`)
+app.get('/mcp', (_req, res) => {
   res.status(405).json({
     jsonrpc: '2.0',
     error: { code: -32600, message: 'Method not allowed. Use POST for MCP calls.' },
@@ -1010,9 +971,7 @@ export async function initOAuth(): Promise<void> {
 // Start server (only when run directly)
 if (process.env.NODE_ENV !== 'test') {
   initOAuth().then(() => {
-    app.listen(PORT, '::', () => {
-      console.log(`Family Todo MCP server listening on [::]:${PORT} (all interfaces, IPv4+IPv6)`)
-    })
+    app.listen(PORT, '::')
   }).catch((err) => {
     console.error('Failed to initialize OAuth:', err)
     process.exit(1)
