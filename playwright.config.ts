@@ -2,10 +2,10 @@ import { defineConfig, devices } from '@playwright/test'
 
 export default defineConfig({
   testDir: './packages/frontend/tests/e2e',
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1,
   reporter: process.env.CI ? 'github' : 'html',
   use: {
     baseURL: 'http://localhost:4321',
@@ -18,7 +18,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run build && npm run preview',
+    command:
+      'npm run build -w @family-todo/frontend && npm run preview -w @family-todo/frontend -- --host',
     url: 'http://localhost:4321',
     reuseExistingServer: !process.env.CI,
     env: {
