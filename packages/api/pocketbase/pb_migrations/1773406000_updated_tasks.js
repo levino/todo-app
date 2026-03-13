@@ -19,10 +19,7 @@ migrate((app) => {
     ]
   }))
 
-  app.save(collection)
-
-  // Set existing tasks to afternoon (the general/default phase)
-  app.db().newQuery("UPDATE tasks SET timeOfDay = 'afternoon' WHERE timeOfDay = '' OR timeOfDay IS NULL").execute()
+  return app.save(collection)
 }, (app) => {
   const collection = app.findCollectionByNameOrId("pbc_2254914799")
 
