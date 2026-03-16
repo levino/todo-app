@@ -12,6 +12,7 @@ export interface Task {
   timeOfDay: string
   lastCompletedAt: string | null
   completedBy: string | null
+  points: number
 }
 
 export interface Child {

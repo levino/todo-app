@@ -94,6 +94,34 @@ describe('Points Display on Task Page', () => {
     expect(html).not.toContain('data-testid="task-points"')
   })
 
+  it('should not render stray "0" when task has points=0', async () => {
+    await adminPb.collection('tasks').create({
+      title: 'Zero Points Task',
+      child: childId,
+      priority: 1,
+      completed: false,
+      timeOfDay: getCurrentPhase('00:00', '23:59', 'Europe/Berlin'),
+      points: 0,
+    })
+
+    const request = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
+    const html = await container.renderToString(TasksIndexPage, {
+      params: { groupId },
+      locals: { pb: userPb, user: userPb.authStore.record },
+      request,
+    })
+
+    expect(html).not.toContain('data-testid="task-points"')
+    // The bug: `{0 && expr}` renders "0" as text in Astro templates
+    // Extract the task item HTML and check for stray "0"
+    const taskItemMatch = html.match(/data-testid="task-item"[\s\S]*?Zero Points Task[\s\S]*?<\/li>/)
+    expect(taskItemMatch).toBeTruthy()
+    // After the title span closes, there should be no bare " 0 " text
+    const afterTitle = taskItemMatch![0].split('Zero Points Task</span>')[1]
+    expect(afterTitle).toBeDefined()
+    expect(afterTitle!.trimStart()).not.toMatch(/^0\s/)
+  })
+
   it('should show points balance for the child', async () => {
     await adminPb.collection('point_transactions').create({
       child: childId,
