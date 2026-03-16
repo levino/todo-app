@@ -242,7 +242,7 @@ const displayChildren = selectedChild ? [selectedChild] : children
                           {isOverdue && (
                             <span data-testid="overdue-badge" class="badge badge-error badge-sm ml-2">Überfällig</span>
                           )}
-                          {task.points && task.points > 0 && (
+                          {task.points > 0 && (
                             <span data-testid="task-points" class="badge badge-warning badge-sm ml-2">+{task.points}</span>
                           )}
                         </div>
