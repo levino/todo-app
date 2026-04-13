@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: levino-todo-app
+  namespace: levino-todo-app
+  labels:
+    app: levino-todo-app
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: levino-todo-app
+  template:
+    metadata:
+      labels:
+        app: levino-todo-app
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/levino/levino-todo-app:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: PORT
+              value: "3000"
+            - name: BASE_URL
+              value: https://todos.levinkeller.de
+            - name: DATABASE_PATH
+              value: /data/db.sqlite
+            - name: SES_SMTP_HOST
+              value: email-smtp.eu-central-1.amazonaws.com
+            - name: SES_SMTP_PORT
+              value: "587"
+            - name: MAIL_FROM
+              value: Family Todo <noreply@levinkeller.de>
+          envFrom:
+            - secretRef:
+                name: levino-todo-app-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: levino-todo-app-data
+      imagePullSecrets:
+        - name: ghcr-pull

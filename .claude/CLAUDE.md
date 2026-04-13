@@ -1,196 +1,98 @@
 # Project Rules
 
-## Test-Driven Development (TDD)
+<stack>
+- Node 22+, TypeScript with `--experimental-strip-types` (no compile step for the server)
+- Single Node process: Express shell, Hono for API routes, Astro SSR for pages
+- better-sqlite3 for the database, WAL mode, in-process, synchronous
+- jose for JWTs, Anthropic SDK for the chat agentic loop, MCP SDK for tool exposure
+- Vitest for tests, Astro Container API for page tests, temp SQLite for DB tests
+</stack>
 
-**No code changes without a failing test!**
+<tdd>
+**No code changes without a failing test.**
 
-1. First write a test that fails
-2. **RUN THE TESTS** to confirm the test actually fails: `npm run docker:test`
-3. Only THEN change the production code — the minimum needed to make the test pass
-4. **RUN THE TESTS** again to verify they pass
-5. Refactor only when tests are green
+1. Write a test that fails
+2. Run `npm test` and SEE it fail
+3. Write the minimum production code to make it pass
+4. Run `npm test` again to verify it's green
+5. Refactor only when green
 
-This applies to all bug fixes and new features.
+**NEVER write production code and tests in the same step.** Seeing the failure is the whole point.
 
-**CRITICAL: NEVER write production code and tests in the same step!** The whole point of TDD is that you SEE the test fail first. Writing both together defeats the purpose — you can't know your test actually catches the bug if you never saw it fail. This is non-negotiable.
+Applies to bug fixes and new features. Does not apply to pure scaffolding (config files, Dockerfile, k8s manifests, CI yaml).
+</tdd>
 
-**IMPORTANT:** Never run `npm run test:bare` directly on the host machine. Tests require Docker networking to reach `pocketbase-test`. Always use `npm run docker:test` which runs tests inside a container.
+<functional-style>
+- Pure functions over classes (levino-coding preference)
+- Functions take `db: Database.Database` as the first argument — no module-level singletons
+- Domain layer is side-effect-free apart from SQLite calls
+- No `async/await` where it is not required — better-sqlite3 is synchronous
+- Tools use the DI-currying pattern: `toolXxx(deps, user)(input)` — see `src/tools.ts`
+</functional-style>
 
-## Testing Strategy
+<database>
+- Schema lives in `src/db.ts` via `runMigrations(db)` — plain `CREATE TABLE IF NOT EXISTS` SQL in code
+- No hand-written migration files, no ORM, no PocketBase
+- Foreign keys are ON by default (PRAGMA foreign_keys = ON)
+- Production data lives at `/data/db.sqlite` (mounted PVC in k3s)
+- Tests open `:memory:` or a temp file per-test for isolation
+</database>
 
-### Test Types and File Naming
+<testing>
+- Unit tests: `*.test.ts`, pure logic, temp SQLite, fast, no network
+- Integration tests: `*.integration.test.ts`, Astro Container API rendering real pages against a temp SQLite
+- No Docker needed for tests anymore — everything in-process
+- Run: `npm test`
+- Never mock SQLite, never mock the MCP SDK, never mock the Anthropic SDK at the DB layer — use real `:memory:` DBs and fake the Anthropic client at the boundary only when strictly needed
+</testing>
 
-| Type | File Pattern | Runs In | Purpose |
-|------|--------------|---------|---------|
-| **Unit Tests** | `*.test.ts` | Anywhere | Pure logic, no side effects, no API |
-| **Integration Tests** | `*.integration.test.ts` | Docker Compose | Astro Container API + real PocketBase |
-| **E2E Tests** | `*.e2e.test.ts` | Docker Compose | Playwright browser tests (optional) |
+<tools-layer>
+Tools are the single source of truth for business logic reachable from both the chat loop and the MCP server.
 
-### Unit Tests (`*.test.ts`)
-
-- Pure functions, utilities, helpers
-- No side effects, no network calls
-- Can run anywhere (no Docker needed)
-- Fast and isolated
-
-### Integration Tests (`*.integration.test.ts`) - PRIMARY!
-
-**This is the main test type. Write extensive integration tests for all features.**
-
-- Use **Astro Container API** to test pages/components
-- Connect to **real PocketBase API** (no mocks!)
-- Must run inside Docker Compose (containers talk to each other)
-- Test the full stack: page rendering → API calls → database
-
-```bash
-# Run tests (resets test DB, runs inside container where pocketbase-test is accessible)
-npm run docker:test
+```ts
+export function toolListTasks(deps: ToolDeps, user: User) {
+  return (input: z.infer<typeof listTasksInput>) =>
+    listTasks(deps.db, user.sub, input)
+}
 ```
 
-**Script naming convention:**
-- `npm run docker:test` → Resets test DB, runs tests in Docker container with network access
-- `npm run test:bare` → **DO NOT USE DIRECTLY** - only runs inside Docker container
+- Define the zod schema alongside the tool factory
+- Authenticated tools curry over `(deps, user)`, unauthenticated over `(deps)`
+- `executeTool(name, input, deps, user)` dispatches to the right factory in both paths
+- Adding a tool = edit `src/tools.ts` once — MCP and chat both pick it up
+</tools-layer>
 
-**Example: Testing an Astro Page with Container API**
+<process-shape>
+Single Node process listening on one port:
 
-```typescript
-// src/pages/stats.integration.test.ts
-import { experimental_AstroContainer as AstroContainer } from 'astro/container'
-import { describe, expect, it, beforeAll, afterAll } from 'vitest'
-import PocketBase from 'pocketbase'
-import StatsPage from './stats.astro'
-
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
-
-describe('Stats Page', () => {
-  let pb: PocketBase
-  let container: AstroContainer
-  let testDataIds: string[] = []
-
-  beforeAll(async () => {
-    // 1. Setup PocketBase client and auth
-    pb = new PocketBase(POCKETBASE_URL)
-    await pb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-
-    // 2. Create test data in PocketBase
-    const task = await pb.collection('kiosk_tasks').create({ title: 'Test Task', ... })
-    testDataIds.push(task.id)
-
-    // 3. Create Astro container for rendering pages
-    container = await AstroContainer.create()
-  })
-
-  afterAll(async () => {
-    // Clean up test data
-    for (const id of testDataIds) {
-      try { await pb.collection('kiosk_tasks').delete(id) } catch {}
-    }
-  })
-
-  it('should render the page with data from PocketBase', async () => {
-    // Render the Astro page to HTML string
-    const html = await container.renderToString(StatsPage)
-
-    // Assert on the rendered HTML
-    expect(html).toContain('data-testid="stats-page"')
-    expect(html).toContain('Total tasks:')
-  })
-})
+```
+Express :3000
+  ├── /mcp            → Hono → MCP Streamable HTTP (per-request McpServer)
+  ├── /api/chat       → Hono → Haiku agentic loop
+  ├── /oauth/*        → Hono → PKCE + DCR
+  ├── /auth/*         → Hono → GitHub OAuth + magic link
+  ├── /.well-known/*  → Hono → OIDC metadata + JWKS
+  ├── static assets   → express.static(dist/client)
+  └── catch-all       → Astro node adapter handler (LAST)
 ```
 
-**Key Points:**
-1. Import the page directly: `import StatsPage from './stats.astro'`
-2. Create container: `container = await AstroContainer.create()`
-3. Render to string: `await container.renderToString(StatsPage)`
-4. Assert on the HTML output
+Order is load-bearing: Astro must be LAST, otherwise it swallows `/api` and `/mcp`.
 
-**Required: vitest.config.ts must use Astro's getViteConfig:**
-```typescript
-import { getViteConfig } from 'astro/config'
+Dev runs two processes: `astro dev` on 4321 (with vite.proxy forwarding API paths to 3000) and the Express server on 3000 via `node --watch`. Production is a single `node src/index.ts` after `astro build`.
+</process-shape>
 
-export default getViteConfig({
-  test: {
-    include: ['src/**/*.test.ts', 'src/**/*.integration.test.ts'],
-    // ... other config
-  },
-})
-```
-This enables Vitest to parse `.astro` files.
+<auth>
+- JWTs signed RS256 (jose), public key used to verify both web sessions and MCP bearer tokens
+- Same token format everywhere — no separate MCP token type
+- GitHub OAuth for login, magic link via AWS SES as a fallback
+- In local dev, magic-link emails are intercepted and logged to the console instead of sent
+- `verifyToken` runs once at the edge of the request handler; tools close over the verified user
+- Haiku never sees the raw token
+</auth>
 
-**Database Reset:** The `tests/setup.integration.ts` file runs `beforeEach` to:
-1. Reset the PocketBase singleton (ensures correct URL)
-2. Clear all records from all collections (respecting FK order)
-
-This ensures each test starts with a clean database.
-
-### E2E Tests (`*.e2e.test.ts`) - NOT NEEDED NOW
-
-- Playwright browser automation
-- Run inside Docker Compose
-- **Not required at this stage** - integration tests cover functionality
-- Only add later for critical user flows if needed
-
-## PocketBase Database Schema Changes
-
-**Never write migration SQL by hand!**
-
-When you need to alter the database schema (create/update/delete collections), use the `/create-collection` skill or follow this process:
-
-1. Write a temporary JavaScript file that uses `pb.collections.create()` (or `.update()` / `.delete()`)
-2. Run it with `node <file>.js`
-3. PocketBase automatically generates the migration file in `pocketbase/pb_migrations/`
-4. Delete the temporary file
-5. Commit the generated migration
-
-### Example
-
-```javascript
-// temp-collection.js
-import PocketBase from 'pocketbase'
-
-const pb = new PocketBase('http://<CONTAINER_IP>:8090')
-await pb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-
-await pb.collections.create({
-  name: 'my_collection',
-  type: 'base',
-  fields: [
-    { name: 'title', type: 'text', required: true },
-  ],
-})
-
-console.log('Done!')
-```
-
-Then: `node temp-collection.js && rm temp-collection.js`
-
-### Why This Approach
-
-- PocketBase generates correct internal IDs
-- Proper migration format with rollback functions
-- No risk of SQL errors from manual migrations
-- Type-safe field definitions
-
-## PocketBase Testing
-
-**Never mock PocketBase!**
-
-- Tests run against real PocketBase instance (pocketbase-test in Docker Compose)
-- No `vi.mock('pocketbase')` or similar
-- Integration tests ensure real-world behavior
-
-## Development Workflow
-
-```bash
-# Start PocketBase for development
-docker compose up -d pocketbase-dev
-
-# Get container IP for migration scripts
-docker network inspect levino-todo-app_default --format '{{range .Containers}}{{.IPv4Address}}{{end}}'
-
-# Start dev server (requires POCKETBASE_URL env var)
-POCKETBASE_URL=http://localhost:8090 npm run dev:bare
-
-# Run tests (ALWAYS use docker:test, never test:bare directly!)
-npm run docker:test
-```
+<no-comments>
+- Default to no comments
+- Code explains WHAT, names explain WHY
+- Only add a comment for a hidden constraint or surprising invariant
+- No task/fix references in comments ("used by X", "fixes #123") — those go in the PR
+</no-comments>

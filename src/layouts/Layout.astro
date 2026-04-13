@@ -1,0 +1,42 @@
+---
+import '../styles/global.css'
+
+type Props = {
+  title?: string
+}
+
+const { title = 'Familien-ToDos' } = Astro.props
+const user = Astro.locals.user
+const path = Astro.url.pathname
+---
+
+<!doctype html>
+<html lang="de" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+  </head>
+  <body class="min-h-screen bg-base-200">
+    <header class="navbar bg-base-100 shadow-sm">
+      <div class="flex-1">
+        <a href="/" class="btn btn-ghost text-xl">Familien-ToDos</a>
+      </div>
+      <div class="flex-none gap-2">
+        {user && (
+          <>
+            <a href="/" class={`btn btn-ghost btn-sm ${path === '/' ? 'btn-active' : ''}`}>Kiosk</a>
+            <a href="/chat" class={`btn btn-ghost btn-sm ${path === '/chat' ? 'btn-active' : ''}`}>Chat</a>
+            <form method="post" action="/auth/logout">
+              <button type="submit" class="btn btn-ghost btn-sm">Logout</button>
+            </form>
+          </>
+        )}
+      </div>
+    </header>
+
+    <main class="container mx-auto p-4">
+      <slot />
+    </main>
+  </body>
+</html>
