@@ -1,0 +1,44 @@
+---
+import Layout from '../layouts/Layout.astro'
+
+if (Astro.locals.user) {
+  return Astro.redirect('/')
+}
+
+const githubEnabled = !!process.env.GITHUB_CLIENT_ID
+---
+
+<Layout title="Anmelden">
+  <div class="max-w-md mx-auto mt-12">
+    <div class="card bg-base-100 shadow-md">
+      <div class="card-body">
+        <h1 class="card-title text-2xl mb-4">Anmelden</h1>
+
+        <form method="post" action="/auth/magic/request" class="flex flex-col gap-3">
+          <label class="form-control">
+            <span class="label-text">Email</span>
+            <input
+              type="email"
+              name="email"
+              required
+              placeholder="parent@example.com"
+              class="input input-bordered"
+            />
+          </label>
+          <button type="submit" class="btn btn-primary">
+            Magic-Link senden
+          </button>
+        </form>
+
+        {githubEnabled && (
+          <>
+            <div class="divider">oder</div>
+            <a href="/auth/github/start" class="btn">
+              Mit GitHub anmelden
+            </a>
+          </>
+        )}
+      </div>
+    </div>
+  </div>
+</Layout>

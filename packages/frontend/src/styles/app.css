@@ -1,6 +1,0 @@
-@import "tailwindcss";
-
-@import "@levino/shipyard-base";
-
-@plugin "daisyui";
-@plugin "@tailwindcss/typography";

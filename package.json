@@ -1,37 +1,53 @@
 {
-  "name": "family-todo-app",
+  "name": "levino-todo-app",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Family Todo App - MCP-powered task management for families",
-  "workspaces": [
-    "packages/*"
-  ],
+  "description": "Family Todo App — SQLite + MCP + AI chat, single-process.",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "dev": "docker compose run --rm -p 4321:4321 -p 3001:3001 -e POCKETBASE_URL=http://pocketbase-dev:8090 runner npm run dev:all",
-    "dev:all": "npm run dev -w @family-todo/frontend & npm run dev -w @family-todo/mcp & wait",
-    "build": "npm run build -w @family-todo/frontend && npm run build -w @family-todo/mcp",
-    "build:frontend": "npm run build -w @family-todo/frontend",
-    "build:mcp": "npm run build -w @family-todo/mcp",
-    "preview": "npm run preview -w @family-todo/frontend",
-    "typecheck": "npm run typecheck -w @family-todo/frontend",
-    "test": "npm run test -w @family-todo/mcp && npm run test -w @family-todo/frontend",
-    "test:mcp": "npm run test -w @family-todo/mcp",
-    "test:frontend": "npm run test -w @family-todo/frontend",
-    "docker:reset-test-db": "docker compose -f docker-compose.test.yaml down pocketbase && docker volume rm -f levino-todo-app_pb_data_test && docker compose -f docker-compose.test.yaml up -d pocketbase && sleep 2",
-    "docker:test": "npm run docker:reset-test-db && docker compose -f docker-compose.test.yaml run --rm runner sh -c '[ -f node_modules/.package-lock.json ] || npm install && npm test'",
-    "docker:test:e2e": "npm run docker:reset-test-db && docker compose -f docker-compose.test.yaml run --rm playwright sh -c '[ -f node_modules/.package-lock.json ] || npm install && npx playwright install --with-deps chromium && npx playwright test'",
-    "docker:test:mcp": "npm run docker:reset-test-db && docker compose -f docker-compose.test.yaml run --rm runner sh -c '[ -f node_modules/.package-lock.json ] || npm install && npm run test:mcp'",
+    "dev": "concurrently -n astro,server -c magenta,cyan \"astro dev --port 4321\" \"node --watch --experimental-strip-types src/index.ts\"",
+    "dev:server": "node --watch --experimental-strip-types src/index.ts",
+    "dev:astro": "astro dev --port 4321",
+    "build": "astro build",
+    "start": "node --experimental-strip-types src/index.ts",
+    "typecheck": "astro check && tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write ."
   },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@astrojs/check": "^0.9.6",
+    "@astrojs/node": "^9.0.0",
+    "@levino/shipyard-base": "^0.7.5",
+    "@modelcontextprotocol/sdk": "^1.10.1",
+    "@tailwindcss/typography": "^0.5.15",
+    "@tailwindcss/vite": "^4",
+    "astro": "^5.16.0",
+    "better-sqlite3": "^11.9.1",
+    "daisyui": "^5",
+    "express": "^4.21.2",
+    "hono": "^4.7.7",
+    "jose": "^5.9.6",
+    "nodemailer": "^6.9.16",
+    "tailwindcss": "^4",
+    "zod": "^3.25.0",
+    "zod-to-json-schema": "^3.25.2"
+  },
   "devDependencies": {
     "@biomejs/biome": "2.3.11",
-    "@playwright/test": "^1.57.0",
-    "typescript": "^5.8.2"
-  },
-  "engines": {
-    "node": ">=22.0"
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.14.1",
+    "@types/nodemailer": "^6.4.16",
+    "@vitest/coverage-v8": "^4.0.16",
+    "concurrently": "^9.1.0",
+    "typescript": "^5.8.2",
+    "vitest": "^4.0.16"
   }
 }

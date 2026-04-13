@@ -1,104 +1,83 @@
-# Shipyard + PocketBase Template
+# Familien-ToDos
 
-A simple todo application template built with [Astro](https://astro.build), [Shipyard](https://github.com/levino), and [PocketBase](https://pocketbase.io).
+Single-process family todo app with an AI admin chat and a read-only kiosk.
+Built on Astro, Express, Hono, better-sqlite3, and the Anthropic + MCP SDKs.
 
-## Features
+## Architektur
 
-- **Astro 5** - Server-rendered pages, no client-side JavaScript
-- **Shipyard** - Pre-built layouts and navigation
-- **PocketBase** - Lightweight backend database
-- **TailwindCSS + DaisyUI** - Styling
-- **Docker Compose** - Development and production configurations
-- **Vitest + Playwright** - Testing
+- **Ein Node-Prozess** serviert alles auf Port 3000: Astro SSR (Kiosk + Chat-UI),
+  Hono-Router für `/auth`, `/api`, `/mcp`, und eine SQLite-Datei (`/data/db.sqlite`).
+- **Keine Admin-UI.** Parents legen Gruppen, Kinder, Aufgaben und Belohnungen
+  per Chat mit Claude an. Kids sehen eine reine Lese-Ansicht und können nur
+  Aufgaben abhaken.
+- **MCP-Server** läuft als Teil des gleichen Prozesses unter `/mcp` — deselbe
+  22 Tools, die auch der integrierte Chat benutzt (Single Source of Truth).
+- **Auth**: Magic-Link per SES SMTP oder GitHub OAuth; Session als
+  signiertes RS256-JWT im `auth_token`-Cookie. MCP akzeptiert dasselbe JWT als
+  Bearer-Token.
+- **Deployment**: Docker-Image auf GHCR, Deployment auf k3s via GitHub Actions.
 
-## Quick Start
+## Voraussetzungen
 
-### Prerequisites
+- Node 24+
+- (Optional) Anthropic API Key für den Chat
+- (Optional) GitHub OAuth App für GitHub-Login
+- (Optional) AWS SES SMTP Credentials für echte Magic Links
 
-- Node.js 22+
-- Docker and Docker Compose
-
-### Development
-
-1. Clone and install:
-   ```bash
-   git clone <your-repo-url>
-   cd shipyard-pocketbase-template
-   npm install
-   ```
-
-2. Start PocketBase:
-   ```bash
-   docker compose up -d pocketbase-dev
-   ```
-
-3. Start the dev server:
-   ```bash
-   npm run dev:bare
-   ```
-
-4. Open [http://localhost:4321](http://localhost:4321)
-
-### PocketBase Admin
-
-Access at [http://localhost:8090/_/](http://localhost:8090/_/)
-
-Default credentials:
-- Email: `admin@test.local`
-- Password: `testtest123`
-
-## Project Structure
-
-```
-├── src/
-│   ├── pages/           # Astro pages and API routes
-│   ├── lib/             # Utilities (pocketbase client)
-│   └── middleware.ts    # Auth middleware
-├── tests/
-│   └── e2e/             # Playwright tests
-├── pocketbase/
-│   ├── pb_migrations/   # Auto-generated migrations
-│   └── pb_data/         # Development data (gitignored)
-├── docker-compose.yaml  # Development stack
-└── docker-compose.coolify.yaml  # Production deployment
-```
-
-## Database Schema Changes
-
-Never write migrations by hand. Use the PocketBase SDK:
-
-```javascript
-// temp-collection.js
-import PocketBase from 'pocketbase'
-
-const pb = new PocketBase('http://<CONTAINER_IP>:8090')
-await pb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-
-await pb.collections.create({
-  name: 'my_collection',
-  type: 'base',
-  fields: [
-    { name: 'title', type: 'text', required: true },
-  ],
-})
-```
-
-Run with `node temp-collection.js`, then delete the file. PocketBase generates the migration automatically.
-
-## Testing
+## Lokale Entwicklung
 
 ```bash
-# Integration tests
-npm run test:bare
+npm install
 
-# E2E tests (requires Playwright browsers)
-npm run test:playwright:bare
+# Beide Prozesse gleichzeitig starten:
+# - Astro Dev Server auf 4321 (vite proxied /api, /auth, /mcp → 3000)
+# - Express/Hono Backend auf 3000
+npm run dev
+```
+
+Öffne http://localhost:4321. Ohne `SES_SMTP_HOST` landen Magic Links
+in der Server-Konsole — kopiere den Link heraus, um dich einzuloggen.
+
+## Tests
+
+```bash
+npm run typecheck   # tsc + astro check
+npm run lint        # biome
+npm run test        # vitest
 ```
 
 ## Deployment
 
-Use `docker-compose.coolify.yaml` for Coolify/Shipyard deployment.
+Image wird per CI nach jedem Push auf `main` gebaut und nach
+`ghcr.io/levino/levino-todo-app` gepusht, dann per OIDC-kubeconfig auf k3s
+deployed. Manifeste liegen unter `k8s/`.
 
-## License
+Einmalig vor dem ersten Deploy:
+
+1. Secrets aus `k8s/secrets.example.yaml` ableiten und mit `kubeseal`
+   in `k8s/sealed-secrets.yaml` verschlüsseln.
+2. Sealed Secrets auf den Cluster anwenden.
+3. Wenn das Image privat bleibt, `ghcr-pull` als Docker-Registry-Secret
+   sealen; sonst `imagePullSecrets` aus `deployment.yaml` entfernen.
+
+## Projektstruktur
+
+```
+src/
+  index.ts          # Express shell, mountet Hono-Router + Astro SSR
+  middleware.ts     # Astro middleware: JWT → locals.user
+  app-context.ts    # Shared DB + Keys (via globalThis)
+  db.ts             # better-sqlite3 schema + connection
+  domain/           # Pure Funktionen für users, groups, children, tasks, rewards, points
+  auth/             # jwt, magic link, github oauth, hono router
+  tools.ts          # 22 MCP/Chat tools mit DI-Currying
+  chat.ts           # /api/chat SSE-Endpoint (Anthropic Agentic Loop)
+  mcp-server.ts     # /mcp Streamable-HTTP transport
+  pages/            # Astro pages (login, kiosk, chat)
+k8s/                # Manifeste für k3s deploy
+Dockerfile          # Multi-stage build, node:24-bookworm-slim
+```
+
+## Lizenz
 
 MIT

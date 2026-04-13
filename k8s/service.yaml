@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: levino-todo-app
+  namespace: levino-todo-app
+spec:
+  selector:
+    app: levino-todo-app
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+  type: ClusterIP

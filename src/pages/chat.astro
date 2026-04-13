@@ -1,0 +1,96 @@
+---
+import Layout from '../layouts/Layout.astro'
+
+if (!Astro.locals.user) return Astro.redirect('/login')
+---
+
+<Layout title="Chat">
+  <div class="max-w-3xl mx-auto">
+    <h1 class="text-2xl font-bold mb-4">Admin-Chat</h1>
+    <p class="text-base-content/70 mb-4">
+      Hier legst du Gruppen, Kinder, Aufgaben und Belohnungen an und verwaltest
+      sie in natuerlicher Sprache.
+    </p>
+
+    <div
+      id="messages"
+      class="flex flex-col gap-3 mb-4 min-h-[300px] bg-base-100 rounded-box p-4 shadow-sm"
+    >
+    </div>
+
+    <form id="chat-form" class="flex gap-2">
+      <input
+        id="chat-input"
+        type="text"
+        name="message"
+        placeholder="Was soll ich tun?"
+        autocomplete="off"
+        class="input input-bordered flex-1"
+        required
+      />
+      <button type="submit" class="btn btn-primary">Senden</button>
+    </form>
+  </div>
+
+  <script is:inline>
+    const form = document.getElementById('chat-form')
+    const input = document.getElementById('chat-input')
+    const messages = document.getElementById('messages')
+
+    const appendMessage = (role, text) => {
+      const wrap = document.createElement('div')
+      wrap.className = `chat ${role === 'user' ? 'chat-end' : 'chat-start'}`
+      const bubble = document.createElement('div')
+      bubble.className = `chat-bubble ${role === 'user' ? 'chat-bubble-primary' : ''}`
+      bubble.textContent = text
+      wrap.appendChild(bubble)
+      messages.appendChild(wrap)
+      messages.scrollTop = messages.scrollHeight
+      return bubble
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault()
+      const text = input.value.trim()
+      if (!text) return
+      appendMessage('user', text)
+      input.value = ''
+      const assistantBubble = appendMessage('assistant', '')
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      })
+
+      if (!res.ok || !res.body) {
+        assistantBubble.textContent = 'Fehler: ' + res.status
+        return
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const event = JSON.parse(line.slice(6))
+            if (event.type === 'text') {
+              assistantBubble.textContent += event.text
+              messages.scrollTop = messages.scrollHeight
+            } else if (event.type === 'error') {
+              assistantBubble.textContent += '\n[Fehler] ' + event.message
+            }
+          } catch {}
+        }
+      }
+    })
+  </script>
+</Layout>
