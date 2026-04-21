@@ -30,11 +30,23 @@ export interface Group {
   timezone: string
 }
 
+export const PHASES = ['morning', 'afternoon', 'evening'] as const
+export type Phase = (typeof PHASES)[number]
+
 export const phaseLabels: Record<string, string> = {
   morning: 'Morgens',
   afternoon: 'Nachmittags',
   evening: 'Abends',
 }
+
+export const phaseIcons: Record<Phase, string> = {
+  morning: '🌅',
+  afternoon: '☀️',
+  evening: '🌙',
+}
+
+export const isValidPhase = (value: string | null | undefined): value is Phase =>
+  value === 'morning' || value === 'afternoon' || value === 'evening'
 
 export const getLocalDateString = (timezone: string, now?: Date): string => {
   const tz = timezone || 'Europe/Berlin'

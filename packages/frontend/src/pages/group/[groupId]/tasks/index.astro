@@ -9,7 +9,10 @@ import {
   getCurrentPhase,
   sortTasks,
   phaseLabels,
+  phaseIcons,
   getLocalDateString,
+  isValidPhase,
+  PHASES,
 } from '@/lib/tasks'
 
 interface PointTransaction {
@@ -28,6 +31,8 @@ if (!user || !groupId) {
 
 const selectedChildId = Astro.url.searchParams.get('child')
 const showFuture = Astro.url.searchParams.get('showFuture') === 'true'
+const phaseParam = Astro.url.searchParams.get('phase')
+const phaseOverride = isValidPhase(phaseParam) ? phaseParam : null
 
 const actionResult = Astro.getActionResult(actions.completeTask)
 const error = actionResult?.error?.message || ''
@@ -50,7 +55,7 @@ try {
   groupMorningEnd = group.morningEnd || '09:00'
   groupEveningStart = group.eveningStart || '18:00'
   groupTimezone = group.timezone || 'Europe/Berlin'
-  currentPhase = getCurrentPhase(groupMorningEnd, groupEveningStart, groupTimezone)
+  currentPhase = phaseOverride ?? getCurrentPhase(groupMorningEnd, groupEveningStart, groupTimezone)
 
   const childrenResult = await pb.collection('children').getList<Child>(1, 100, {
     filter: `group = "${groupId}"`,
@@ -108,6 +113,13 @@ try {
 const todayStr = getLocalDateString(groupTimezone)
 const showSwitcher = selectedChild && children.length > 1
 const displayChildren = selectedChild ? [selectedChild] : children
+
+const buildPhaseHref = (phase: string) => {
+  const params = new URLSearchParams()
+  if (selectedChildId) params.set('child', selectedChildId)
+  params.set('phase', phase)
+  return `/group/${groupId}/tasks?${params.toString()}`
+}
 ---
 
 <Layout title={selectedChild ? `${selectedChild.name} - Aufgaben` : `${groupName} - Aufgaben`}>
@@ -150,16 +162,39 @@ const displayChildren = selectedChild ? [selectedChild] : children
         </header>
       )}
 
-      <div class="flex items-center gap-2 mb-8">
-        <div transition:name="phase-indicator" data-testid="phase-indicator" class="badge badge-lg badge-outline">
-          {phaseLabels[currentPhase]}
-        </div>
-        {selectedChild && pointsBalanceByChild[selectedChild.id] > 0 && (
+      <nav
+        data-testid="phase-switcher"
+        transition:name="phase-indicator"
+        class="flex gap-2 mb-6"
+      >
+        {PHASES.map((phase) => (
+          <a
+            href={buildPhaseHref(phase)}
+            data-testid={`phase-button-${phase}`}
+            data-active={phase === currentPhase ? 'true' : 'false'}
+            aria-current={phase === currentPhase ? 'page' : undefined}
+            class:list={[
+              'flex-1 flex flex-col items-center justify-center gap-1 px-2 py-3 rounded-2xl min-h-[88px] transition-all duration-150 active:scale-95 no-underline',
+              phase === currentPhase
+                ? 'bg-primary text-primary-content font-bold shadow-lg ring-2 ring-primary'
+                : 'bg-base-200 text-base-content hover:bg-base-300',
+            ]}
+          >
+            <span class="text-4xl md:text-5xl leading-none" aria-hidden="true">{phaseIcons[phase]}</span>
+            <span class="text-base md:text-lg">{phaseLabels[phase]}</span>
+          </a>
+        ))}
+      </nav>
+
+      <div data-testid="phase-indicator" class="sr-only">{phaseLabels[currentPhase]}</div>
+
+      {selectedChild && pointsBalanceByChild[selectedChild.id] > 0 && (
+        <div class="mb-8">
           <div data-testid="points-balance" class="badge badge-lg badge-warning gap-1">
             {pointsBalanceByChild[selectedChild.id]} Punkte
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {children.length === 0 && !selectedChild && (
         <div class="text-center py-16">
@@ -395,40 +430,42 @@ const displayChildren = selectedChild ? [selectedChild] : children
     })
   </script>
 
-  <script define:vars={{ currentPhase, groupMorningEnd, groupEveningStart, groupTimezone }}>
-    const parseTime = (timeStr) => {
-      const [h, m] = timeStr.split(':').map(Number)
-      return h * 60 + m
-    }
-
-    const morningEndMinutes = parseTime(groupMorningEnd)
-    const eveningStartMinutes = parseTime(groupEveningStart)
-
-    const getLocalMinutes = () => {
-      const now = new Date()
-      const formatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: groupTimezone || 'Europe/Berlin',
-        hour: 'numeric',
-        minute: 'numeric',
-        hour12: false,
-      })
-      const parts = formatter.formatToParts(now)
-      const hour = Number(parts.find(p => p.type === 'hour')?.value || 0)
-      const minute = Number(parts.find(p => p.type === 'minute')?.value || 0)
-      return hour * 60 + minute
-    }
-
-    const getPhase = (minutes) => {
-      if (minutes < morningEndMinutes) return 'morning'
-      if (minutes < eveningStartMinutes) return 'afternoon'
-      return 'evening'
-    }
-
-    setInterval(() => {
-      if (getPhase(getLocalMinutes()) !== currentPhase) {
-        window.location.reload()
+  <script define:vars={{ currentPhase, groupMorningEnd, groupEveningStart, groupTimezone, phaseOverride }}>
+    if (!phaseOverride) {
+      const parseTime = (timeStr) => {
+        const [h, m] = timeStr.split(':').map(Number)
+        return h * 60 + m
       }
-    }, 60000)
+
+      const morningEndMinutes = parseTime(groupMorningEnd)
+      const eveningStartMinutes = parseTime(groupEveningStart)
+
+      const getLocalMinutes = () => {
+        const now = new Date()
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: groupTimezone || 'Europe/Berlin',
+          hour: 'numeric',
+          minute: 'numeric',
+          hour12: false,
+        })
+        const parts = formatter.formatToParts(now)
+        const hour = Number(parts.find(p => p.type === 'hour')?.value || 0)
+        const minute = Number(parts.find(p => p.type === 'minute')?.value || 0)
+        return hour * 60 + minute
+      }
+
+      const getPhase = (minutes) => {
+        if (minutes < morningEndMinutes) return 'morning'
+        if (minutes < eveningStartMinutes) return 'afternoon'
+        return 'evening'
+      }
+
+      setInterval(() => {
+        if (getPhase(getLocalMinutes()) !== currentPhase) {
+          window.location.reload()
+        }
+      }, 60000)
+    }
   </script>
 
   <script is:inline>
