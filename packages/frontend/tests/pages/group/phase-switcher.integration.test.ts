@@ -94,6 +94,16 @@ describe('Phase Switcher', () => {
     expect(html).toContain('data-testid="phase-button-evening"')
   })
 
+  it('phase buttons opt into Astro prefetch so the target page is ready on click', async () => {
+    vi.setSystemTime(new Date('2026-03-10T13:00:00Z'))
+    const html = await renderPage()
+    for (const phase of ['morning', 'afternoon', 'evening'] as const) {
+      expect(html).toMatch(
+        new RegExp(`data-testid="phase-button-${phase}"[^>]*data-astro-prefetch`),
+      )
+    }
+  })
+
   it('marks the calculated phase as active when no query param is set', async () => {
     vi.setSystemTime(new Date('2026-03-10T13:00:00Z')) // 14:00 Berlin → afternoon
     const html = await renderPage()

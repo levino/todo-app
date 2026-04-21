@@ -6,21 +6,17 @@ import {
   type Task,
   type Child,
   type Group,
+  type TasksPageViewRow,
+  type ChildTasksSplit,
   getCurrentPhase,
-  sortTasks,
   phaseLabels,
   phaseIcons,
   getLocalDateString,
   isValidPhase,
+  splitViewRowsByChild,
   PHASES,
+  type Phase,
 } from '@/lib/tasks'
-
-interface PointTransaction {
-  id: string
-  child: string
-  points: number
-  type: string
-}
 
 const { groupId } = Astro.params
 const { pb, user } = Astro.locals
@@ -37,82 +33,62 @@ const phaseOverride = isValidPhase(phaseParam) ? phaseParam : null
 const actionResult = Astro.getActionResult(actions.completeTask)
 const error = actionResult?.error?.message || ''
 
-let children: Child[] = []
-let tasksByChild: Record<string, Task[]> = {}
-let selectedChild: Child | null = null
-let recentlyCompletedByChild: Record<string, Task[]> = {}
-let futureTasksByChild: Record<string, Task[]> = {}
-let currentPhase = 'afternoon'
+let childSplits: ChildTasksSplit[] = []
+let currentPhase: Phase = 'afternoon'
 let groupMorningEnd = '09:00'
 let groupEveningStart = '18:00'
 let groupTimezone = 'Europe/Berlin'
 let groupName = ''
-let pointsBalanceByChild: Record<string, number> = {}
 
 try {
-  const group = await pb.collection('groups').getOne<Group>(groupId)
+  const [group, viewRows] = await Promise.all([
+    pb.collection('groups').getOne<Group>(groupId),
+    pb.collection('tasks_page_view').getFullList<TasksPageViewRow>({
+      filter: `group_id = "${groupId}"`,
+    }),
+  ])
+
   groupName = group.name
   groupMorningEnd = group.morningEnd || '09:00'
   groupEveningStart = group.eveningStart || '18:00'
   groupTimezone = group.timezone || 'Europe/Berlin'
-  currentPhase = phaseOverride ?? getCurrentPhase(groupMorningEnd, groupEveningStart, groupTimezone)
+  currentPhase = phaseOverride ?? (getCurrentPhase(groupMorningEnd, groupEveningStart, groupTimezone) as Phase)
 
-  const childrenResult = await pb.collection('children').getList<Child>(1, 100, {
-    filter: `group = "${groupId}"`,
-    sort: 'name',
+  const todayDateStr = getLocalDateString(groupTimezone)
+
+  childSplits = splitViewRowsByChild(viewRows, {
+    phase: currentPhase,
+    todayDateStr,
+    timezone: groupTimezone,
+    showFuture,
   })
-  children = childrenResult.items
-
-  if (selectedChildId) {
-    selectedChild = children.find((c) => c.id === selectedChildId) || null
-  }
-
-  const now = new Date()
-  const todayDateStr = getLocalDateString(groupTimezone, now)
-  const todayEnd = todayDateStr + ' 23:59:59.999Z'
-  const todayStart = todayDateStr + ' 00:00:00.000Z'
-
-  const displayChildren = selectedChild ? [selectedChild] : children
-
-  for (const child of displayChildren) {
-    // tasks
-    const result = await pb.collection('tasks').getList<Task>(1, 100, {
-      filter: `child = "${child.id}" && completed = false && timeOfDay = "${currentPhase}" && (dueDate = "" || dueDate <= "${todayEnd}")`,
-    })
-    tasksByChild[child.id] = sortTasks(result.items, groupTimezone)
-
-    // recently completed
-    const recentResult = await pb.collection('tasks').getList<Task>(1, 100, {
-      filter: `child = "${child.id}" && ((completed = true && completedAt >= "${todayStart}") || (completed = false && lastCompletedAt >= "${todayStart}" && lastCompletedAt != "" && recurrenceType != ""))`,
-    })
-    recentlyCompletedByChild[child.id] = recentResult.items
-
-    // points
-    try {
-      const txResult = await pb.collection('point_transactions').getFullList<PointTransaction>({
-        filter: `child = "${child.id}"`,
-      })
-      pointsBalanceByChild[child.id] = txResult.reduce((sum, t) => sum + t.points, 0)
-    } catch {
-      pointsBalanceByChild[child.id] = 0
-    }
-
-    // future tasks
-    if (showFuture) {
-      const futureResult = await pb.collection('tasks').getList<Task>(1, 100, {
-        filter: `child = "${child.id}" && completed = false && dueDate > "${todayEnd}"`,
-        sort: 'dueDate',
-      })
-      futureTasksByChild[child.id] = futureResult.items
-    }
-  }
 } catch (e) {
   console.error('Page fetch error:', e)
 }
 
+const children: Child[] = childSplits.map((s) => s.child)
+const selectedSplit = selectedChildId
+  ? childSplits.find((s) => s.child.id === selectedChildId) ?? null
+  : null
+const selectedChild: Child | null = selectedSplit?.child ?? null
+
 const todayStr = getLocalDateString(groupTimezone)
 const showSwitcher = selectedChild && children.length > 1
-const displayChildren = selectedChild ? [selectedChild] : children
+const displaySplits = selectedSplit ? [selectedSplit] : childSplits
+const displayChildren: Child[] = displaySplits.map((s) => s.child)
+
+const tasksByChild: Record<string, Task[]> = Object.fromEntries(
+  displaySplits.map((s) => [s.child.id, s.active]),
+)
+const recentlyCompletedByChild: Record<string, Task[]> = Object.fromEntries(
+  displaySplits.map((s) => [s.child.id, s.recentlyCompleted]),
+)
+const futureTasksByChild: Record<string, Task[]> = Object.fromEntries(
+  displaySplits.map((s) => [s.child.id, s.future]),
+)
+const pointsBalanceByChild: Record<string, number> = Object.fromEntries(
+  displaySplits.map((s) => [s.child.id, s.pointsBalance]),
+)
 
 const buildPhaseHref = (phase: string) => {
   const params = new URLSearchParams()
@@ -172,6 +148,7 @@ const buildPhaseHref = (phase: string) => {
             href={buildPhaseHref(phase)}
             data-testid={`phase-button-${phase}`}
             data-active={phase === currentPhase ? 'true' : 'false'}
+            data-astro-prefetch
             aria-current={phase === currentPhase ? 'page' : undefined}
             class:list={[
               'flex-1 flex flex-col items-center justify-center gap-1 px-2 py-3 rounded-2xl min-h-[88px] transition-all duration-150 active:scale-95 no-underline',

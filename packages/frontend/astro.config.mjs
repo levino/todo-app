@@ -8,6 +8,9 @@ import appCss from './src/styles/app.css?url'
 export default defineConfig({
   site: 'https://your-site.example.com',
   output: 'server',
+  prefetch: {
+    defaultStrategy: 'tap',
+  },
   adapter: node({
     mode: 'standalone',
   }),
