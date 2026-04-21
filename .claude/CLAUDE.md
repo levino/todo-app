@@ -130,6 +130,51 @@ This ensures each test starts with a clean database.
 - **Not required at this stage** - integration tests cover functionality
 - Only add later for critical user flows if needed
 
+## View-Tables statt Multi-Fetch
+
+**Jede Page fetcht aus genau einer, für sie optimierten PocketBase-View-Collection.**
+
+Eine View-Collection ist ein SQL SELECT, das in der Datenbank läuft (SQLite im
+PocketBase-Prozess). Filter, JOINs und Aggregate (`SUM`, `COUNT`) werden dort
+ausgeführt — das ist Größenordnungen schneller als mehrere HTTP-Fetches vom
+Client. Die Page ruft dann genau eine Collection ab, filtert minimal und gruppiert
+client-seitig.
+
+### Regeln
+
+1. **Eine Page → eine View-Collection.** Kein `for`-Loop mit sequenziellen
+   `await pb.collection(...).getList(...)`. Wenn die Page Daten aus mehreren
+   Tabellen braucht, löst die View das per JOIN.
+2. **Keine JSON-Spalten in der Datenbank.** Alle View-Spalten müssen echte SQL-Typen
+   haben (text/number/bool/date/relation). Wenn PocketBase einen Ausdruck nicht
+   inferred, hilft `CAST(... AS REAL/INTEGER/TEXT)`. Komplexe `COALESCE`s
+   vermeiden — PocketBase fällt sonst auf `json` zurück.
+3. **Aggregate im View, nicht im Client.** `SUM(points)` als Subquery im View,
+   nicht `getFullList` plus `reduce` im Frontend.
+4. **Indexes sind Pflicht** für alle Spalten, auf denen die View filtert, joint
+   oder sortiert (inkl. der Subqueries innerhalb der View). PocketBase indexiert
+   nicht automatisch, auch nicht Relation-Felder. Index-Pflege läuft über
+   `pb.collections.update(name, { indexes: ['CREATE INDEX ...'] })`.
+5. **Denormalisierung ist erlaubt, aber nicht Pflicht.** Wenn eine View mit JOINs
+   und Subqueries sauber bleibt, reicht das. Ein denormalisiertes Feld (gepflegt
+   via MCP-Tool oder pb_hooks) ist ok, wenn es die View-Definition deutlich
+   vereinfacht.
+
+### Namenskonvention
+
+- View-Collection heißt nach der Page: `tasks_page_view`, `stats_page_view`, …
+- Spalten-Präfixe spiegeln die Basistabelle: `child_name`, `task_title`,
+  `group_id` — so ist im Client klar, woher das Feld kommt.
+
+### Beispiel
+
+Die Tasks-Page (`src/pages/group/[groupId]/tasks/index.astro`) nutzt
+`tasks_page_view`: ein `LEFT JOIN` zwischen `children` und `tasks`, Phantom-Zeile
+für Kinder ohne Tasks, `CAST(SUM(points) AS REAL)` als Subquery auf
+`point_transactions`. Die Page macht einen Fetch und splittet mit
+`splitViewRowsByChild` (`src/lib/tasks.ts`) client-seitig in active / completed /
+future.
+
 ## PocketBase Database Schema Changes
 
 **Never write migration SQL by hand!**

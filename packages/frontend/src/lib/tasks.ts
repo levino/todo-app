@@ -33,6 +33,117 @@ export interface Group {
 export const PHASES = ['morning', 'afternoon', 'evening'] as const
 export type Phase = (typeof PHASES)[number]
 
+export interface TasksPageViewRow {
+  id: string
+  child_id: string
+  child_name: string
+  child_color: string
+  group_id: string
+  child_points_balance: number | null
+  task_id: string
+  task_title: string
+  task_priority: number | null
+  task_time_of_day: string
+  task_due_date: string
+  task_completed: boolean
+  task_completed_at: string
+  task_last_completed_at: string
+  task_recurrence_type: string
+  task_points: number
+}
+
+export const viewRowToTask = (row: TasksPageViewRow): Task => ({
+  id: row.task_id,
+  title: row.task_title,
+  child: row.child_id,
+  priority: row.task_priority,
+  completed: row.task_completed,
+  completedAt: row.task_completed_at || null,
+  dueDate: row.task_due_date || null,
+  recurrenceType: row.task_recurrence_type || null,
+  recurrenceInterval: null,
+  recurrenceDays: null,
+  timeOfDay: row.task_time_of_day,
+  lastCompletedAt: row.task_last_completed_at || null,
+  completedBy: null,
+  points: row.task_points,
+})
+
+export interface ChildTasksSplit {
+  child: Child
+  pointsBalance: number
+  active: Task[]
+  recentlyCompleted: Task[]
+  future: Task[]
+}
+
+export const splitViewRowsByChild = (
+  rows: TasksPageViewRow[],
+  params: {
+    phase: Phase
+    todayDateStr: string
+    timezone: string
+    showFuture: boolean
+  },
+): ChildTasksSplit[] => {
+  const byChildId = new Map<string, ChildTasksSplit>()
+
+  for (const row of rows) {
+    let bucket = byChildId.get(row.child_id)
+    if (!bucket) {
+      bucket = {
+        child: {
+          id: row.child_id,
+          name: row.child_name,
+          color: row.child_color,
+          group: row.group_id,
+        },
+        pointsBalance: row.child_points_balance ?? 0,
+        active: [],
+        recentlyCompleted: [],
+        future: [],
+      }
+      byChildId.set(row.child_id, bucket)
+    }
+
+    if (!row.task_id) continue
+
+    const task = viewRowToTask(row)
+    const dueDateStr = row.task_due_date ? row.task_due_date.slice(0, 10) : ''
+    const completedAtDateStr = row.task_completed_at ? row.task_completed_at.slice(0, 10) : ''
+    const lastCompletedAtDateStr = row.task_last_completed_at ? row.task_last_completed_at.slice(0, 10) : ''
+
+    const isActive =
+      !row.task_completed &&
+      row.task_time_of_day === params.phase &&
+      (!dueDateStr || dueDateStr <= params.todayDateStr)
+
+    const isRecentlyCompleted =
+      (row.task_completed && completedAtDateStr === params.todayDateStr) ||
+      (!row.task_completed &&
+        !!row.task_recurrence_type &&
+        lastCompletedAtDateStr === params.todayDateStr)
+
+    const isFuture =
+      !row.task_completed && !!dueDateStr && dueDateStr > params.todayDateStr
+
+    if (isActive) bucket.active.push(task)
+    if (isRecentlyCompleted) bucket.recentlyCompleted.push(task)
+    if (params.showFuture && isFuture) bucket.future.push(task)
+  }
+
+  for (const bucket of byChildId.values()) {
+    bucket.active = sortTasks(bucket.active, params.timezone)
+    bucket.future.sort((a, b) => {
+      if (!a.dueDate) return 1
+      if (!b.dueDate) return -1
+      return a.dueDate.localeCompare(b.dueDate)
+    })
+  }
+
+  return Array.from(byChildId.values()).sort((a, b) => a.child.name.localeCompare(b.child.name))
+}
+
 export const phaseLabels: Record<string, string> = {
   morning: 'Morgens',
   afternoon: 'Nachmittags',
