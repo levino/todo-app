@@ -9,8 +9,7 @@ const errorLabels: Record<string, string> = {
   'not-found': 'Diese Aufgabe existiert nicht mehr.',
 }
 
-export const server = {
-  completeTask: defineAction({
+export const completeTask = defineAction({
     accept: 'form',
     input: z.object({
       taskId: z.string().min(1),
@@ -35,8 +34,9 @@ export const server = {
 
       return { success: true }
     },
-  }),
-  undoTask: defineAction({
+  })
+
+export const undoTask = defineAction({
     accept: 'form',
     input: z.object({
       taskId: z.string().min(1),
@@ -58,8 +58,9 @@ export const server = {
 
       return { success: true }
     },
-  }),
-  deleteTask: defineAction({
+  })
+
+export const deleteTask = defineAction({
     accept: 'form',
     input: z.object({
       taskId: z.string().min(1),
@@ -81,5 +82,4 @@ export const server = {
 
       return { success: true }
     },
-  }),
-}
+  })

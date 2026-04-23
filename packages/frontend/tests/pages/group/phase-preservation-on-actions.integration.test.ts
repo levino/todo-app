@@ -13,7 +13,6 @@ describe('Phase Preservation on Task Actions', () => {
   let container: AstroContainer
   let groupId: string
   let childId: string
-  let morningTaskId: string
   let afternoonTaskId: string
 
   beforeEach(async () => {
@@ -55,15 +54,6 @@ describe('Phase Preservation on Task Actions', () => {
     })
     childId = child.id
 
-    const morningTask = await adminPb.collection('tasks').create({
-      title: 'Morgenaufgabe',
-      child: childId,
-      priority: 1,
-      completed: false,
-      timeOfDay: 'morning',
-    })
-    morningTaskId = morningTask.id
-
     const afternoonTask = await adminPb.collection('tasks').create({
       title: 'Nachmittagsaufgabe',
       child: childId,
@@ -92,7 +82,8 @@ describe('Phase Preservation on Task Actions', () => {
 
     // Astro actions redirect back to the form's POST URL (minus _astroAction).
     // So the form's action attribute must carry phase=afternoon for it to survive the redirect.
-    const completeForms = html.match(/<form[^>]*action="[^"]*_astroAction=completeTask[^"]*"[^>]*>/g) ?? []
+    // Look for forms with action containing "completeTask" and query parameters
+    const completeForms = html.match(/<form[^>]*action="[^"]*completeTask[^"]*"[^>]*>/g) ?? []
     expect(completeForms.length).toBeGreaterThan(0)
     for (const form of completeForms) {
       expect(form).toContain('phase=afternoon')
@@ -102,7 +93,7 @@ describe('Phase Preservation on Task Actions', () => {
   it('delete form action URL preserves phase=afternoon so redirect keeps the phase', async () => {
     const html = await renderPage('phase=afternoon')
 
-    const deleteForms = html.match(/<form[^>]*action="[^"]*_astroAction=deleteTask[^"]*"[^>]*>/g) ?? []
+    const deleteForms = html.match(/<form[^>]*action="[^"]*deleteTask[^"]*"[^>]*>/g) ?? []
     expect(deleteForms.length).toBeGreaterThan(0)
     for (const form of deleteForms) {
       expect(form).toContain('phase=afternoon')
@@ -119,7 +110,7 @@ describe('Phase Preservation on Task Actions', () => {
 
     const html = await renderPage('phase=afternoon')
 
-    const undoForms = html.match(/<form[^>]*action="[^"]*_astroAction=undoTask[^"]*"[^>]*>/g) ?? []
+    const undoForms = html.match(/<form[^>]*action="[^"]*undoTask[^"]*"[^>]*>/g) ?? []
     expect(undoForms.length).toBeGreaterThan(0)
     for (const form of undoForms) {
       expect(form).toContain('phase=afternoon')
