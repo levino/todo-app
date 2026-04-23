@@ -83,3 +83,9 @@ export const deleteTask = defineAction({
       return { success: true }
     },
   })
+
+export const server = {
+  completeTask,
+  undoTask,
+  deleteTask,
+}
