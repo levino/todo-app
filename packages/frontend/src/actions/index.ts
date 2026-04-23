@@ -1,12 +1,12 @@
 import { ActionError, defineAction } from 'astro:actions'
 import { z } from 'astro/zod'
-import { completeTask, undoTask } from '@/lib/tasks'
+import { completeTask, deleteTask, undoTask } from '@/lib/tasks'
 
 const errorLabels: Record<string, string> = {
-  'wrong-phase': 'Diese Aufgabe ist gerade nicht dran.',
   'not-yet-due': 'Diese Aufgabe ist noch nicht fällig.',
   'already-completed': 'Diese Aufgabe wurde bereits erledigt.',
   'not-completed-today': 'Diese Aufgabe wurde nicht heute erledigt.',
+  'not-found': 'Diese Aufgabe existiert nicht mehr.',
 }
 
 export const server = {
@@ -53,6 +53,29 @@ export const server = {
         throw new ActionError({
           code: 'BAD_REQUEST',
           message: errorLabels[result.error] || 'Fehler beim Rückgängigmachen.',
+        })
+      }
+
+      return { success: true }
+    },
+  }),
+  deleteTask: defineAction({
+    accept: 'form',
+    input: z.object({
+      taskId: z.string().min(1),
+    }),
+    handler: async (input, context) => {
+      const { pb, user } = context.locals
+      if (!user) {
+        throw new ActionError({ code: 'UNAUTHORIZED', message: 'Nicht angemeldet.' })
+      }
+
+      const result = await deleteTask(pb, input.taskId)
+
+      if (result.error) {
+        throw new ActionError({
+          code: 'BAD_REQUEST',
+          message: errorLabels[result.error] || 'Fehler beim Löschen.',
         })
       }
 

@@ -13,6 +13,7 @@ export interface Task {
   lastCompletedAt: string | null
   completedBy: string | null
   points: number
+  isChore: boolean
 }
 
 export interface Child {
@@ -50,6 +51,7 @@ export interface TasksPageViewRow {
   task_last_completed_at: string
   task_recurrence_type: string
   task_points: number
+  task_is_chore: boolean
 }
 
 export const viewRowToTask = (row: TasksPageViewRow): Task => ({
@@ -67,6 +69,7 @@ export const viewRowToTask = (row: TasksPageViewRow): Task => ({
   lastCompletedAt: row.task_last_completed_at || null,
   completedBy: null,
   points: row.task_points,
+  isChore: !!row.task_is_chore,
 })
 
 export interface ChildTasksSplit {
@@ -261,10 +264,6 @@ export const completeTask = async (
 
   const group = await pb.collection('groups').getOne(groupId)
   const timezone = group.timezone || 'Europe/Berlin'
-  const currentPhase = getCurrentPhase(group.morningEnd, group.eveningStart, timezone)
-  if (task.timeOfDay !== currentPhase) {
-    return { error: 'wrong-phase' }
-  }
 
   if (task.dueDate) {
     const dueDateStr = task.dueDate.slice(0, 10)
@@ -341,12 +340,24 @@ export const undoTask = async (
   return {}
 }
 
+export const deleteTask = async (
+  pb: import('pocketbase').default,
+  taskId: string,
+): Promise<{ error?: string }> => {
+  try {
+    await pb.collection('tasks').delete(taskId)
+    return {}
+  } catch {
+    return { error: 'not-found' }
+  }
+}
+
 export const sortTasks = (tasks: Task[], timezone?: string, now?: Date): Task[] => {
   const tz = timezone || 'Europe/Berlin'
   const todayStr = getLocalDateString(tz, now || new Date())
   return tasks.sort((a, b) => {
-    const overdueA = a.dueDate && a.dueDate.slice(0, 10) < todayStr ? 1 : 0
-    const overdueB = b.dueDate && b.dueDate.slice(0, 10) < todayStr ? 1 : 0
+    const overdueA = !a.isChore && a.dueDate && a.dueDate.slice(0, 10) < todayStr ? 1 : 0
+    const overdueB = !b.isChore && b.dueDate && b.dueDate.slice(0, 10) < todayStr ? 1 : 0
     if (overdueA !== overdueB) return overdueB - overdueA
 
     const priorityA = (a.priority === null || a.priority === undefined || a.priority === 0) ? Infinity : a.priority

@@ -782,7 +782,7 @@ describe('Time-Travel Integration Tests', () => {
   // ====== H. Server Validation ======
 
   describe('H. Server Validation', () => {
-    it('cannot complete morning task when it is afternoon → error', async () => {
+    it('completes morning task when it is afternoon (no phase restriction)', async () => {
       travelTo('2026-03-10T06:00:00Z')
       const taskId = await createTask({
         title: 'Morgenaufgabe',
@@ -792,10 +792,12 @@ describe('Time-Travel Integration Tests', () => {
 
       travelTo('2026-03-10T13:00:00Z')
       const result = await doCompleteTask(taskId)
-      expect(result.error).toBe('wrong-phase')
+      expect(result.error).toBeUndefined()
+      const task = await getTask(taskId)
+      expect(task.completed).toBe(true)
     })
 
-    it('cannot complete evening task when it is morning → error', async () => {
+    it('completes evening task when it is morning (no phase restriction)', async () => {
       travelTo('2026-03-10T19:00:00Z')
       const taskId = await createTask({
         title: 'Abendaufgabe',
@@ -805,7 +807,9 @@ describe('Time-Travel Integration Tests', () => {
 
       travelTo('2026-03-10T06:00:00Z')
       const result = await doCompleteTask(taskId)
-      expect(result.error).toBe('wrong-phase')
+      expect(result.error).toBeUndefined()
+      const task = await getTask(taskId)
+      expect(task.completed).toBe(true)
     })
 
     it('cannot complete task with dueDate=tomorrow → error', async () => {

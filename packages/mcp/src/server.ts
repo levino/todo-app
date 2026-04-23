@@ -422,11 +422,12 @@ function registerTools() {
       recurrenceInterval: z.number().optional().describe('Days between recurrences (for interval type)'),
       recurrenceDays: z.array(z.number()).optional().describe('Weekdays for recurrence (0=Sunday, 1=Monday, ..., 6=Saturday)'),
       points: z.number().optional().describe('Points awarded for completing this task'),
+      isChore: z.boolean().optional().describe('If true, task never shows as overdue and silently rolls over to the next day if not completed'),
     }),
     handler: async (args, pb) => {
-      const { childId, title, timeOfDay, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays, points } = args as {
+      const { childId, title, timeOfDay, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays, points, isChore } = args as {
         childId: string; title: string; timeOfDay: string; priority?: number; dueDate?: string;
-        recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]; points?: number
+        recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]; points?: number; isChore?: boolean
       }
 
       const child = await pb.collection('children').getOne(childId)
@@ -447,6 +448,7 @@ function registerTools() {
         recurrenceInterval: recurrenceInterval ?? null,
         recurrenceDays: recurrenceDays ?? null,
         points: points ?? null,
+        isChore: isChore ?? false,
       })
 
       const parts = [`Created task "${title}" (ID: ${task.id})`]
@@ -466,15 +468,17 @@ function registerTools() {
       priority: z.number().optional().describe('New priority'),
       childId: z.string().optional().describe('Reassign to different child'),
       timeOfDay: z.enum(['morning', 'afternoon', 'evening']).optional().describe('Time of day phase'),
+      isChore: z.boolean().optional().describe('Mark/unmark as chore (never overdue, silent rollover)'),
     }),
     handler: async (args, pb) => {
-      const { taskId, title, priority, childId, timeOfDay } = args as { taskId: string; title?: string; priority?: number; childId?: string; timeOfDay?: string }
+      const { taskId, title, priority, childId, timeOfDay, isChore } = args as { taskId: string; title?: string; priority?: number; childId?: string; timeOfDay?: string; isChore?: boolean }
 
       const updates: Record<string, unknown> = {}
       if (title) updates.title = title
       if (priority !== undefined) updates.priority = priority
       if (childId) updates.child = childId
       if (timeOfDay) updates.timeOfDay = timeOfDay
+      if (isChore !== undefined) updates.isChore = isChore
 
       await pb.collection('tasks').update(taskId, updates)
 

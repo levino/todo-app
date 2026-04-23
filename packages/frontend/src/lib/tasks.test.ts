@@ -63,8 +63,8 @@ describe('sortTasks with timezone', () => {
     // 2026-03-13 23:30 UTC = 2026-03-14 in Europe/Berlin
     // A task due on 2026-03-13 is overdue in Berlin on 2026-03-14 local
     const tasks = [
-      { id: '1', title: 'Due today', dueDate: '2026-03-14 00:00:00.000Z', priority: 1, completed: false, child: 'c1', recurrenceType: null, recurrenceInterval: null, recurrenceDays: null, timeOfDay: 'afternoon', lastCompletedAt: null, completedAt: null, completedBy: null },
-      { id: '2', title: 'Overdue', dueDate: '2026-03-13 00:00:00.000Z', priority: 2, completed: false, child: 'c1', recurrenceType: null, recurrenceInterval: null, recurrenceDays: null, timeOfDay: 'afternoon', lastCompletedAt: null, completedAt: null, completedBy: null },
+      { id: '1', title: 'Due today', dueDate: '2026-03-14 00:00:00.000Z', priority: 1, completed: false, child: 'c1', recurrenceType: null, recurrenceInterval: null, recurrenceDays: null, timeOfDay: 'afternoon', lastCompletedAt: null, completedAt: null, completedBy: null, points: 0, isChore: false },
+      { id: '2', title: 'Overdue', dueDate: '2026-03-13 00:00:00.000Z', priority: 2, completed: false, child: 'c1', recurrenceType: null, recurrenceInterval: null, recurrenceDays: null, timeOfDay: 'afternoon', lastCompletedAt: null, completedAt: null, completedBy: null, points: 0, isChore: false },
     ]
     const sorted = sortTasks(tasks, 'Europe/Berlin', new Date('2026-03-13T23:30:00Z'))
     expect(sorted[0].title).toBe('Overdue')
