@@ -223,7 +223,7 @@ const buildPhaseHref = (phase: string) => {
               ) : (
                 <ul class="space-y-3">
                   {tasks.map((task) => {
-                    const isOverdue = task.dueDate && task.dueDate.slice(0, 10) < todayStr
+                    const isOverdue = !task.isChore && task.dueDate && task.dueDate.slice(0, 10) < todayStr
                     return (
                       <li
                         data-testid="task-item"
@@ -258,6 +258,24 @@ const buildPhaseHref = (phase: string) => {
                             <span data-testid="task-points" class="badge badge-warning badge-sm ml-2">+{task.points}</span>
                           )}
                         </div>
+                        <form
+                          method="POST"
+                          action={actions.deleteTask}
+                          data-testid="delete-form"
+                          data-delete-task-title={task.title}
+                        >
+                          <input type="hidden" name="taskId" value={task.id} />
+                          <button
+                            type="submit"
+                            data-testid="delete-button"
+                            class="btn btn-circle btn-ghost btn-sm text-error opacity-60 hover:opacity-100 transition-opacity"
+                            aria-label={`${task.title} löschen`}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                            </svg>
+                          </button>
+                        </form>
                       </li>
                     )
                   })}
@@ -280,7 +298,7 @@ const buildPhaseHref = (phase: string) => {
                           <span class="text-lg line-through">{task.title}</span>
                           <span class="badge badge-sm badge-outline ml-2">{phaseLabels[task.timeOfDay]}</span>
                         </div>
-                        <form method="POST" action={actions.undoTask}>
+                        <form method="POST" action={actions.undoTask} data-undo-form>
                           <input type="hidden" name="taskId" value={task.id} />
                           <button
                             type="submit"
@@ -366,6 +384,20 @@ const buildPhaseHref = (phase: string) => {
     </form>
   </dialog>
 
+  <dialog data-testid="delete-confirm-dialog" id="delete-confirm-dialog" class="modal">
+    <div class="modal-box">
+      <h3 class="text-lg font-bold">Aufgabe löschen?</h3>
+      <p class="py-4">Willst du <strong id="delete-confirm-task-title"></strong> wirklich löschen?</p>
+      <div class="modal-action">
+        <button data-testid="delete-confirm-cancel" id="delete-confirm-cancel" class="btn">Abbrechen</button>
+        <button data-testid="delete-confirm-ok" id="delete-confirm-ok" class="btn btn-error">Löschen</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>
+
   <script>
     document.addEventListener('astro:page-load', () => {
       let pendingForm: HTMLFormElement | null = null
@@ -373,6 +405,12 @@ const buildPhaseHref = (phase: string) => {
       const titleEl = document.getElementById('confirm-task-title') as HTMLElement
       const cancelBtn = document.getElementById('confirm-cancel') as HTMLButtonElement
       const okBtn = document.getElementById('confirm-ok') as HTMLButtonElement
+
+      let pendingDeleteForm: HTMLFormElement | null = null
+      const deleteDialog = document.getElementById('delete-confirm-dialog') as HTMLDialogElement
+      const deleteTitleEl = document.getElementById('delete-confirm-task-title') as HTMLElement
+      const deleteCancelBtn = document.getElementById('delete-confirm-cancel') as HTMLButtonElement
+      const deleteOkBtn = document.getElementById('delete-confirm-ok') as HTMLButtonElement
 
       if (!dialog || !titleEl || !cancelBtn || !okBtn) return
 
@@ -394,9 +432,32 @@ const buildPhaseHref = (phase: string) => {
         if (pendingForm) pendingForm.submit()
       })
 
+      if (deleteDialog && deleteTitleEl && deleteCancelBtn && deleteOkBtn) {
+        document.querySelectorAll('form[data-delete-task-title]').forEach((form) => {
+          form.addEventListener('submit', (e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            pendingDeleteForm = form as HTMLFormElement
+            deleteTitleEl.textContent = form.getAttribute('data-delete-task-title') || ''
+            deleteDialog.showModal()
+          })
+        })
+
+        deleteCancelBtn.addEventListener('click', () => {
+          pendingDeleteForm = null
+          deleteDialog.close()
+        })
+
+        deleteOkBtn.addEventListener('click', () => {
+          if (pendingDeleteForm) pendingDeleteForm.submit()
+        })
+      }
+
       document.querySelectorAll('[data-testid="task-item"]').forEach((li) => {
         li.addEventListener('click', (e) => {
-          if ((e.target as Element).closest('button')) return
+          const target = e.target as Element
+          if (target.closest('button')) return
+          if (target.closest('form[data-delete-task-title]')) return
           const form = li.querySelector('form[data-task-title]') as HTMLFormElement
           if (form) {
             const event = new Event('submit', { cancelable: true, bubbles: true })
@@ -453,5 +514,41 @@ const buildPhaseHref = (phase: string) => {
         })
       })
     })
+  </script>
+
+  <script is:inline data-scroll-preservation>
+    (function () {
+      var KEY = 'task-page-scroll-y'
+
+      function saveScroll() {
+        try { sessionStorage.setItem(KEY, String(window.scrollY)) } catch (_) {}
+      }
+
+      function restoreScroll() {
+        try {
+          var saved = sessionStorage.getItem(KEY)
+          if (saved === null) return
+          sessionStorage.removeItem(KEY)
+          var y = parseInt(saved, 10)
+          if (!isNaN(y)) window.scrollTo(0, y)
+        } catch (_) {}
+      }
+
+      if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
+
+      document.addEventListener('submit', function (e) {
+        var form = e.target
+        if (!form || !(form instanceof HTMLFormElement)) return
+        if (form.hasAttribute('data-task-title') ||
+            form.hasAttribute('data-delete-task-title') ||
+            form.getAttribute('action') && form.getAttribute('action').indexOf('undoTask') !== -1) {
+          saveScroll()
+        }
+      }, true)
+
+      document.addEventListener('astro:before-preparation', saveScroll)
+      document.addEventListener('astro:page-load', restoreScroll)
+      window.addEventListener('pageshow', restoreScroll)
+    })()
   </script>
 </Layout>
