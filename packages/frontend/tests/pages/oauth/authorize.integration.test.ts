@@ -13,6 +13,7 @@ import { describe, expect, it, beforeEach, vi } from 'vitest'
 import PocketBase from 'pocketbase'
 import AuthorizePage from '../../../src/pages/oauth/authorize.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
+import { authUser } from '../../helpers'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -111,7 +112,7 @@ describe('OAuth Authorize Page', () => {
 
       const response = await container.renderToResponse(AuthorizePage, {
         request: new Request(`http://localhost:4321${authorizeUrl}`),
-        locals: { pb: userPb, user: userPb.authStore.record },
+        locals: { pb: userPb, user: authUser(userPb) },
       })
 
       expect(response.status).toBe(200)
@@ -126,7 +127,7 @@ describe('OAuth Authorize Page', () => {
 
       const response = await container.renderToResponse(AuthorizePage, {
         request: new Request(`http://localhost:4321${authorizeUrl}`),
-        locals: { pb: userPb, user: userPb.authStore.record },
+        locals: { pb: userPb, user: authUser(userPb) },
       })
 
       expect(response.status).toBe(200)
@@ -140,7 +141,7 @@ describe('OAuth Authorize Page', () => {
 
       const response = await container.renderToResponse(AuthorizePage, {
         request: new Request(`http://localhost:4321${authorizeUrl}`),
-        locals: { pb: userPb, user: userPb.authStore.record },
+        locals: { pb: userPb, user: authUser(userPb) },
       })
 
       expect(response.status).toBe(200)
@@ -154,7 +155,7 @@ describe('OAuth Authorize Page', () => {
 
       const response = await container.renderToResponse(AuthorizePage, {
         request: new Request(`http://localhost:4321${authorizeUrl}`),
-        locals: { pb: userPb, user: userPb.authStore.record },
+        locals: { pb: userPb, user: authUser(userPb) },
       })
 
       expect(response.status).toBe(200)
@@ -168,7 +169,7 @@ describe('OAuth Authorize Page', () => {
 
       const response = await container.renderToResponse(AuthorizePage, {
         request: new Request(`http://localhost:4321${authorizeUrl}`),
-        locals: { pb: userPb, user: userPb.authStore.record },
+        locals: { pb: userPb, user: authUser(userPb) },
       })
 
       expect(response.status).toBe(200)
@@ -182,7 +183,7 @@ describe('OAuth Authorize Page', () => {
 
       const response = await container.renderToResponse(AuthorizePage, {
         request: new Request(`http://localhost:4321${authorizeUrl}`),
-        locals: { pb: userPb, user: userPb.authStore.record },
+        locals: { pb: userPb, user: authUser(userPb) },
       })
 
       expect(response.status).toBe(200)
@@ -196,7 +197,7 @@ describe('OAuth Authorize Page', () => {
 
       const response = await container.renderToResponse(AuthorizePage, {
         request: new Request(`http://localhost:4321${authorizeUrl}`),
-        locals: { pb: userPb, user: userPb.authStore.record },
+        locals: { pb: userPb, user: authUser(userPb) },
       })
 
       expect(response.status).toBe(200)
@@ -217,7 +218,7 @@ describe('OAuth Authorize Page', () => {
         request: new Request(`http://localhost:4321${authorizeUrl}`, {
           method: 'POST',
         }),
-        locals: { pb: userPb, user: userPb.authStore.record },
+        locals: { pb: userPb, user: authUser(userPb) },
       })
 
       // Should redirect with auth code

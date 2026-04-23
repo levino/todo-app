@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
+import { authUser } from '../../helpers'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -52,7 +53,7 @@ describe('Refresh button in navbar', () => {
   it('should render refresh button inside the navbar, not in page content, in overview mode', async () => {
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
     })
 
     // The refresh button must exist
@@ -76,7 +77,7 @@ describe('Refresh button in navbar', () => {
   it('should render refresh button inside the navbar in child view', async () => {
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
       request: new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`),
     })
 
@@ -97,7 +98,7 @@ describe('Refresh button in navbar', () => {
   it('should only have one refresh button on the page', async () => {
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
     })
 
     const matches = html.match(/data-testid="refresh-button"/g)

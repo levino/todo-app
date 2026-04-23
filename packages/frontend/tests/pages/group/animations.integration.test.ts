@@ -4,6 +4,7 @@ import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
 import { getCurrentPhase } from '@/lib/tasks'
+import { authUser } from '../../helpers'
 
 const POCKETBASE_URL =
   process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
@@ -76,7 +77,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
 
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: pb.authStore.record },
+        locals: { pb, user: authUser(pb) },
       })
 
       // Task items should have press-down animation classes
@@ -95,7 +96,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
 
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: pb.authStore.record },
+        locals: { pb, user: authUser(pb) },
       })
 
       expect(html).toMatch(/data-testid="task-item"[^>]*hover:shadow-md/)
@@ -104,7 +105,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
     it('should have transition classes on child name links', async () => {
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: pb.authStore.record },
+        locals: { pb, user: authUser(pb) },
       })
 
       // Child name links should have hover lift and transition
@@ -121,7 +122,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
 
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: pb.authStore.record },
+        locals: { pb, user: authUser(pb) },
       })
 
       expect(html).toMatch(/data-testid="complete-button"[^>]*transition-transform/)
@@ -132,7 +133,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
       // No tasks = celebration shown
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: pb.authStore.record },
+        locals: { pb, user: authUser(pb) },
       })
 
       expect(html).toMatch(/data-testid="celebration-emoji"[^>]*animate-bounce/)
@@ -144,7 +145,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
         request: new Request(`http://localhost/group/${groupId}/tasks?child=${child1Id}`),
-        locals: { pb, user: pb.authStore.record },
+        locals: { pb, user: authUser(pb) },
       })
 
       expect(html).toMatch(/data-testid="child-tab"[^>]*transition-all/)
@@ -162,7 +163,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
         request: new Request(`http://localhost/group/${groupId}/tasks?child=${child1Id}`),
-        locals: { pb, user: pb.authStore.record },
+        locals: { pb, user: authUser(pb) },
       })
 
       expect(html).toMatch(/data-testid="task-item"[^>]*transition-transform/)

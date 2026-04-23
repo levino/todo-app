@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
 import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
+import { authUser } from '../../helpers'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -82,7 +83,7 @@ describe('Phase Switcher', () => {
   const renderPage = (query = '') =>
     container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
       request: new Request(`http://localhost/group/${groupId}/tasks?child=${childId}${query ? `&${query}` : ''}`),
     })
 
@@ -166,7 +167,7 @@ describe('Phase Switcher', () => {
     vi.setSystemTime(new Date('2026-03-10T13:00:00Z'))
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
       request: new Request(`http://localhost/group/${groupId}/tasks`),
     })
     expect(html).toContain('data-testid="phase-button-morning"')

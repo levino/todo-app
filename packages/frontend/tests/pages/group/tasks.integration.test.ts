@@ -4,6 +4,7 @@ import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
 import { getCurrentPhase } from '@/lib/tasks'
+import { authUser } from '../../helpers'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -45,7 +46,7 @@ describe('Tasks Page - Overview (no ?child)', () => {
   it('should show message when no children exist', async () => {
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
     })
 
     expect(html).toContain('Noch keine Kinder angelegt')
@@ -61,7 +62,7 @@ describe('Tasks Page - Overview (no ?child)', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
     })
 
     expect(html).toContain('Max')
@@ -78,7 +79,7 @@ describe('Tasks Page - Overview (no ?child)', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
     })
 
     expect(html).toContain(`/group/${groupId}/tasks?child=${child.id}`)
@@ -98,7 +99,7 @@ describe('Tasks Page - Overview (no ?child)', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
     })
 
     expect(html).toContain('Max')
@@ -158,7 +159,7 @@ describe('Tasks Page - Child View (?child=id)', () => {
   const renderChildPage = (childIdParam: string = childId) =>
     container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
       request: new Request(`http://localhost/group/${groupId}/tasks?child=${childIdParam}`),
     })
 

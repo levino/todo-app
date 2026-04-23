@@ -9,6 +9,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
 import GroupsPage from '../../../src/pages/settings/groups.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
+import { authUser } from '../../helpers'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -41,7 +42,7 @@ describe('Settings Groups Page', () => {
     it('should render the groups settings page', async () => {
       const response = await container.renderToResponse(GroupsPage, {
         request: new Request('http://localhost:4321/settings/groups'),
-        locals: { pb: userPb, user: userPb.authStore.record },
+        locals: { pb: userPb, user: authUser(userPb) },
       })
 
       expect(response.status).toBe(200)
@@ -52,7 +53,7 @@ describe('Settings Groups Page', () => {
     it('should show create group option for user with no groups', async () => {
       const response = await container.renderToResponse(GroupsPage, {
         request: new Request('http://localhost:4321/settings/groups'),
-        locals: { pb: userPb, user: userPb.authStore.record },
+        locals: { pb: userPb, user: authUser(userPb) },
       })
 
       expect(response.status).toBe(200)

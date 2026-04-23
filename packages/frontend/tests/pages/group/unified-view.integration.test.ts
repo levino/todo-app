@@ -4,6 +4,7 @@ import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
 import { getCurrentPhase, completeTask } from '@/lib/tasks'
+import { authUser } from '../../helpers'
 
 const POCKETBASE_URL =
   process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
@@ -77,13 +78,13 @@ describe('Unified Task View', () => {
   const renderOverview = () =>
     container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
     })
 
   const renderDetailView = (childId: string) =>
     container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
       request: new Request(
         `http://localhost/group/${groupId}/tasks?child=${childId}`,
       ),
