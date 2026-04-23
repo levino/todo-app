@@ -96,6 +96,28 @@ const buildPhaseHref = (phase: string) => {
   params.set('phase', phase)
   return `/group/${groupId}/tasks?${params.toString()}`
 }
+
+const preservedParams = new URLSearchParams()
+if (selectedChildId) preservedParams.set('child', selectedChildId)
+if (phaseOverride) preservedParams.set('phase', phaseOverride)
+if (showFuture) preservedParams.set('showFuture', 'true')
+const preservedQuery = preservedParams.toString()
+const actionSuffix = preservedQuery ? `&${preservedQuery}` : ''
+
+const buildChildHref = (childIdParam: string) => {
+  const params = new URLSearchParams()
+  params.set('child', childIdParam)
+  if (phaseOverride) params.set('phase', phaseOverride)
+  return `/group/${groupId}/tasks?${params.toString()}`
+}
+
+const buildFutureToggleHref = (nextShowFuture: boolean) => {
+  const params = new URLSearchParams()
+  if (selectedChildId) params.set('child', selectedChildId)
+  if (phaseOverride) params.set('phase', phaseOverride)
+  if (nextShowFuture) params.set('showFuture', 'true')
+  return `/group/${groupId}/tasks?${params.toString()}`
+}
 ---
 
 <Layout title={selectedChild ? `${selectedChild.name} - Aufgaben` : `${groupName} - Aufgaben`}>
@@ -111,7 +133,7 @@ const buildPhaseHref = (phase: string) => {
         <nav data-testid="child-switcher" class="flex gap-2 mb-6 overflow-x-auto pb-2">
           {children.map((sibling) => (
             <a
-              href={`/group/${groupId}/tasks?child=${sibling.id}`}
+              href={buildChildHref(sibling.id)}
               data-testid="child-tab"
               class:list={[
                 'flex items-center gap-2 px-4 py-3 rounded-xl min-h-[56px] min-w-[120px] transition-all duration-150 active:scale-95',
@@ -193,7 +215,7 @@ const buildPhaseHref = (phase: string) => {
             <div data-testid="child-column" transition:name={`child-${child.id}`}>
               {!selectedChild && (
                 <header class="flex items-center gap-3 mb-4">
-                  <a href={`/group/${groupId}/tasks?child=${child.id}`} class="flex items-center gap-3 text-2xl font-bold no-underline hover:-translate-y-0.5 transition-transform duration-150">
+                  <a href={buildChildHref(child.id)} class="flex items-center gap-3 text-2xl font-bold no-underline hover:-translate-y-0.5 transition-transform duration-150">
                     <ColoredInitials name={child.name} color={child.color} size="md" />
                     {child.name}
                   </a>
@@ -233,7 +255,7 @@ const buildPhaseHref = (phase: string) => {
                           isOverdue ? 'bg-error/10 border-2 border-error' : 'bg-base-200',
                         ]}
                       >
-                        <form method="POST" action={actions.completeTask} data-task-title={task.title}>
+                        <form method="POST" action={`${actions.completeTask}${actionSuffix}`} data-task-title={task.title}>
                           <input type="hidden" name="taskId" value={task.id} />
                           <input type="hidden" name="childId" value={child.id} />
                           <input type="hidden" name="completedBy" value={child.id} />
@@ -260,7 +282,7 @@ const buildPhaseHref = (phase: string) => {
                         </div>
                         <form
                           method="POST"
-                          action={actions.deleteTask}
+                          action={`${actions.deleteTask}${actionSuffix}`}
                           data-testid="delete-form"
                           data-delete-task-title={task.title}
                         >
@@ -298,7 +320,7 @@ const buildPhaseHref = (phase: string) => {
                           <span class="text-lg line-through">{task.title}</span>
                           <span class="badge badge-sm badge-outline ml-2">{phaseLabels[task.timeOfDay]}</span>
                         </div>
-                        <form method="POST" action={actions.undoTask} data-undo-form>
+                        <form method="POST" action={`${actions.undoTask}${actionSuffix}`} data-undo-form>
                           <input type="hidden" name="taskId" value={task.id} />
                           <button
                             type="submit"
@@ -346,9 +368,7 @@ const buildPhaseHref = (phase: string) => {
         <div class="mt-6">
           <a
             data-testid="future-tasks-toggle"
-            href={showFuture
-              ? `/group/${groupId}/tasks?child=${selectedChildId}`
-              : `/group/${groupId}/tasks?child=${selectedChildId}&showFuture=true`}
+            href={buildFutureToggleHref(!showFuture)}
             class="btn btn-ghost btn-sm"
           >
             {showFuture ? 'Zukünftige Aufgaben ausblenden' : 'Zukünftige Aufgaben anzeigen'}
