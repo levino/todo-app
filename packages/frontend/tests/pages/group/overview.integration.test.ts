@@ -4,6 +4,7 @@ import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
 import { getCurrentPhase, completeTask, undoTask } from '@/lib/tasks'
+import { authUser } from '../../helpers'
 
 const POCKETBASE_URL =
   process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
@@ -86,7 +87,7 @@ describe('Tasks Overview Page', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb, user: pb.authStore.record },
+      locals: { pb, user: authUser(pb) },
     })
 
     expect(html).toContain('Max')
@@ -105,7 +106,7 @@ describe('Tasks Overview Page', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb, user: pb.authStore.record },
+      locals: { pb, user: authUser(pb) },
     })
 
     expect(html).toContain('Max')
@@ -134,7 +135,7 @@ describe('Tasks Overview Page', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb, user: pb.authStore.record },
+      locals: { pb, user: authUser(pb) },
     })
 
     expect(html).not.toContain('Future Task')
@@ -151,7 +152,7 @@ describe('Tasks Overview Page', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb, user: pb.authStore.record },
+      locals: { pb, user: authUser(pb) },
     })
 
     expect(html).toContain('name="completedBy"')
@@ -182,7 +183,7 @@ describe('Tasks Overview Page', () => {
 
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: pb.authStore.record },
+        locals: { pb, user: authUser(pb) },
       })
 
       expect(html).toContain('data-testid="recently-completed"')
@@ -207,7 +208,7 @@ describe('Tasks Overview Page', () => {
 
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: pb.authStore.record },
+        locals: { pb, user: authUser(pb) },
       })
 
       expect(html).toContain('Tisch decken')

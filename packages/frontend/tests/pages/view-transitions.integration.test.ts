@@ -4,6 +4,7 @@ import PocketBase from 'pocketbase'
 import Layout from '../../src/layouts/Layout.astro'
 import TasksPage from '../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
+import { authUser } from '../helpers'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -67,7 +68,7 @@ describe('View Transitions', () => {
     it('should use fade transition, not slide', async () => {
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb: userPb, user: userPb.authStore.record },
+        locals: { pb: userPb, user: authUser(userPb) },
       })
 
       expect(html).not.toContain('transition:animate="slide"')
@@ -77,7 +78,7 @@ describe('View Transitions', () => {
     it('should have transition:name on child columns for morph effect', async () => {
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb: userPb, user: userPb.authStore.record },
+        locals: { pb: userPb, user: authUser(userPb) },
       })
 
       expect(html).toMatch(/data-testid="child-column"[^>]*data-astro-transition-scope/)

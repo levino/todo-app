@@ -4,6 +4,7 @@ import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
 import { getCurrentPhase } from '@/lib/tasks'
+import { authUser } from '../../helpers'
 
 const POCKETBASE_URL =
   process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
@@ -71,7 +72,7 @@ describe('Clickable Task Cards', () => {
         request: new Request(
           `http://localhost/group/${groupId}/tasks?child=${childId}`,
         ),
-        locals: { pb, user: pb.authStore.record },
+        locals: { pb, user: authUser(pb) },
       })
 
       const taskItemMatches = html.match(
@@ -90,7 +91,7 @@ describe('Clickable Task Cards', () => {
         request: new Request(
           `http://localhost/group/${groupId}/tasks?child=${childId}`,
         ),
-        locals: { pb, user: pb.authStore.record },
+        locals: { pb, user: authUser(pb) },
       })
 
       // The page must contain a script tag (the confirmation dialog + click handler)
@@ -106,7 +107,7 @@ describe('Clickable Task Cards', () => {
     it('should wrap child avatar and name together in one link', async () => {
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: pb.authStore.record },
+        locals: { pb, user: authUser(pb) },
       })
 
       // The child section header should have the <a> wrapping both the avatar and the name
@@ -132,7 +133,7 @@ describe('Clickable Task Cards', () => {
     it('should have cursor-pointer class on overview task items', async () => {
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: pb.authStore.record },
+        locals: { pb, user: authUser(pb) },
       })
 
       const taskItemMatches = html.match(

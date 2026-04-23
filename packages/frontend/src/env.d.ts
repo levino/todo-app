@@ -13,13 +13,17 @@ interface ImportMeta {
   readonly env: ImportMetaEnv
 }
 
-declare namespace App {
-  interface Locals {
-    /** The authenticated user, if any */
-    user?: AuthUser
-    /** Per-request PocketBase instance with auth loaded */
-    pb: PocketBase
-    /** Current group ID from URL path (for /group/[groupId]/* routes) */
-    groupId?: string
+declare global {
+  namespace App {
+    interface Locals {
+      /** The authenticated user, if any */
+      user?: AuthUser
+      /** Per-request PocketBase instance with auth loaded */
+      pb: PocketBase
+      /** Current group ID from URL path (for /group/[groupId]/* routes) */
+      groupId?: string
+    }
   }
 }
+
+export {}

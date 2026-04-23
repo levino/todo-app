@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
 import TasksIndexPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
+import { authUser } from '../../helpers'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -51,7 +52,7 @@ describe('Authenticated Group Page Access', () => {
   it('should access tasks page with groupId from URL params', async () => {
     const response = await container.renderToResponse(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
     })
 
     expect(response.status).toBe(200)

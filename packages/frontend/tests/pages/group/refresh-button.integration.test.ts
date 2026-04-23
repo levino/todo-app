@@ -3,6 +3,7 @@ import { describe, expect, it, beforeEach } from 'vitest'
 import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
+import { authUser } from '../../helpers'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -52,7 +53,7 @@ describe('Refresh Button', () => {
   it('should render refresh button in overview mode', async () => {
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
     })
 
     expect(html).toContain('data-testid="refresh-button"')
@@ -61,7 +62,7 @@ describe('Refresh Button', () => {
   it('should render refresh button in child view', async () => {
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
       request: new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`),
     })
 

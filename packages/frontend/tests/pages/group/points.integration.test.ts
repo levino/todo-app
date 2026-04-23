@@ -4,6 +4,7 @@ import PocketBase from 'pocketbase'
 import TasksIndexPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
 import { getCurrentPhase } from '@/lib/tasks'
+import { authUser } from '../../helpers'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -67,7 +68,7 @@ describe('Points Display on Task Page', () => {
     const request = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
     const html = await container.renderToString(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
       request,
     })
 
@@ -87,7 +88,7 @@ describe('Points Display on Task Page', () => {
     const request = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
     const html = await container.renderToString(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
       request,
     })
 
@@ -107,7 +108,7 @@ describe('Points Display on Task Page', () => {
     const request = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
     const html = await container.renderToString(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
       request,
     })
 
@@ -148,7 +149,7 @@ describe('Points Display on Task Page', () => {
     const request = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
     const html = await container.renderToString(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
       request,
     })
 

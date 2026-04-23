@@ -5,6 +5,7 @@ import request from 'supertest'
 import { app } from '@family-todo/mcp/src/server.js'
 import TasksIndexPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
 import { resetPocketBase } from '@/lib/pocketbase'
+import { authUser } from '../../helpers'
 
 const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
@@ -84,7 +85,7 @@ describe('Bug #47: Completed task stays visible after completion', () => {
     const req = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
     return container.renderToString(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
       request: req,
     })
   }
@@ -92,7 +93,7 @@ describe('Bug #47: Completed task stays visible after completion', () => {
   const renderOverviewPage = () =>
     container.renderToString(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: userPb.authStore.record },
+      locals: { pb: userPb, user: authUser(userPb) },
       request: new Request(`http://localhost/group/${groupId}/tasks`),
     })
 
