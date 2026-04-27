@@ -343,8 +343,26 @@ export const undoTask = async (
 export const deleteTask = async (
   pb: import('pocketbase').default,
   taskId: string,
+  timezone?: string,
 ): Promise<{ error?: string }> => {
   try {
+    const task = await pb.collection('tasks').getOne(taskId)
+
+    if (task.recurrenceType && task.dueDate) {
+      const baseDate = new Date(task.dueDate.slice(0, 10) + 'T00:00:00Z')
+      const nextDueDate = calculateNextDueDate(
+        task.recurrenceType,
+        task.recurrenceInterval,
+        task.recurrenceDays,
+        baseDate,
+        timezone,
+      )
+      if (nextDueDate) {
+        await pb.collection('tasks').update(taskId, { dueDate: nextDueDate })
+        return {}
+      }
+    }
+
     await pb.collection('tasks').delete(taskId)
     return {}
   } catch {

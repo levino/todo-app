@@ -136,6 +136,53 @@ describe('Delete Task Integration Tests', () => {
       const result = await doDeleteTask('nonexistentid1')
       expect(result.error).toBe('not-found')
     })
+
+    it('skips only the current instance of an interval-recurring task', async () => {
+      travelTo('2026-03-10T07:00:00Z')
+      const taskId = await createTask({
+        title: 'Müll rausbringen',
+        timeOfDay: 'morning',
+        dueDate: '2026-03-09',
+        recurrenceType: 'interval',
+        recurrenceInterval: 2,
+      })
+
+      travelTo('2026-03-10T07:00:00Z')
+      const result = await doDeleteTask(taskId)
+
+      expect(result.error).toBeUndefined()
+
+      const task = await getTaskSafe(taskId)
+      expect(task).not.toBeNull()
+      expect(task?.dueDate?.slice(0, 10)).toBe('2026-03-11')
+      expect(task?.recurrenceType).toBe('interval')
+      expect(task?.recurrenceInterval).toBe(2)
+      expect(task?.lastCompletedAt).toBeFalsy()
+      expect(task?.completed).toBe(false)
+    })
+
+    it('skips only the current instance of a weekly-recurring task', async () => {
+      travelTo('2026-03-10T07:00:00Z')
+      const taskId = await createTask({
+        title: 'Klavier üben',
+        timeOfDay: 'afternoon',
+        dueDate: '2026-03-09',
+        recurrenceType: 'weekly',
+        recurrenceDays: [1, 3, 5],
+      })
+
+      travelTo('2026-03-10T07:00:00Z')
+      const result = await doDeleteTask(taskId)
+
+      expect(result.error).toBeUndefined()
+
+      const task = await getTaskSafe(taskId)
+      expect(task).not.toBeNull()
+      expect(task?.dueDate?.slice(0, 10)).toBe('2026-03-11')
+      expect(task?.recurrenceType).toBe('weekly')
+      expect(task?.lastCompletedAt).toBeFalsy()
+      expect(task?.completed).toBe(false)
+    })
   })
 
   describe('UI: delete button', () => {
