@@ -461,7 +461,7 @@ function registerTools() {
   })
 
   tools.set('update_task', {
-    description: 'Update a task',
+    description: 'Update a task. dueDate and recurrenceDays let you correct a recurring task in place instead of deleting and recreating it. recurrenceDays uses 0-based US weekday numbering: 0 = Sunday, 1 = Monday, ..., 6 = Saturday (matches JavaScript Date.getDay()).',
     inputSchema: z.object({
       taskId: z.string().describe('ID of the task'),
       title: z.string().optional().describe('New title'),
@@ -469,9 +469,11 @@ function registerTools() {
       childId: z.string().optional().describe('Reassign to different child'),
       timeOfDay: z.enum(['morning', 'afternoon', 'evening']).optional().describe('Time of day phase'),
       isChore: z.boolean().optional().describe('Mark/unmark as chore (never overdue, silent rollover)'),
+      dueDate: z.string().optional().describe('New due date (ISO 8601, e.g. "2026-03-15")'),
+      recurrenceDays: z.array(z.number()).optional().describe('New weekdays for weekly recurrence (0=Sunday, 1=Monday, ..., 6=Saturday)'),
     }),
     handler: async (args, pb) => {
-      const { taskId, title, priority, childId, timeOfDay, isChore } = args as { taskId: string; title?: string; priority?: number; childId?: string; timeOfDay?: string; isChore?: boolean }
+      const { taskId, title, priority, childId, timeOfDay, isChore, dueDate, recurrenceDays } = args as { taskId: string; title?: string; priority?: number; childId?: string; timeOfDay?: string; isChore?: boolean; dueDate?: string; recurrenceDays?: number[] }
 
       const updates: Record<string, unknown> = {}
       if (title) updates.title = title
@@ -479,6 +481,8 @@ function registerTools() {
       if (childId) updates.child = childId
       if (timeOfDay) updates.timeOfDay = timeOfDay
       if (isChore !== undefined) updates.isChore = isChore
+      if (dueDate !== undefined) updates.dueDate = dueDate
+      if (recurrenceDays !== undefined) updates.recurrenceDays = recurrenceDays
 
       await pb.collection('tasks').update(taskId, updates)
 

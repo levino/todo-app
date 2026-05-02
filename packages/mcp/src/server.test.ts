@@ -482,6 +482,69 @@ describe('MCP Server', () => {
         expect(tasks[0].title).toBe('Updated')
       })
 
+      it('should update recurrenceDays and dueDate on an existing task', async () => {
+        // Create a weekly task on Mondays
+        const createRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Brush teeth',
+                timeOfDay: 'evening',
+                recurrenceType: 'weekly',
+                recurrenceDays: [1],
+                dueDate: '2026-05-04T00:00:00Z',
+              },
+            },
+            id: 3,
+          })
+        const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        // Update both recurrenceDays (to Mon-Fri) and dueDate
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'update_task',
+              arguments: {
+                taskId,
+                recurrenceDays: [1, 2, 3, 4, 5],
+                dueDate: '2026-05-11T00:00:00Z',
+              },
+            },
+            id: 4,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.error).toBeUndefined()
+
+        // Verify the task was actually updated in the DB
+        const listRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'list_tasks',
+              arguments: { childId },
+            },
+            id: 5,
+          })
+        const tasks = JSON.parse(listRes.body.result.content[0].text)
+        const updated = tasks.find((t: { id: string }) => t.id === taskId)
+        expect(updated.recurrenceDays).toEqual([1, 2, 3, 4, 5])
+        expect(updated.dueDate).toContain('2026-05-11')
+      })
+
       it('should delete a task', async () => {
         // Create task
         const createRes = await request(app)
