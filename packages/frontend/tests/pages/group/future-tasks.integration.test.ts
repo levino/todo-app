@@ -192,6 +192,68 @@ describe('Future Tasks Preview', () => {
     expect(html).not.toContain('data-testid="future-tasks-toggle"')
   })
 
+  it('should show weekly recurrence label on future tasks', async () => {
+    const nextWeek = new Date()
+    nextWeek.setDate(nextWeek.getDate() + 7)
+
+    await adminPb.collection('tasks').create({
+      title: 'Workweek Task',
+      child: childId,
+      priority: 1,
+      completed: false,
+      dueDate: nextWeek.toISOString(),
+      timeOfDay: 'afternoon',
+      recurrenceType: 'weekly',
+      recurrenceDays: [1, 2, 3, 4, 5],
+    })
+
+    const html = await renderChildPage('&showFuture=true')
+
+    expect(html).toContain('data-testid="future-task-recurrence"')
+    expect(html).toContain('Wöchentlich (Mo–Fr)')
+  })
+
+  it('should show interval recurrence label on future tasks', async () => {
+    const nextWeek = new Date()
+    nextWeek.setDate(nextWeek.getDate() + 7)
+
+    await adminPb.collection('tasks').create({
+      title: 'Every Three Days',
+      child: childId,
+      priority: 1,
+      completed: false,
+      dueDate: nextWeek.toISOString(),
+      timeOfDay: 'afternoon',
+      recurrenceType: 'interval',
+      recurrenceInterval: 3,
+    })
+
+    const html = await renderChildPage('&showFuture=true')
+
+    expect(html).toContain('data-testid="future-task-recurrence"')
+    expect(html).toContain('Alle 3 Tage')
+  })
+
+  it('should show chore badge on future tasks that are chores', async () => {
+    const nextWeek = new Date()
+    nextWeek.setDate(nextWeek.getDate() + 7)
+
+    await adminPb.collection('tasks').create({
+      title: 'A Chore',
+      child: childId,
+      priority: 1,
+      completed: false,
+      dueDate: nextWeek.toISOString(),
+      timeOfDay: 'afternoon',
+      isChore: true,
+    })
+
+    const html = await renderChildPage('&showFuture=true')
+
+    expect(html).toContain('data-testid="future-task-chore"')
+    expect(html).toContain('Routine')
+  })
+
   it('should show future tasks from all phases, not just current', async () => {
     const nextWeek = new Date()
     nextWeek.setDate(nextWeek.getDate() + 7)

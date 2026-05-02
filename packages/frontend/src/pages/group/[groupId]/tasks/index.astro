@@ -8,6 +8,7 @@ import {
   type Group,
   type TasksPageViewRow,
   type ChildTasksSplit,
+  formatRecurrence,
   getCurrentPhase,
   phaseLabels,
   phaseIcons,
@@ -341,21 +342,34 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
                 <div data-testid="future-tasks-section" class="mt-8">
                   <h2 class="text-lg font-semibold mb-3 text-base-content/60">Zukünftige Aufgaben</h2>
                   <ul class="space-y-2">
-                    {futureTasks.map((task) => (
-                      <li
-                        data-testid="future-task-item"
-                        class="flex items-center gap-4 p-3 rounded-xl bg-base-200/30 opacity-50"
-                      >
-                        <div class="flex-1">
-                          <span class="text-lg">{task.title}</span>
-                          {task.dueDate && (
-                            <span data-testid="future-task-date" class="badge badge-sm badge-outline ml-2">
-                              {task.dueDate.slice(0, 10)}
-                            </span>
-                          )}
-                        </div>
-                      </li>
-                    ))}
+                    {futureTasks.map((task) => {
+                      const recurrenceLabel = formatRecurrence(task)
+                      return (
+                        <li
+                          data-testid="future-task-item"
+                          class="flex items-center gap-4 p-3 rounded-xl bg-base-200/30 opacity-50"
+                        >
+                          <div class="flex-1">
+                            <span class="text-lg">{task.title}</span>
+                            {task.dueDate && (
+                              <span data-testid="future-task-date" class="badge badge-sm badge-outline ml-2">
+                                {task.dueDate.slice(0, 10)}
+                              </span>
+                            )}
+                            {recurrenceLabel && (
+                              <span data-testid="future-task-recurrence" class="badge badge-sm badge-info ml-2">
+                                {recurrenceLabel}
+                              </span>
+                            )}
+                            {task.isChore && (
+                              <span data-testid="future-task-chore" class="badge badge-sm badge-ghost ml-2">
+                                Routine
+                              </span>
+                            )}
+                          </div>
+                        </li>
+                      )
+                    })}
                   </ul>
                 </div>
               )}

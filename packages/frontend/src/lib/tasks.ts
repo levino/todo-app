@@ -50,8 +50,20 @@ export interface TasksPageViewRow {
   task_completed_at: string
   task_last_completed_at: string
   task_recurrence_type: string
+  task_recurrence_interval: number | null
+  task_recurrence_days: string | null
   task_points: number
   task_is_chore: boolean
+}
+
+const parseRecurrenceDays = (raw: string | null | undefined): number[] | null => {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((n) => typeof n === 'number') : null
+  } catch {
+    return null
+  }
 }
 
 export const viewRowToTask = (row: TasksPageViewRow): Task => ({
@@ -63,8 +75,8 @@ export const viewRowToTask = (row: TasksPageViewRow): Task => ({
   completedAt: row.task_completed_at || null,
   dueDate: row.task_due_date || null,
   recurrenceType: row.task_recurrence_type || null,
-  recurrenceInterval: null,
-  recurrenceDays: null,
+  recurrenceInterval: row.task_recurrence_interval ?? null,
+  recurrenceDays: parseRecurrenceDays(row.task_recurrence_days),
   timeOfDay: row.task_time_of_day,
   lastCompletedAt: row.task_last_completed_at || null,
   completedBy: null,
@@ -151,6 +163,33 @@ export const phaseLabels: Record<string, string> = {
   morning: 'Morgens',
   afternoon: 'Nachmittags',
   evening: 'Abends',
+}
+
+const weekdayShort = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
+
+export const formatRecurrence = (task: Pick<Task, 'recurrenceType' | 'recurrenceInterval' | 'recurrenceDays'>): string => {
+  if (task.recurrenceType === 'interval' && task.recurrenceInterval) {
+    if (task.recurrenceInterval === 1) return 'Täglich'
+    return `Alle ${task.recurrenceInterval} Tage`
+  }
+
+  if (task.recurrenceType === 'weekly' && task.recurrenceDays && task.recurrenceDays.length > 0) {
+    const days = [...task.recurrenceDays].sort((a, b) => a - b)
+    const set = new Set(days)
+    const isWeekend = days.length === 2 && set.has(0) && set.has(6)
+    if (isWeekend) return 'Wöchentlich (Wochenende)'
+    const isMonFri = days.length === 5 && [1, 2, 3, 4, 5].every((d) => set.has(d))
+    if (isMonFri) return 'Wöchentlich (Mo–Fr)'
+    // Sort with Monday first (1..6, 0=Sunday last) so the label reads naturally
+    const orderedDays = days.slice().sort((a, b) => {
+      const aKey = a === 0 ? 7 : a
+      const bKey = b === 0 ? 7 : b
+      return aKey - bKey
+    })
+    return `Wöchentlich (${orderedDays.map((d) => weekdayShort[d]).join(', ')})`
+  }
+
+  return ''
 }
 
 export const phaseIcons: Record<Phase, string> = {

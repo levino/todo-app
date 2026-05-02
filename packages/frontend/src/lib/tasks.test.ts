@@ -1,5 +1,24 @@
 import { describe, expect, it } from 'vitest'
-import { getCurrentPhase, getLocalDateString, getLocalTimeMinutes, sortTasks } from './tasks'
+import { formatRecurrence, getCurrentPhase, getLocalDateString, getLocalTimeMinutes, sortTasks, type Task } from './tasks'
+
+const makeTask = (overrides: Partial<Task>): Task => ({
+  id: 't',
+  title: 'x',
+  child: 'c',
+  priority: null,
+  completed: false,
+  completedAt: null,
+  dueDate: null,
+  recurrenceType: null,
+  recurrenceInterval: null,
+  recurrenceDays: null,
+  timeOfDay: 'afternoon',
+  lastCompletedAt: null,
+  completedBy: null,
+  points: 0,
+  isChore: false,
+  ...overrides,
+})
 
 describe('getLocalDateString', () => {
   it('should return local date in Europe/Berlin timezone', () => {
@@ -55,6 +74,41 @@ describe('getCurrentPhase with timezone', () => {
     // 2026-03-13 17:30 UTC = 18:30 CET → evening (after 18:00)
     const phase = getCurrentPhase('09:00', '18:00', 'Europe/Berlin', new Date('2026-03-13T17:30:00Z'))
     expect(phase).toBe('evening')
+  })
+})
+
+describe('formatRecurrence', () => {
+  it('returns empty string for non-recurring tasks', () => {
+    expect(formatRecurrence(makeTask({ recurrenceType: null }))).toBe('')
+  })
+
+  it('formats interval recurrence in days', () => {
+    expect(formatRecurrence(makeTask({ recurrenceType: 'interval', recurrenceInterval: 3 }))).toBe('Alle 3 Tage')
+  })
+
+  it('formats interval of 1 as "Täglich"', () => {
+    expect(formatRecurrence(makeTask({ recurrenceType: 'interval', recurrenceInterval: 1 }))).toBe('Täglich')
+  })
+
+  it('formats weekly recurrence with single weekday', () => {
+    expect(formatRecurrence(makeTask({ recurrenceType: 'weekly', recurrenceDays: [1] }))).toBe('Wöchentlich (Mo)')
+  })
+
+  it('formats weekly recurrence with multiple weekdays in canonical Mon-first order', () => {
+    expect(formatRecurrence(makeTask({ recurrenceType: 'weekly', recurrenceDays: [3, 1, 5] }))).toBe('Wöchentlich (Mo, Mi, Fr)')
+  })
+
+  it('formats Mon-Fri specifically as a working-week label', () => {
+    expect(formatRecurrence(makeTask({ recurrenceType: 'weekly', recurrenceDays: [1, 2, 3, 4, 5] }))).toBe('Wöchentlich (Mo–Fr)')
+  })
+
+  it('formats Sat+Sun as "Wochenende"', () => {
+    expect(formatRecurrence(makeTask({ recurrenceType: 'weekly', recurrenceDays: [0, 6] }))).toBe('Wöchentlich (Wochenende)')
+  })
+
+  it('returns empty string for weekly recurrence without days', () => {
+    expect(formatRecurrence(makeTask({ recurrenceType: 'weekly', recurrenceDays: [] }))).toBe('')
+    expect(formatRecurrence(makeTask({ recurrenceType: 'weekly', recurrenceDays: null }))).toBe('')
   })
 })
 
