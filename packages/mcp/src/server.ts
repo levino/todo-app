@@ -411,7 +411,7 @@ function registerTools() {
   })
 
   tools.set('create_task', {
-    description: 'Create a new task for a child. timeOfDay is required: "morning" (before school), "afternoon" (general/homework), "evening" (bedtime routine). Supports recurrence: "interval" repeats every N days after completion, "weekly" repeats on specific weekdays.',
+    description: 'Create a new task for a child. timeOfDay is required: "morning" (before school), "afternoon" (general/homework), "evening" (bedtime routine). Supports recurrence: "interval" repeats every N days after completion, "weekly" repeats on specific weekdays. recurrenceDays uses 0-based US weekday numbering: 0 = Sunday, 1 = Monday, 2 = Tuesday, 3 = Wednesday, 4 = Thursday, 5 = Friday, 6 = Saturday (matches JavaScript Date.getDay()).',
     inputSchema: z.object({
       childId: z.string().describe('ID of the child'),
       title: z.string().describe('Task title'),

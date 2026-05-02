@@ -113,6 +113,22 @@ describe('MCP Server', () => {
       expect(toolNames).toContain('list_children')
       expect(toolNames).toContain('list_tasks')
     })
+
+    it('should document the recurrenceDays weekday numbering in create_task description', async () => {
+      const res = await request(app)
+        .post('/mcp')
+        .query({ token: authToken })
+        .send({
+          jsonrpc: '2.0',
+          method: 'tools/list',
+          id: 1,
+        })
+
+      const createTask = res.body.result.tools.find((t: { name: string }) => t.name === 'create_task')
+      expect(createTask).toBeDefined()
+      expect(createTask.description).toMatch(/0\s*=\s*Sunday/i)
+      expect(createTask.description).toMatch(/6\s*=\s*Saturday/i)
+    })
   })
 
   describe('MCP Protocol - tools/call', () => {
