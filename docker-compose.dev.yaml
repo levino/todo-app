@@ -3,7 +3,7 @@
 
 services:
   pocketbase:
-    image: ghcr.io/muchobien/pocketbase:latest
+    image: ghcr.io/muchobien/pocketbase:0.39.0
     ports:
       - "8090:8090"
     environment:
@@ -12,6 +12,9 @@ services:
     volumes:
       - ./packages/api/pocketbase/pb_data:/pb_data
       - ./packages/api/pocketbase/pb_migrations:/pb_migrations
+    # automigrate stays ON here: the dev instance is how new migration files are
+    # generated (see CLAUDE.md "PocketBase Database Schema Changes"). Only the
+    # test compose disables it to avoid stray, accidentally-committed files.
     command: ["--migrationsDir=/pb_migrations"]
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8090/api/health"]

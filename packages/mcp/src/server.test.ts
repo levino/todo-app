@@ -368,6 +368,55 @@ describe('MCP Server', () => {
         expect(res.body.error.message).toContain('Invalid parameters')
       })
 
+      const createWithDays = (recurrenceDays: number[]) =>
+        request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Recurring',
+                timeOfDay: 'afternoon',
+                recurrenceType: 'weekly',
+                recurrenceDays,
+              },
+            },
+            id: 3,
+          })
+
+      it('should reject recurrenceDays containing 7 (Sunday must be 0)', async () => {
+        const res = await createWithDays([7])
+        expect(res.status).toBe(200)
+        expect(res.body.result?.isError || res.body.error).toBeTruthy()
+      })
+
+      it('should reject recurrenceDays with out-of-range values', async () => {
+        const res = await createWithDays([1, 8])
+        expect(res.status).toBe(200)
+        expect(res.body.result?.isError || res.body.error).toBeTruthy()
+      })
+
+      it('should reject recurrenceDays with duplicate values', async () => {
+        const res = await createWithDays([1, 1, 2])
+        expect(res.status).toBe(200)
+        expect(res.body.result?.isError || res.body.error).toBeTruthy()
+      })
+
+      it('should accept canonical recurrenceDays with Sunday as 0', async () => {
+        const res = await createWithDays([0, 1, 2, 3, 4, 5, 6])
+        expect(res.status).toBe(200)
+        expect(res.body.result?.isError).toBeFalsy()
+        expect(res.body.error).toBeUndefined()
+        expect(res.body.result.content[0].text).toContain('Created task')
+        const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+        const task = await adminPb.collection('tasks').getOne(taskId)
+        expect(task.recurrenceDays).toEqual([0, 1, 2, 3, 4, 5, 6])
+      })
+
       it('should list tasks', async () => {
         // Create tasks
         await request(app)
@@ -686,6 +735,119 @@ describe('MCP Server', () => {
 
         const task = await adminPb.collection('tasks').getOne(taskId)
         expect(task.timeOfDay).toBe('evening')
+      })
+
+      it('should update recurrence fields and dueDate via update_task (#86)', async () => {
+        const createRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Brotdose in den Geschirrspueler',
+                timeOfDay: 'afternoon',
+                recurrenceType: 'weekly',
+                recurrenceDays: [2, 3, 4, 5, 6], // wrong: Tue-Sat
+              },
+            },
+            id: 3,
+          })
+        const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'update_task',
+              arguments: {
+                taskId,
+                recurrenceDays: [1, 2, 3, 4, 5], // fix to Mon-Fri
+                recurrenceType: 'weekly',
+                recurrenceInterval: 0,
+                dueDate: '2026-03-16T00:00:00Z',
+              },
+            },
+            id: 4,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.result?.isError).toBeFalsy()
+
+        const task = await adminPb.collection('tasks').getOne(taskId)
+        expect(task.recurrenceDays).toEqual([1, 2, 3, 4, 5])
+        expect(task.recurrenceType).toBe('weekly')
+        expect(task.dueDate).toContain('2026-03-16')
+      })
+
+      it('should reject invalid recurrenceDays via update_task (#88)', async () => {
+        const createRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: { childId, title: 'Fix me', timeOfDay: 'afternoon' },
+            },
+            id: 3,
+          })
+        const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'update_task',
+              arguments: { taskId, recurrenceDays: [7] },
+            },
+            id: 4,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.result?.isError || res.body.error).toBeTruthy()
+      })
+
+      it('should set dailyOnly via update_task (#79)', async () => {
+        const createRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: { childId, title: 'Bonus', timeOfDay: 'afternoon' },
+            },
+            id: 3,
+          })
+        const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'update_task',
+              arguments: { taskId, dailyOnly: true },
+            },
+            id: 4,
+          })
+
+        const task = await adminPb.collection('tasks').getOne(taskId)
+        expect(task.dailyOnly).toBe(true)
       })
 
       it('should auto-set dueDate when creating weekly task without explicit dueDate', async () => {

@@ -183,6 +183,57 @@ describe('Delete Task Integration Tests', () => {
       expect(task?.lastCompletedAt).toBeFalsy()
       expect(task?.completed).toBe(false)
     })
+
+    // Bug: a weekly task (Mon-Fri) left uncompleted for several days piles up
+    // overdue instances. Deleting it should clear the whole backlog in ONE click
+    // and reappear only at the next occurrence AFTER today, not the next calendar
+    // day still in the past.
+    it('clears the whole overdue backlog of a weekly task and jumps past today', async () => {
+      // 2026-03-09 is a Monday. Task recurs Mon-Fri but was never done.
+      travelTo('2026-03-09T07:00:00Z')
+      const taskId = await createTask({
+        title: 'Zähne putzen',
+        timeOfDay: 'morning',
+        dueDate: '2026-03-09',
+        recurrenceType: 'weekly',
+        recurrenceDays: [1, 2, 3, 4, 5],
+      })
+
+      // It's now Thursday (2026-03-12). dueDate is still stuck on Monday.
+      travelTo('2026-03-12T07:00:00Z')
+      const result = await doDeleteTask(taskId)
+
+      expect(result.error).toBeUndefined()
+
+      // After one delete it must be gone for today (Thu) and reappear on Friday.
+      const task = await getTaskSafe(taskId)
+      expect(task).not.toBeNull()
+      expect(task?.dueDate?.slice(0, 10)).toBe('2026-03-13') // Friday
+      expect(task?.completed).toBe(false)
+    })
+
+    it('does not leave todays instance behind when deleting an overdue daily-interval task', async () => {
+      // interval=1 (daily), never completed since Monday.
+      travelTo('2026-03-09T07:00:00Z')
+      const taskId = await createTask({
+        title: 'Vitamin nehmen',
+        timeOfDay: 'morning',
+        dueDate: '2026-03-09',
+        recurrenceType: 'interval',
+        recurrenceInterval: 1,
+      })
+
+      // Delete on Tuesday -> must skip Tuesday too, reappear Wednesday.
+      travelTo('2026-03-10T07:00:00Z')
+      const result = await doDeleteTask(taskId)
+
+      expect(result.error).toBeUndefined()
+
+      const task = await getTaskSafe(taskId)
+      expect(task).not.toBeNull()
+      expect(task?.dueDate?.slice(0, 10)).toBe('2026-03-11') // Wednesday
+      expect(task?.completed).toBe(false)
+    })
   })
 
   describe('UI: delete button', () => {
@@ -211,6 +262,25 @@ describe('Delete Task Integration Tests', () => {
 
       expect(html).toContain('data-testid="delete-form"')
       expect(html).toContain(`value="${taskId}"`)
+    })
+
+    it('gives the delete button a large (>=56px) finger-friendly tap target', async () => {
+      travelTo('2026-03-10T07:00:00Z')
+      await createTask({
+        title: 'Löschbar',
+        timeOfDay: 'morning',
+        dueDate: '2026-03-10',
+      })
+
+      const html = await renderPage()
+
+      const deleteButton = html.match(/<button[^>]*data-testid="delete-button"[^>]*>/)?.[0] ?? ''
+      expect(deleteButton).not.toBe('')
+      // The trash icon was too small to hit reliably; the button must now be a
+      // proper >=56px touch target instead of the tiny btn-sm circle.
+      expect(deleteButton).toContain('min-h-[56px]')
+      expect(deleteButton).toContain('min-w-[56px]')
+      expect(deleteButton).not.toContain('btn-sm')
     })
 
     it('renders a delete-confirm dialog for the page', async () => {

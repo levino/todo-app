@@ -14,6 +14,7 @@ export interface Task {
   completedBy: string | null
   points: number
   isChore: boolean
+  dailyOnly: boolean
 }
 
 export interface Child {
@@ -52,6 +53,7 @@ export interface TasksPageViewRow {
   task_recurrence_type: string
   task_points: number
   task_is_chore: boolean
+  task_daily_only: boolean
 }
 
 export const viewRowToTask = (row: TasksPageViewRow): Task => ({
@@ -70,6 +72,7 @@ export const viewRowToTask = (row: TasksPageViewRow): Task => ({
   completedBy: null,
   points: row.task_points,
   isChore: !!row.task_is_chore,
+  dailyOnly: !!row.task_daily_only,
 })
 
 export interface ChildTasksSplit {
@@ -116,10 +119,16 @@ export const splitViewRowsByChild = (
     const completedAtDateStr = row.task_completed_at ? row.task_completed_at.slice(0, 10) : ''
     const lastCompletedAtDateStr = row.task_last_completed_at ? row.task_last_completed_at.slice(0, 10) : ''
 
+    // Daily-only ("Tagesaufgaben") tasks are bound to a single day: they are
+    // only active exactly on their due date and expire silently afterwards
+    // (no overdue, no carry-forward). Regular tasks stay active once due.
+    const dailyOnly = !!row.task_daily_only
     const isActive =
       !row.task_completed &&
       row.task_time_of_day === params.phase &&
-      (!dueDateStr || dueDateStr <= params.todayDateStr)
+      (dailyOnly
+        ? dueDateStr === params.todayDateStr
+        : !dueDateStr || dueDateStr <= params.todayDateStr)
 
     const isRecentlyCompleted =
       (row.task_completed && completedAtDateStr === params.todayDateStr) ||
@@ -349,14 +358,32 @@ export const deleteTask = async (
     const task = await pb.collection('tasks').getOne(taskId)
 
     if (task.recurrenceType && task.dueDate) {
-      const baseDate = new Date(task.dueDate.slice(0, 10) + 'T00:00:00Z')
-      const nextDueDate = calculateNextDueDate(
-        task.recurrenceType,
-        task.recurrenceInterval,
-        task.recurrenceDays,
-        baseDate,
-        timezone,
-      )
+      const tz = timezone || 'Europe/Berlin'
+      const todayStr = getLocalDateString(tz, new Date())
+      const dueDateStr = task.dueDate.slice(0, 10)
+      // Deleting a recurring task skips the current instance. If the task piled
+      // up overdue instances (dueDate stuck in the past while never completed),
+      // we must clear the whole backlog up to and including today in one click,
+      // landing on the next occurrence strictly after today. Otherwise the task
+      // would just reappear the next (still overdue) day.
+      const threshold = todayStr > dueDateStr ? todayStr : dueDateStr
+
+      let nextDueDate: string | null = task.dueDate
+      let guard = 0
+      while (nextDueDate) {
+        const base = new Date(nextDueDate.slice(0, 10) + 'T00:00:00Z')
+        nextDueDate = calculateNextDueDate(
+          task.recurrenceType,
+          task.recurrenceInterval,
+          task.recurrenceDays,
+          base,
+          tz,
+        )
+        if (!nextDueDate || nextDueDate.slice(0, 10) > threshold) break
+        // Safety valve so a misconfigured recurrence can never loop forever.
+        if (++guard > 4000) break
+      }
+
       if (nextDueDate) {
         await pb.collection('tasks').update(taskId, { dueDate: nextDueDate })
         return {}
@@ -374,8 +401,8 @@ export const sortTasks = (tasks: Task[], timezone?: string, now?: Date): Task[] 
   const tz = timezone || 'Europe/Berlin'
   const todayStr = getLocalDateString(tz, now || new Date())
   return tasks.sort((a, b) => {
-    const overdueA = !a.isChore && a.dueDate && a.dueDate.slice(0, 10) < todayStr ? 1 : 0
-    const overdueB = !b.isChore && b.dueDate && b.dueDate.slice(0, 10) < todayStr ? 1 : 0
+    const overdueA = !a.isChore && !a.dailyOnly && a.dueDate && a.dueDate.slice(0, 10) < todayStr ? 1 : 0
+    const overdueB = !b.isChore && !b.dailyOnly && b.dueDate && b.dueDate.slice(0, 10) < todayStr ? 1 : 0
     if (overdueA !== overdueB) return overdueB - overdueA
 
     const priorityA = (a.priority === null || a.priority === undefined || a.priority === 0) ? Infinity : a.priority

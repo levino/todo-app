@@ -183,6 +183,27 @@ export function calculateInitialDueDate(
   return null
 }
 
+/**
+ * Validate the canonical weekday encoding for recurrenceDays.
+ *
+ * Canonical encoding is JavaScript's Date.getDay(): 0=Sunday, 1=Monday, ...,
+ * 6=Saturday. Sunday is ONLY 0 (7 is rejected so it is never double-encoded).
+ * Returns an error message string, or null when valid.
+ */
+export function validateRecurrenceDays(days: number[] | null | undefined): string | null {
+  if (days == null) return null
+  if (!Array.isArray(days)) return 'recurrenceDays must be an array of weekday numbers.'
+  for (const d of days) {
+    if (!Number.isInteger(d) || d < 0 || d > 6) {
+      return `Invalid weekday ${d} in recurrenceDays. Use 0=Sunday, 1=Monday, ..., 6=Saturday (7 is not allowed; Sunday is 0).`
+    }
+  }
+  if (new Set(days).size !== days.length) {
+    return 'recurrenceDays must not contain duplicate weekdays.'
+  }
+  return null
+}
+
 // Tool registry
 interface Tool {
   description: string
@@ -423,11 +444,17 @@ function registerTools() {
       recurrenceDays: z.array(z.number()).optional().describe('Weekdays for recurrence (0=Sunday, 1=Monday, ..., 6=Saturday)'),
       points: z.number().optional().describe('Points awarded for completing this task'),
       isChore: z.boolean().optional().describe('If true, task never shows as overdue and silently rolls over to the next day if not completed'),
+      dailyOnly: z.boolean().optional().describe('If true, the task is a "Tagesaufgabe": it only shows on its due date and expires silently afterwards (never overdue, never carried forward). Good for optional/bonus tasks.'),
     }),
     handler: async (args, pb) => {
-      const { childId, title, timeOfDay, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays, points, isChore } = args as {
+      const { childId, title, timeOfDay, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays, points, isChore, dailyOnly } = args as {
         childId: string; title: string; timeOfDay: string; priority?: number; dueDate?: string;
-        recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]; points?: number; isChore?: boolean
+        recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]; points?: number; isChore?: boolean; dailyOnly?: boolean
+      }
+
+      const daysError = validateRecurrenceDays(recurrenceDays)
+      if (daysError) {
+        return { content: [{ type: 'text', text: `Error: ${daysError}` }], isError: true }
       }
 
       const child = await pb.collection('children').getOne(childId)
@@ -449,6 +476,7 @@ function registerTools() {
         recurrenceDays: recurrenceDays ?? null,
         points: points ?? null,
         isChore: isChore ?? false,
+        dailyOnly: dailyOnly ?? false,
       })
 
       const parts = [`Created task "${title}" (ID: ${task.id})`]
@@ -461,7 +489,7 @@ function registerTools() {
   })
 
   tools.set('update_task', {
-    description: 'Update a task',
+    description: 'Update a task. All fields are optional; only the provided ones are changed.',
     inputSchema: z.object({
       taskId: z.string().describe('ID of the task'),
       title: z.string().optional().describe('New title'),
@@ -469,9 +497,22 @@ function registerTools() {
       childId: z.string().optional().describe('Reassign to different child'),
       timeOfDay: z.enum(['morning', 'afternoon', 'evening']).optional().describe('Time of day phase'),
       isChore: z.boolean().optional().describe('Mark/unmark as chore (never overdue, silent rollover)'),
+      dailyOnly: z.boolean().optional().describe('Mark/unmark as daily-only "Tagesaufgabe" (only shows on its due date, expires silently)'),
+      dueDate: z.string().optional().describe('Due date (ISO 8601, e.g. "2026-03-15")'),
+      recurrenceType: z.string().optional().describe('Recurrence type: "interval" (every N days) or "weekly" (specific weekdays)'),
+      recurrenceInterval: z.number().optional().describe('Days between recurrences (for interval type)'),
+      recurrenceDays: z.array(z.number()).optional().describe('Weekdays for recurrence (0=Sunday, 1=Monday, ..., 6=Saturday)'),
     }),
     handler: async (args, pb) => {
-      const { taskId, title, priority, childId, timeOfDay, isChore } = args as { taskId: string; title?: string; priority?: number; childId?: string; timeOfDay?: string; isChore?: boolean }
+      const { taskId, title, priority, childId, timeOfDay, isChore, dailyOnly, dueDate, recurrenceType, recurrenceInterval, recurrenceDays } = args as {
+        taskId: string; title?: string; priority?: number; childId?: string; timeOfDay?: string; isChore?: boolean;
+        dailyOnly?: boolean; dueDate?: string; recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]
+      }
+
+      const daysError = validateRecurrenceDays(recurrenceDays)
+      if (daysError) {
+        return { content: [{ type: 'text', text: `Error: ${daysError}` }], isError: true }
+      }
 
       const updates: Record<string, unknown> = {}
       if (title) updates.title = title
@@ -479,6 +520,11 @@ function registerTools() {
       if (childId) updates.child = childId
       if (timeOfDay) updates.timeOfDay = timeOfDay
       if (isChore !== undefined) updates.isChore = isChore
+      if (dailyOnly !== undefined) updates.dailyOnly = dailyOnly
+      if (dueDate !== undefined) updates.dueDate = dueDate
+      if (recurrenceType !== undefined) updates.recurrenceType = recurrenceType
+      if (recurrenceInterval !== undefined) updates.recurrenceInterval = recurrenceInterval
+      if (recurrenceDays !== undefined) updates.recurrenceDays = recurrenceDays
 
       await pb.collection('tasks').update(taskId, updates)
 

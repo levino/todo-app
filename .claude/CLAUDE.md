@@ -14,6 +14,8 @@ This applies to all bug fixes and new features.
 
 **CRITICAL: NEVER write production code and tests in the same step!** The whole point of TDD is that you SEE the test fail first. Writing both together defeats the purpose — you can't know your test actually catches the bug if you never saw it fail. This is non-negotiable.
 
+**NEVER verify behavior by hand.** Do not "check it works" with one-off scripts, manual `curl`/`docker run`, or throwaway commands that you don't commit. Every check that matters must be written as an automated test that lives in the repo and runs in CI on every change. If you find yourself reproducing something manually to gain confidence, that reproduction belongs in the test suite. Manual checks are invisible to the next person and silently rot.
+
 **IMPORTANT:** Never run `npm run test:bare` directly on the host machine. Tests require Docker networking to reach `pocketbase-test`. Always use `npm run docker:test` which runs tests inside a container.
 
 ## Testing Strategy
@@ -215,6 +217,50 @@ Then: `node temp-collection.js && rm temp-collection.js`
 - Proper migration format with rollback functions
 - No risk of SQL errors from manual migrations
 - Type-safe field definitions
+
+### Testing Migrations (on a POPULATED database!)
+
+**Running a migration on an empty database is NOT a test.** The integration
+suite always boots a fresh, empty DB and applies every migration on startup —
+that only proves the migrations *parse and apply*, never that they correctly
+transform **existing production data**. The dangerous case (and the only one
+worth testing) is a migration running against a DB that already has rows.
+
+Every migration — especially any **data migration** (one that reads/rewrites
+records, not just schema) — must have an automated test that:
+
+1. Boots the **exact PocketBase version used in production** (keep it in sync —
+   see below). Use the pinned `ghcr.io/muchobien/pocketbase:<version>` image.
+2. Applies only the migrations **before** the one under test, then **seeds
+   representative, production-like data** (include the messy/edge cases the
+   migration is meant to fix).
+3. Applies the remaining migrations and **asserts the data was transformed
+   correctly** (and that row counts / unrelated data survived).
+
+This lives in **`packages/api/pocketbase/migrations-test/run.mjs`** and runs in
+CI on every change (the `migration-tests` job) and locally via:
+
+```bash
+npm run test:migrations
+```
+
+To cover a new data migration, add a scenario (`cut` file + `seed` + `assert`)
+to the `SCENARIOS` array in that file. **Never** confirm a migration by hand —
+write the scenario instead.
+
+### PocketBase version must stay in sync
+
+The version is pinned in **one conceptual place, mirrored in several files** —
+update them together:
+
+- `packages/api/pocketbase/Dockerfile` (`ARG POCKETBASE_VERSION`) — **production**
+- `docker-compose.test.yaml` and `docker-compose.dev.yaml` (`image:` tag)
+- `.github/workflows/test.yml` (the `Start PocketBase` step)
+- `packages/api/pocketbase/migrations-test/run.mjs` (`PB_IMAGE`)
+
+Test and production **must** run the same major version, otherwise green tests
+say nothing about what production will do. Keep production as up to date as
+possible.
 
 ## PocketBase Testing
 

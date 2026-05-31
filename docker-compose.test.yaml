@@ -4,14 +4,17 @@
 
 services:
   pocketbase:
-    image: ghcr.io/muchobien/pocketbase:latest
+    image: ghcr.io/muchobien/pocketbase:0.39.0
     environment:
       - PB_ADMIN_EMAIL=admin@test.local
       - PB_ADMIN_PASSWORD=testtest123
     volumes:
       - pb_data_test:/pb_data
       - ./packages/api/pocketbase/pb_migrations:/pb_migrations
-    command: ["--migrationsDir=/pb_migrations"]
+    # --automigrate=false: apply existing migrations on startup but never
+    # auto-write new migration files into the mounted pb_migrations dir when a
+    # test mutates a collection (avoids stray, accidentally-committed files).
+    command: ["--migrationsDir=/pb_migrations", "--automigrate=false"]
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8090/api/health"]
       interval: 5s
