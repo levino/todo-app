@@ -45,34 +45,41 @@ migrate(
     }
 
     for (const record of records) {
-      const days = decodeJsonField(record.get('recurrenceDays'))
-      if (!Array.isArray(days) || days.length === 0) continue
+      // Guard every record individually: a single problematic row must never
+      // abort the whole migration (which would block PocketBase from starting
+      // in production). Worst case a row is left untouched and logged.
+      try {
+        const days = decodeJsonField(record.get('recurrenceDays'))
+        if (!Array.isArray(days) || days.length === 0) continue
 
-      const seen = {}
-      const normalized = []
-      let changed = false
-      for (let value of days) {
-        let day = Number(value)
-        if (day === 7) {
-          day = 0
-          changed = true
+        const seen = {}
+        const normalized = []
+        let changed = false
+        for (const value of days) {
+          let day = Number(value)
+          if (day === 7) {
+            day = 0
+            changed = true
+          }
+          if (!Number.isInteger(day) || day < 0 || day > 6) {
+            changed = true
+            continue
+          }
+          if (seen[day]) {
+            changed = true
+            continue
+          }
+          seen[day] = true
+          normalized.push(day)
         }
-        if (!Number.isInteger(day) || day < 0 || day > 6) {
-          changed = true
-          continue
-        }
-        if (seen[day]) {
-          changed = true
-          continue
-        }
-        seen[day] = true
-        normalized.push(day)
-      }
-      normalized.sort((a, b) => a - b)
+        normalized.sort((a, b) => a - b)
 
-      if (changed) {
-        record.set('recurrenceDays', normalized)
-        app.save(record)
+        if (changed) {
+          record.set('recurrenceDays', normalized)
+          app.save(record)
+        }
+      } catch (e) {
+        console.log('normalize_recurrence_days: skipped record ' + record.id + ': ' + e)
       }
     }
   },

@@ -4,7 +4,7 @@
 
 services:
   pocketbase:
-    image: ghcr.io/muchobien/pocketbase:latest
+    image: ghcr.io/muchobien/pocketbase:0.39.0
     environment:
       - PB_ADMIN_EMAIL=admin@test.local
       - PB_ADMIN_PASSWORD=testtest123
