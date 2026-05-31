@@ -11,7 +11,10 @@ services:
     volumes:
       - pb_data_test:/pb_data
       - ./packages/api/pocketbase/pb_migrations:/pb_migrations
-    command: ["--migrationsDir=/pb_migrations"]
+    # --automigrate=false: apply existing migrations on startup but never
+    # auto-write new migration files into the mounted pb_migrations dir when a
+    # test mutates a collection (avoids stray, accidentally-committed files).
+    command: ["--migrationsDir=/pb_migrations", "--automigrate=false"]
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8090/api/health"]
       interval: 5s
