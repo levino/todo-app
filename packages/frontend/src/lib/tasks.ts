@@ -349,14 +349,32 @@ export const deleteTask = async (
     const task = await pb.collection('tasks').getOne(taskId)
 
     if (task.recurrenceType && task.dueDate) {
-      const baseDate = new Date(task.dueDate.slice(0, 10) + 'T00:00:00Z')
-      const nextDueDate = calculateNextDueDate(
-        task.recurrenceType,
-        task.recurrenceInterval,
-        task.recurrenceDays,
-        baseDate,
-        timezone,
-      )
+      const tz = timezone || 'Europe/Berlin'
+      const todayStr = getLocalDateString(tz, new Date())
+      const dueDateStr = task.dueDate.slice(0, 10)
+      // Deleting a recurring task skips the current instance. If the task piled
+      // up overdue instances (dueDate stuck in the past while never completed),
+      // we must clear the whole backlog up to and including today in one click,
+      // landing on the next occurrence strictly after today. Otherwise the task
+      // would just reappear the next (still overdue) day.
+      const threshold = todayStr > dueDateStr ? todayStr : dueDateStr
+
+      let nextDueDate: string | null = task.dueDate
+      let guard = 0
+      while (nextDueDate) {
+        const base = new Date(nextDueDate.slice(0, 10) + 'T00:00:00Z')
+        nextDueDate = calculateNextDueDate(
+          task.recurrenceType,
+          task.recurrenceInterval,
+          task.recurrenceDays,
+          base,
+          tz,
+        )
+        if (!nextDueDate || nextDueDate.slice(0, 10) > threshold) break
+        // Safety valve so a misconfigured recurrence can never loop forever.
+        if (++guard > 4000) break
+      }
+
       if (nextDueDate) {
         await pb.collection('tasks').update(taskId, { dueDate: nextDueDate })
         return {}
