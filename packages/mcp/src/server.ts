@@ -183,6 +183,27 @@ export function calculateInitialDueDate(
   return null
 }
 
+/**
+ * Validate the canonical weekday encoding for recurrenceDays.
+ *
+ * Canonical encoding is JavaScript's Date.getDay(): 0=Sunday, 1=Monday, ...,
+ * 6=Saturday. Sunday is ONLY 0 (7 is rejected so it is never double-encoded).
+ * Returns an error message string, or null when valid.
+ */
+export function validateRecurrenceDays(days: number[] | null | undefined): string | null {
+  if (days == null) return null
+  if (!Array.isArray(days)) return 'recurrenceDays must be an array of weekday numbers.'
+  for (const d of days) {
+    if (!Number.isInteger(d) || d < 0 || d > 6) {
+      return `Invalid weekday ${d} in recurrenceDays. Use 0=Sunday, 1=Monday, ..., 6=Saturday (7 is not allowed; Sunday is 0).`
+    }
+  }
+  if (new Set(days).size !== days.length) {
+    return 'recurrenceDays must not contain duplicate weekdays.'
+  }
+  return null
+}
+
 // Tool registry
 interface Tool {
   description: string
@@ -428,6 +449,11 @@ function registerTools() {
       const { childId, title, timeOfDay, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays, points, isChore } = args as {
         childId: string; title: string; timeOfDay: string; priority?: number; dueDate?: string;
         recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]; points?: number; isChore?: boolean
+      }
+
+      const daysError = validateRecurrenceDays(recurrenceDays)
+      if (daysError) {
+        return { content: [{ type: 'text', text: `Error: ${daysError}` }], isError: true }
       }
 
       const child = await pb.collection('children').getOne(childId)
