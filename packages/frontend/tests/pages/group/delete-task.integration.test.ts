@@ -264,6 +264,25 @@ describe('Delete Task Integration Tests', () => {
       expect(html).toContain(`value="${taskId}"`)
     })
 
+    it('gives the delete button a large (>=56px) finger-friendly tap target', async () => {
+      travelTo('2026-03-10T07:00:00Z')
+      await createTask({
+        title: 'Löschbar',
+        timeOfDay: 'morning',
+        dueDate: '2026-03-10',
+      })
+
+      const html = await renderPage()
+
+      const deleteButton = html.match(/<button[^>]*data-testid="delete-button"[^>]*>/)?.[0] ?? ''
+      expect(deleteButton).not.toBe('')
+      // The trash icon was too small to hit reliably; the button must now be a
+      // proper >=56px touch target instead of the tiny btn-sm circle.
+      expect(deleteButton).toContain('min-h-[56px]')
+      expect(deleteButton).toContain('min-w-[56px]')
+      expect(deleteButton).not.toContain('btn-sm')
+    })
+
     it('renders a delete-confirm dialog for the page', async () => {
       travelTo('2026-03-10T07:00:00Z')
       await createTask({
