@@ -737,6 +737,119 @@ describe('MCP Server', () => {
         expect(task.timeOfDay).toBe('evening')
       })
 
+      it('should update recurrence fields and dueDate via update_task (#86)', async () => {
+        const createRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Brotdose in den Geschirrspueler',
+                timeOfDay: 'afternoon',
+                recurrenceType: 'weekly',
+                recurrenceDays: [2, 3, 4, 5, 6], // wrong: Tue-Sat
+              },
+            },
+            id: 3,
+          })
+        const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'update_task',
+              arguments: {
+                taskId,
+                recurrenceDays: [1, 2, 3, 4, 5], // fix to Mon-Fri
+                recurrenceType: 'weekly',
+                recurrenceInterval: 0,
+                dueDate: '2026-03-16T00:00:00Z',
+              },
+            },
+            id: 4,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.result?.isError).toBeFalsy()
+
+        const task = await adminPb.collection('tasks').getOne(taskId)
+        expect(task.recurrenceDays).toEqual([1, 2, 3, 4, 5])
+        expect(task.recurrenceType).toBe('weekly')
+        expect(task.dueDate).toContain('2026-03-16')
+      })
+
+      it('should reject invalid recurrenceDays via update_task (#88)', async () => {
+        const createRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: { childId, title: 'Fix me', timeOfDay: 'afternoon' },
+            },
+            id: 3,
+          })
+        const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'update_task',
+              arguments: { taskId, recurrenceDays: [7] },
+            },
+            id: 4,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.result?.isError || res.body.error).toBeTruthy()
+      })
+
+      it('should set dailyOnly via update_task (#79)', async () => {
+        const createRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: { childId, title: 'Bonus', timeOfDay: 'afternoon' },
+            },
+            id: 3,
+          })
+        const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'update_task',
+              arguments: { taskId, dailyOnly: true },
+            },
+            id: 4,
+          })
+
+        const task = await adminPb.collection('tasks').getOne(taskId)
+        expect(task.dailyOnly).toBe(true)
+      })
+
       it('should auto-set dueDate when creating weekly task without explicit dueDate', async () => {
         const today = new Date()
         const todayDay = today.getDay()

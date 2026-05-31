@@ -489,7 +489,7 @@ function registerTools() {
   })
 
   tools.set('update_task', {
-    description: 'Update a task',
+    description: 'Update a task. All fields are optional; only the provided ones are changed.',
     inputSchema: z.object({
       taskId: z.string().describe('ID of the task'),
       title: z.string().optional().describe('New title'),
@@ -497,9 +497,22 @@ function registerTools() {
       childId: z.string().optional().describe('Reassign to different child'),
       timeOfDay: z.enum(['morning', 'afternoon', 'evening']).optional().describe('Time of day phase'),
       isChore: z.boolean().optional().describe('Mark/unmark as chore (never overdue, silent rollover)'),
+      dailyOnly: z.boolean().optional().describe('Mark/unmark as daily-only "Tagesaufgabe" (only shows on its due date, expires silently)'),
+      dueDate: z.string().optional().describe('Due date (ISO 8601, e.g. "2026-03-15")'),
+      recurrenceType: z.string().optional().describe('Recurrence type: "interval" (every N days) or "weekly" (specific weekdays)'),
+      recurrenceInterval: z.number().optional().describe('Days between recurrences (for interval type)'),
+      recurrenceDays: z.array(z.number()).optional().describe('Weekdays for recurrence (0=Sunday, 1=Monday, ..., 6=Saturday)'),
     }),
     handler: async (args, pb) => {
-      const { taskId, title, priority, childId, timeOfDay, isChore } = args as { taskId: string; title?: string; priority?: number; childId?: string; timeOfDay?: string; isChore?: boolean }
+      const { taskId, title, priority, childId, timeOfDay, isChore, dailyOnly, dueDate, recurrenceType, recurrenceInterval, recurrenceDays } = args as {
+        taskId: string; title?: string; priority?: number; childId?: string; timeOfDay?: string; isChore?: boolean;
+        dailyOnly?: boolean; dueDate?: string; recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]
+      }
+
+      const daysError = validateRecurrenceDays(recurrenceDays)
+      if (daysError) {
+        return { content: [{ type: 'text', text: `Error: ${daysError}` }], isError: true }
+      }
 
       const updates: Record<string, unknown> = {}
       if (title) updates.title = title
@@ -507,6 +520,11 @@ function registerTools() {
       if (childId) updates.child = childId
       if (timeOfDay) updates.timeOfDay = timeOfDay
       if (isChore !== undefined) updates.isChore = isChore
+      if (dailyOnly !== undefined) updates.dailyOnly = dailyOnly
+      if (dueDate !== undefined) updates.dueDate = dueDate
+      if (recurrenceType !== undefined) updates.recurrenceType = recurrenceType
+      if (recurrenceInterval !== undefined) updates.recurrenceInterval = recurrenceInterval
+      if (recurrenceDays !== undefined) updates.recurrenceDays = recurrenceDays
 
       await pb.collection('tasks').update(taskId, updates)
 
