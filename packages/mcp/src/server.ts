@@ -444,11 +444,12 @@ function registerTools() {
       recurrenceDays: z.array(z.number()).optional().describe('Weekdays for recurrence (0=Sunday, 1=Monday, ..., 6=Saturday)'),
       points: z.number().optional().describe('Points awarded for completing this task'),
       isChore: z.boolean().optional().describe('If true, task never shows as overdue and silently rolls over to the next day if not completed'),
+      dailyOnly: z.boolean().optional().describe('If true, the task is a "Tagesaufgabe": it only shows on its due date and expires silently afterwards (never overdue, never carried forward). Good for optional/bonus tasks.'),
     }),
     handler: async (args, pb) => {
-      const { childId, title, timeOfDay, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays, points, isChore } = args as {
+      const { childId, title, timeOfDay, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays, points, isChore, dailyOnly } = args as {
         childId: string; title: string; timeOfDay: string; priority?: number; dueDate?: string;
-        recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]; points?: number; isChore?: boolean
+        recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]; points?: number; isChore?: boolean; dailyOnly?: boolean
       }
 
       const daysError = validateRecurrenceDays(recurrenceDays)
@@ -475,6 +476,7 @@ function registerTools() {
         recurrenceDays: recurrenceDays ?? null,
         points: points ?? null,
         isChore: isChore ?? false,
+        dailyOnly: dailyOnly ?? false,
       })
 
       const parts = [`Created task "${title}" (ID: ${task.id})`]

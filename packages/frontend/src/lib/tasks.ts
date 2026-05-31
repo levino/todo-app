@@ -14,6 +14,7 @@ export interface Task {
   completedBy: string | null
   points: number
   isChore: boolean
+  dailyOnly: boolean
 }
 
 export interface Child {
@@ -52,6 +53,7 @@ export interface TasksPageViewRow {
   task_recurrence_type: string
   task_points: number
   task_is_chore: boolean
+  task_daily_only: boolean
 }
 
 export const viewRowToTask = (row: TasksPageViewRow): Task => ({
@@ -70,6 +72,7 @@ export const viewRowToTask = (row: TasksPageViewRow): Task => ({
   completedBy: null,
   points: row.task_points,
   isChore: !!row.task_is_chore,
+  dailyOnly: !!row.task_daily_only,
 })
 
 export interface ChildTasksSplit {
@@ -116,10 +119,16 @@ export const splitViewRowsByChild = (
     const completedAtDateStr = row.task_completed_at ? row.task_completed_at.slice(0, 10) : ''
     const lastCompletedAtDateStr = row.task_last_completed_at ? row.task_last_completed_at.slice(0, 10) : ''
 
+    // Daily-only ("Tagesaufgaben") tasks are bound to a single day: they are
+    // only active exactly on their due date and expire silently afterwards
+    // (no overdue, no carry-forward). Regular tasks stay active once due.
+    const dailyOnly = !!row.task_daily_only
     const isActive =
       !row.task_completed &&
       row.task_time_of_day === params.phase &&
-      (!dueDateStr || dueDateStr <= params.todayDateStr)
+      (dailyOnly
+        ? dueDateStr === params.todayDateStr
+        : !dueDateStr || dueDateStr <= params.todayDateStr)
 
     const isRecentlyCompleted =
       (row.task_completed && completedAtDateStr === params.todayDateStr) ||
@@ -392,8 +401,8 @@ export const sortTasks = (tasks: Task[], timezone?: string, now?: Date): Task[] 
   const tz = timezone || 'Europe/Berlin'
   const todayStr = getLocalDateString(tz, now || new Date())
   return tasks.sort((a, b) => {
-    const overdueA = !a.isChore && a.dueDate && a.dueDate.slice(0, 10) < todayStr ? 1 : 0
-    const overdueB = !b.isChore && b.dueDate && b.dueDate.slice(0, 10) < todayStr ? 1 : 0
+    const overdueA = !a.isChore && !a.dailyOnly && a.dueDate && a.dueDate.slice(0, 10) < todayStr ? 1 : 0
+    const overdueB = !b.isChore && !b.dailyOnly && b.dueDate && b.dueDate.slice(0, 10) < todayStr ? 1 : 0
     if (overdueA !== overdueB) return overdueB - overdueA
 
     const priorityA = (a.priority === null || a.priority === undefined || a.priority === 0) ? Infinity : a.priority

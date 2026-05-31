@@ -245,7 +245,7 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
               ) : (
                 <ul class="space-y-3">
                   {tasks.map((task) => {
-                    const isOverdue = !task.isChore && task.dueDate && task.dueDate.slice(0, 10) < todayStr
+                    const isOverdue = !task.isChore && !task.dailyOnly && task.dueDate && task.dueDate.slice(0, 10) < todayStr
                     return (
                       <li
                         data-testid="task-item"
