@@ -331,10 +331,10 @@ describe('Time-Travel Integration Tests', () => {
     })
   })
 
-  // ====== D. Overdue Display ======
+  // ====== D. Past-due tasks are shown but never marked overdue ======
 
-  describe('D. Overdue Display', () => {
-    it('overdue task shows overdue badge', async () => {
+  describe('D. No overdue marking', () => {
+    it('past-due task still shows, without an overdue badge', async () => {
       travelTo('2026-03-10T13:00:00Z')
       await createTask({
         title: 'Alte Aufgabe',
@@ -342,11 +342,12 @@ describe('Time-Travel Integration Tests', () => {
         dueDate: '2026-03-08',
       })
       const html = await renderPage()
-      expect(html).toContain('data-overdue="true"')
-      expect(html).toContain('Überfällig')
+      expect(html).toContain('Alte Aufgabe')
+      expect(html).not.toContain('data-overdue="true"')
+      expect(html).not.toContain('data-testid="overdue-badge"')
     })
 
-    it('task due today does NOT show overdue badge', async () => {
+    it('task due today shows without an overdue badge', async () => {
       travelTo('2026-03-10T13:00:00Z')
       await createTask({
         title: 'Heute',
@@ -358,7 +359,7 @@ describe('Time-Travel Integration Tests', () => {
       expect(html).not.toContain('data-overdue="true"')
     })
 
-    it('task due yesterday shows overdue badge', async () => {
+    it('task due yesterday shows without an overdue badge', async () => {
       travelTo('2026-03-10T13:00:00Z')
       await createTask({
         title: 'Gestern',
@@ -366,10 +367,11 @@ describe('Time-Travel Integration Tests', () => {
         dueDate: '2026-03-09',
       })
       const html = await renderPage()
-      expect(html).toContain('data-overdue="true"')
+      expect(html).toContain('Gestern')
+      expect(html).not.toContain('data-overdue="true"')
     })
 
-    it('overdue tasks sorted before non-overdue', async () => {
+    it('past-due tasks are not hoisted above others (priority order only)', async () => {
       travelTo('2026-03-10T13:00:00Z')
       await createTask({
         title: 'NormaleAufgabe',
@@ -378,18 +380,19 @@ describe('Time-Travel Integration Tests', () => {
         priority: 1,
       })
       await createTask({
-        title: 'ÜberfälligeAufgabe',
+        title: 'AelterePrio2',
         timeOfDay: 'afternoon',
         dueDate: '2026-03-08',
         priority: 2,
       })
       const html = await renderPage()
-      const overduePos = html.indexOf('ÜberfälligeAufgabe')
+      const olderPos = html.indexOf('AelterePrio2')
       const normalPos = html.indexOf('NormaleAufgabe')
-      expect(overduePos).toBeLessThan(normalPos)
+      // Higher priority (1) first; the older due date no longer wins.
+      expect(normalPos).toBeLessThan(olderPos)
     })
 
-    it('multiple overdue tasks sorted by priority', async () => {
+    it('multiple past-due tasks sorted by priority', async () => {
       travelTo('2026-03-10T13:00:00Z')
       await createTask({
         title: 'Prio2',
@@ -409,22 +412,22 @@ describe('Time-Travel Integration Tests', () => {
       expect(prio1Pos).toBeLessThan(prio2Pos)
     })
 
-    it('task becomes overdue at midnight Berlin: badge shows at 00:01 next day', async () => {
+    it('task never gets an overdue badge, even after its due date passes', async () => {
       await createTask({
-        title: 'WirdÜberfällig',
+        title: 'TaeglicheAufgabe',
         timeOfDay: 'morning',
         dueDate: '2026-03-10',
       })
 
       travelTo('2026-03-10T06:00:00Z')
       const htmlBefore = await renderPage()
-      expect(htmlBefore).toContain('WirdÜberfällig')
+      expect(htmlBefore).toContain('TaeglicheAufgabe')
       expect(htmlBefore).not.toContain('data-overdue="true"')
 
       travelTo('2026-03-10T23:01:00Z')
       const htmlAfter = await renderPage()
-      expect(htmlAfter).toContain('WirdÜberfällig')
-      expect(htmlAfter).toContain('data-overdue="true"')
+      expect(htmlAfter).toContain('TaeglicheAufgabe')
+      expect(htmlAfter).not.toContain('data-overdue="true"')
     })
   })
 

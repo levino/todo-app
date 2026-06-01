@@ -130,8 +130,6 @@ describe('Unified Task View', () => {
       expect(html).toContain('data-testid="complete-button"')
       // task points badge
       expect(html).toContain('data-testid="task-points"')
-      // overdue badge (task is from yesterday)
-      expect(html).toContain('data-testid="overdue-badge"')
     })
 
     it('detail task cards should have same structure', async () => {
@@ -150,12 +148,11 @@ describe('Unified Task View', () => {
       expect(html).toContain('data-task-title="Bonus Task"')
       expect(html).toContain('data-testid="complete-button"')
       expect(html).toContain('data-testid="task-points"')
-      expect(html).toContain('data-testid="overdue-badge"')
     })
   })
 
-  describe('Overview uses string comparison for overdue (not Date)', () => {
-    it('should mark yesterday task as overdue in overview using string comparison', async () => {
+  describe('Overview never marks past-due tasks as overdue', () => {
+    it('shows a yesterday task in the overview without any overdue marker', async () => {
       await adminPb.collection('tasks').create({
         title: 'Yesterday Task',
         child: child1Id,
@@ -167,8 +164,9 @@ describe('Unified Task View', () => {
 
       const html = await renderOverview()
 
-      expect(html).toContain('data-overdue="true"')
-      expect(html).toContain('data-testid="overdue-badge"')
+      expect(html).toContain('Yesterday Task')
+      expect(html).not.toContain('data-overdue="true"')
+      expect(html).not.toContain('data-testid="overdue-badge"')
     })
   })
 

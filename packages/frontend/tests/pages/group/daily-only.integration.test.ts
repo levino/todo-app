@@ -99,7 +99,7 @@ describe('Daily-only (Tagesaufgaben) tasks', () => {
     expect(html).not.toContain('Unkraut jaeten')
   })
 
-  it('still carries forward a normal (non daily-only) task that is overdue', async () => {
+  it('still carries forward a normal (non daily-only) past-due task, without marking it overdue', async () => {
     await adminPb.collection('tasks').create({
       title: 'Normale Aufgabe',
       child: childId,
@@ -111,7 +111,10 @@ describe('Daily-only (Tagesaufgaben) tasks', () => {
 
     const html = await render()
 
+    // A normal task still carries forward (stays visible)...
     expect(html).toContain('Normale Aufgabe')
-    expect(html).toContain('data-overdue="true"')
+    // ...but the overdue feature was removed, so it is never flagged.
+    expect(html).not.toContain('data-overdue="true"')
+    expect(html).not.toContain('Überfällig')
   })
 })
