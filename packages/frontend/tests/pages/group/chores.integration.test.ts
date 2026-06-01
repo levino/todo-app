@@ -102,7 +102,7 @@ describe('Chore Tasks Integration Tests', () => {
       expect(html).not.toContain('Überfällig')
     })
 
-    it('non-chore task with past dueDate DOES show overdue badge', async () => {
+    it('non-chore task with past dueDate still shows, but is not marked overdue', async () => {
       travelTo('2026-03-10T07:00:00Z')
       await createTask({
         title: 'Hausaufgaben',
@@ -112,7 +112,8 @@ describe('Chore Tasks Integration Tests', () => {
 
       const html = await renderPage()
       expect(html).toContain('Hausaufgaben')
-      expect(html).toContain('data-overdue="true"')
+      expect(html).not.toContain('data-overdue="true"')
+      expect(html).not.toContain('Überfällig')
     })
 
     it('chore task appears next day without being marked overdue', async () => {

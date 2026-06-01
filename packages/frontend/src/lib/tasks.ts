@@ -397,14 +397,11 @@ export const deleteTask = async (
   }
 }
 
-export const sortTasks = (tasks: Task[], timezone?: string, now?: Date): Task[] => {
-  const tz = timezone || 'Europe/Berlin'
-  const todayStr = getLocalDateString(tz, now || new Date())
+// Sorts purely by priority. The "overdue" concept was removed, so past-due
+// tasks are no longer hoisted to the top. (timezone/now are kept for call-site
+// compatibility but are no longer needed.)
+export const sortTasks = (tasks: Task[], _timezone?: string, _now?: Date): Task[] => {
   return tasks.sort((a, b) => {
-    const overdueA = !a.isChore && !a.dailyOnly && a.dueDate && a.dueDate.slice(0, 10) < todayStr ? 1 : 0
-    const overdueB = !b.isChore && !b.dailyOnly && b.dueDate && b.dueDate.slice(0, 10) < todayStr ? 1 : 0
-    if (overdueA !== overdueB) return overdueB - overdueA
-
     const priorityA = (a.priority === null || a.priority === undefined || a.priority === 0) ? Infinity : a.priority
     const priorityB = (b.priority === null || b.priority === undefined || b.priority === 0) ? Infinity : b.priority
     return priorityA - priorityB

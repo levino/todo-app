@@ -275,7 +275,7 @@ describe('Tasks Page - Child View (?child=id)', () => {
     expect(html).toContain('name="groupId"')
   })
 
-  it('should highlight overdue tasks', async () => {
+  it('shows a past-due task but never marks it as overdue', async () => {
     const yesterday = new Date()
     yesterday.setDate(yesterday.getDate() - 1)
 
@@ -291,11 +291,11 @@ describe('Tasks Page - Child View (?child=id)', () => {
     const html = await renderChildPage()
 
     expect(html).toContain('Overdue Task')
-    expect(html).toContain('data-overdue="true"')
-    expect(html).toContain('Überfällig')
+    expect(html).not.toContain('data-overdue="true"')
+    expect(html).not.toContain('Überfällig')
   })
 
-  it('should sort overdue tasks before non-overdue tasks', async () => {
+  it('does not hoist past-due tasks above others (sorts purely by priority)', async () => {
     const yesterday = new Date()
     yesterday.setDate(yesterday.getDate() - 1)
     const today = new Date()
@@ -319,9 +319,10 @@ describe('Tasks Page - Child View (?child=id)', () => {
 
     const html = await renderChildPage()
 
+    // Higher priority (1) comes first; being past-due no longer jumps the queue.
     const overdueIndex = html.indexOf('Overdue Task')
     const todayIndex = html.indexOf('Today Task')
-    expect(overdueIndex).toBeLessThan(todayIndex)
+    expect(todayIndex).toBeLessThan(overdueIndex)
   })
 
   it('should order tasks by priority', async () => {

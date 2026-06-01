@@ -58,15 +58,15 @@ describe('getCurrentPhase with timezone', () => {
   })
 })
 
-describe('sortTasks with timezone', () => {
-  it('should use timezone for overdue detection', () => {
-    // 2026-03-13 23:30 UTC = 2026-03-14 in Europe/Berlin
-    // A task due on 2026-03-13 is overdue in Berlin on 2026-03-14 local
+describe('sortTasks', () => {
+  it('sorts purely by priority and does NOT hoist past-due tasks', () => {
+    // The overdue feature was removed: a past-due task must not jump ahead of a
+    // higher-priority task just because its due date is in the past.
     const tasks = [
       { id: '1', title: 'Due today', dueDate: '2026-03-14 00:00:00.000Z', priority: 1, completed: false, child: 'c1', recurrenceType: null, recurrenceInterval: null, recurrenceDays: null, timeOfDay: 'afternoon', lastCompletedAt: null, completedAt: null, completedBy: null, points: 0, isChore: false, dailyOnly: false },
-      { id: '2', title: 'Overdue', dueDate: '2026-03-13 00:00:00.000Z', priority: 2, completed: false, child: 'c1', recurrenceType: null, recurrenceInterval: null, recurrenceDays: null, timeOfDay: 'afternoon', lastCompletedAt: null, completedAt: null, completedBy: null, points: 0, isChore: false, dailyOnly: false },
+      { id: '2', title: 'Past due', dueDate: '2026-03-13 00:00:00.000Z', priority: 2, completed: false, child: 'c1', recurrenceType: null, recurrenceInterval: null, recurrenceDays: null, timeOfDay: 'afternoon', lastCompletedAt: null, completedAt: null, completedBy: null, points: 0, isChore: false, dailyOnly: false },
     ]
     const sorted = sortTasks(tasks, 'Europe/Berlin', new Date('2026-03-13T23:30:00Z'))
-    expect(sorted[0].title).toBe('Overdue')
+    expect(sorted[0].title).toBe('Due today')
   })
 })

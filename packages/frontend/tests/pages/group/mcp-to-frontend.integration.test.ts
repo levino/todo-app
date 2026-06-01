@@ -207,7 +207,7 @@ describe('MCP → Frontend Integration', () => {
     expect(html).not.toContain('Andere Phase')
   })
 
-  it('should show overdue recurring task created via MCP', async () => {
+  it('shows a past-due recurring task created via MCP without an overdue marker', async () => {
     const groupResult = await mcpCall(authToken, 'create_group', { name: 'Overdue Family' })
     const groupId = extractId(groupResult.result.content[0].text)
 
@@ -225,7 +225,7 @@ describe('MCP → Frontend Integration', () => {
 
     await mcpCall(authToken, 'create_task', {
       childId,
-      title: 'Überfällige Aufgabe',
+      title: 'Gestrige Aufgabe',
       priority: 1,
       timeOfDay: currentPhase,
       recurrenceType: 'interval',
@@ -235,8 +235,8 @@ describe('MCP → Frontend Integration', () => {
 
     const html = await renderChildPage(groupId, childId)
 
-    expect(html).toContain('Überfällige Aufgabe')
-    expect(html).toContain('data-overdue="true"')
-    expect(html).toContain('Überfällig')
+    expect(html).toContain('Gestrige Aufgabe')
+    expect(html).not.toContain('data-overdue="true"')
+    expect(html).not.toContain('data-testid="overdue-badge"')
   })
 })

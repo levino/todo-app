@@ -72,7 +72,6 @@ const selectedSplit = selectedChildId
   : null
 const selectedChild: Child | null = selectedSplit?.child ?? null
 
-const todayStr = getLocalDateString(groupTimezone)
 const showSwitcher = selectedChild && children.length > 1
 const displaySplits = selectedSplit ? [selectedSplit] : childSplits
 const displayChildren: Child[] = displaySplits.map((s) => s.child)
@@ -245,14 +244,12 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
               ) : (
                 <ul class="space-y-3">
                   {tasks.map((task) => {
-                    const isOverdue = !task.isChore && !task.dailyOnly && task.dueDate && task.dueDate.slice(0, 10) < todayStr
                     return (
                       <li
                         data-testid="task-item"
-                        data-overdue={isOverdue ? "true" : undefined}
                         class:list={[
                           'flex items-center gap-4 p-4 rounded-xl min-h-[56px] transition-transform duration-150 active:scale-[0.97] hover:shadow-md cursor-pointer',
-                          isOverdue ? 'bg-error/10 border-2 border-error' : 'bg-base-200',
+                          'bg-base-200',
                         ]}
                       >
                         <form method="POST" action={`${actions.completeTask}${actionSuffix}`} data-task-title={task.title}>
@@ -273,9 +270,6 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
                         </form>
                         <div class="flex-1">
                           <span class="text-xl md:text-2xl">{task.title}</span>
-                          {isOverdue && (
-                            <span data-testid="overdue-badge" class="badge badge-error badge-sm ml-2">Überfällig</span>
-                          )}
                           {task.points > 0 && (
                             <span data-testid="task-points" class="badge badge-warning badge-sm ml-2">+{task.points}</span>
                           )}

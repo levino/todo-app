@@ -8,7 +8,9 @@ import { authUser } from '../../helpers'
 const POCKETBASE_URL =
   process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
-describe('Overdue display on overview page', () => {
+// The "Überfällig" (overdue) feature was removed entirely: past-due tasks must
+// still be shown (so they can be completed) but must NEVER be flagged overdue.
+describe('No overdue marking', () => {
   let pb: PocketBase
   let adminPb: PocketBase
   let container: AstroContainer
@@ -27,26 +29,20 @@ describe('Overdue display on overview page', () => {
 
     pb = new PocketBase(POCKETBASE_URL)
     const user = await adminPb.collection('users').create({
-      email: `overdue-overview-${Date.now()}@test.local`,
+      email: `no-overdue-${Date.now()}@test.local`,
       password: 'testtest123',
       passwordConfirm: 'testtest123',
       name: 'Test User',
     })
-    await pb
-      .collection('users')
-      .authWithPassword(user.email, 'testtest123')
+    await pb.collection('users').authWithPassword(user.email, 'testtest123')
 
     const group = await adminPb.collection('groups').create({
-      name: 'Overdue Test Family',
+      name: 'No Overdue Family',
       morningEnd: '00:00',
       eveningStart: '23:59',
     })
     groupId = group.id
-
-    await adminPb.collection('user_groups').create({
-      user: user.id,
-      group: groupId,
-    })
+    await adminPb.collection('user_groups').create({ user: user.id, group: groupId })
 
     const child = await adminPb.collection('children').create({
       name: 'Anna',
@@ -62,40 +58,28 @@ describe('Overdue display on overview page', () => {
     vi.useRealTimers()
   })
 
-  it('should NOT mark a task due today as overdue on the overview page', async () => {
-    await adminPb.collection('tasks').create({
-      title: 'Task Due Today',
-      child: childId,
-      completed: false,
-      timeOfDay: 'afternoon',
-      dueDate: '2026-03-13',
-    })
-
-    const html = await container.renderToString(TasksPage, {
+  const render = () =>
+    container.renderToString(TasksPage, {
       params: { groupId },
       locals: { pb, user: authUser(pb) },
     })
 
-    expect(html).toContain('Task Due Today')
-    expect(html).not.toContain('data-overdue="true"')
-  })
-
-  it('shows a task due yesterday on the overview page but does NOT mark it overdue', async () => {
+  it('shows a past-due task but never marks it as überfällig', async () => {
     await adminPb.collection('tasks').create({
-      title: 'Task Due Yesterday',
+      title: 'Duschen',
       child: childId,
       completed: false,
       timeOfDay: 'afternoon',
-      dueDate: '2026-03-12',
+      dueDate: '2026-03-12', // yesterday
     })
 
-    const html = await container.renderToString(TasksPage, {
-      params: { groupId },
-      locals: { pb, user: authUser(pb) },
-    })
+    const html = await render()
 
-    expect(html).toContain('Task Due Yesterday')
+    // The task is still visible so it can be done...
+    expect(html).toContain('Duschen')
+    // ...but the overdue feature is gone entirely.
     expect(html).not.toContain('data-overdue="true"')
+    expect(html).not.toContain('data-testid="overdue-badge"')
     expect(html).not.toContain('Überfällig')
   })
 })
