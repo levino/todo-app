@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: todo-app
+  namespace: todo-app
+  labels:
+    app: todo-app
+spec:
+  # SQLite (single shared file, WAL) -> frontend + mcp must share one node/pod.
+  # Hence a single replica and all three containers in one pod.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: todo-app
+  template:
+    metadata:
+      labels:
+        app: todo-app
+    spec:
+      containers:
+        # ---- oauth2-proxy: OIDC gatekeeper in front of the frontend ----
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://id.levinkeller.de
+            - --upstream=http://127.0.0.1:3000
+            - --http-address=0.0.0.0:4180
+            - --redirect-url=https://todos.levinkeller.de/oauth2/callback
+            - --email-domain=*
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-csrf-per-request=true
+            - --cookie-csrf-expire=15m
+            - --cookie-expire=720h
+            - --cookie-refresh=1h
+            - --scope=openid email profile offline_access
+            - --pass-user-headers=true
+            - --set-xauthrequest=true
+            - --skip-provider-button=true
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: todo-oauth2-proxy-secret
+                  key: client-id
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: todo-oauth2-proxy-secret
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: todo-oauth2-proxy-secret
+                  key: cookie-secret
+          ports:
+            - name: http
+              containerPort: 4180
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+
+        # ---- frontend: Astro SSR app (behind oauth2-proxy) ----
+        - name: frontend
+          image: ghcr.io/levino/todo-app-frontend
+          env:
+            - name: DB_PATH
+              value: /data/app.db
+            - name: PUBLIC_MCP_URL
+              value: https://mcp.todos.levinkeller.de
+            - name: MCP_INTERNAL_URL
+              value: http://127.0.0.1:3001
+            - name: HOST
+              value: 0.0.0.0
+            - name: NODE_ENV
+              value: production
+          ports:
+            - name: frontend
+              containerPort: 3000
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+
+        # ---- mcp: MCP server (exposed directly, bearer-token auth) ----
+        - name: mcp
+          image: ghcr.io/levino/todo-app-mcp
+          env:
+            - name: DB_PATH
+              value: /data/app.db
+            - name: OAUTH_ISSUER
+              value: https://mcp.todos.levinkeller.de
+            - name: FRONTEND_URL
+              value: https://todos.levinkeller.de
+            - name: OAUTH_KEY_PATH
+              value: /data/oauth-keys
+            - name: NODE_ENV
+              value: production
+          ports:
+            - name: mcp
+              containerPort: 3001
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: todo-app-data
