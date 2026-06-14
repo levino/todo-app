@@ -17,6 +17,7 @@
     "typecheck": "npm run typecheck -w @family-todo/frontend",
     "test": "npm run test -w @family-todo/mcp && npm run test -w @family-todo/frontend",
     "test:migrations": "node packages/api/pocketbase/migrations-test/run.mjs",
+    "seed": "node scripts/seed.mjs",
     "test:mcp": "npm run test -w @family-todo/mcp",
     "test:frontend": "npm run test -w @family-todo/frontend",
     "docker:reset-test-db": "docker compose -f docker-compose.test.yaml down pocketbase && docker volume rm -f levino-todo-app_pb_data_test && docker compose -f docker-compose.test.yaml up -d pocketbase && sleep 2",
