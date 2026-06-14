@@ -4,16 +4,6 @@ import PocketBase from 'pocketbase'
 const POCKETBASE_URL =
   process.env.POCKETBASE_URL || 'http://localhost:8090'
 
-const getCurrentPhase = (morningEnd: string, eveningStart: string) => {
-  const now = new Date()
-  const currentMinutes = now.getHours() * 60 + now.getMinutes()
-  const [mH, mM] = morningEnd.split(':').map(Number)
-  const [eH, eM] = eveningStart.split(':').map(Number)
-  if (currentMinutes < mH * 60 + mM) return 'morning'
-  if (currentMinutes < eH * 60 + eM) return 'afternoon'
-  return 'evening'
-}
-
 const TEST_USER_EMAIL = `e2e-${Date.now()}@example.com`
 const TEST_USER_PASSWORD = 'testtest123'
 
@@ -25,8 +15,9 @@ const setupTestData = async () => {
 
   const group = await pb.collection('groups').create({
     name: 'E2E Test Family',
-    morningEnd: '09:00',
-    eveningStart: '18:00',
+    morningEnd: '00:00',
+    eveningStart: '23:59',
+    timezone: 'Europe/Berlin',
   })
 
   const user = await pb.collection('users').create({
@@ -52,7 +43,7 @@ const setupTestData = async () => {
     group: group.id,
   })
 
-  const phase = getCurrentPhase('09:00', '18:00')
+  const phase = 'afternoon'
   const today = new Date().toISOString()
 
   const task1 = await pb.collection('tasks').create({
@@ -132,6 +123,7 @@ test.describe('Task completion confirmation dialog', () => {
   test.beforeEach(async ({ page }) => {
     await page.request.post('http://localhost:4321/api/auth/login', {
       form: { email: TEST_USER_EMAIL, password: TEST_USER_PASSWORD },
+      headers: { Origin: 'http://localhost:4321' },
     })
   })
 
@@ -148,7 +140,7 @@ test.describe('Task completion confirmation dialog', () => {
   test('shows confirmation dialog when clicking complete button on child page', async ({
     page,
   }) => {
-    await page.goto(`/group/${group.id}/tasks/${child1.id}`)
+    await page.goto(`/group/${group.id}/tasks?child=${child1.id}`)
 
     const completeButton = page.locator('[data-testid="complete-button"]').first()
     await expect(completeButton).toBeVisible()
@@ -163,7 +155,7 @@ test.describe('Task completion confirmation dialog', () => {
   test('canceling confirmation dialog does NOT complete the task', async ({
     page,
   }) => {
-    await page.goto(`/group/${group.id}/tasks/${child1.id}`)
+    await page.goto(`/group/${group.id}/tasks?child=${child1.id}`)
 
     const completeButton = page.locator('[data-testid="complete-button"]').first()
     await completeButton.click()
@@ -182,7 +174,7 @@ test.describe('Task completion confirmation dialog', () => {
   })
 
   test('confirming dialog completes the task', async ({ page }) => {
-    await page.goto(`/group/${group.id}/tasks/${child1.id}`)
+    await page.goto(`/group/${group.id}/tasks?child=${child1.id}`)
 
     const tasksBefore = await page.locator('[data-testid="task-item"]').count()
     expect(tasksBefore).toBeGreaterThan(0)
@@ -195,10 +187,10 @@ test.describe('Task completion confirmation dialog', () => {
     await confirmButton.click()
 
     // After confirmation, page reloads and task should be gone
-    await page.waitForURL(`/group/${group.id}/tasks/${child1.id}`)
+    await page.waitForURL(`/group/${group.id}/tasks?child=${child1.id}`)
 
     // Recreate the task for remaining tests
-    const phase = getCurrentPhase('09:00', '18:00')
+    const phase = 'afternoon'
     task1 = await pb.collection('tasks').create({
       title: 'Zähne putzen',
       child: child1.id,
@@ -210,7 +202,7 @@ test.describe('Task completion confirmation dialog', () => {
   })
 
   test('shows confirmation dialog on overview page', async ({ page }) => {
-    await page.goto(`/group/${group.id}/tasks/overview`)
+    await page.goto(`/group/${group.id}/tasks`)
 
     const completeButton = page.locator('[data-testid="complete-button"]').first()
     await expect(completeButton).toBeVisible()
@@ -224,7 +216,7 @@ test.describe('Task completion confirmation dialog', () => {
   test('canceling on overview page does NOT complete the task', async ({
     page,
   }) => {
-    await page.goto(`/group/${group.id}/tasks/overview`)
+    await page.goto(`/group/${group.id}/tasks`)
 
     const completeButton = page.locator('[data-testid="complete-button"]').first()
     await completeButton.click()

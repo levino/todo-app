@@ -1,5 +1,6 @@
 ---
 import AuthLayout from '@/layouts/AuthLayout.astro'
+import { pressClasses, focusRingClasses } from '@/lib/interaction-classes'
 
 const error = Astro.url.searchParams.get('error')
 ---
@@ -18,15 +19,16 @@ const error = Astro.url.searchParams.get('error')
           </div>
         )}
 
-        <form method="POST" action="/api/auth/signup" class="space-y-4">
+        <form method="POST" action="/api/auth/signup" class="space-y-4" data-loading-submit>
           <fieldset>
             <label class="label" for="email">E-Mail</label>
             <input
               type="email"
               id="email"
               name="email"
+              data-testid="signup-email"
               placeholder="name@example.com"
-              class="input w-full"
+              class:list={['input w-full', focusRingClasses]}
               required
               autocomplete="email"
             />
@@ -38,8 +40,9 @@ const error = Astro.url.searchParams.get('error')
               type="password"
               id="password"
               name="password"
+              data-testid="signup-password"
               placeholder="********"
-              class="input w-full"
+              class:list={['input w-full', focusRingClasses]}
               required
               minlength="8"
               autocomplete="new-password"
@@ -52,8 +55,9 @@ const error = Astro.url.searchParams.get('error')
               type="password"
               id="passwordConfirm"
               name="passwordConfirm"
+              data-testid="signup-password-confirm"
               placeholder="********"
-              class="input w-full"
+              class:list={['input w-full', focusRingClasses]}
               required
               minlength="8"
               autocomplete="new-password"
@@ -61,7 +65,7 @@ const error = Astro.url.searchParams.get('error')
           </fieldset>
 
           <div class="mt-6">
-            <button type="submit" class="btn btn-primary w-full">
+            <button type="submit" data-testid="signup-submit" class:list={['btn btn-primary w-full', pressClasses, focusRingClasses]}>
               Registrieren
             </button>
           </div>
@@ -70,7 +74,7 @@ const error = Astro.url.searchParams.get('error')
         <div class="divider">oder</div>
 
         <p class="text-center">
-          Bereits registriert? <a href="/login" class="link link-primary">Anmelden</a>
+          Bereits registriert? <a href="/login" class:list={['link link-primary', focusRingClasses]}>Anmelden</a>
         </p>
       </div>
     </div>

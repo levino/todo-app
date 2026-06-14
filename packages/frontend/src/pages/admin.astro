@@ -1,5 +1,6 @@
 ---
 import Layout from '@/layouts/Layout.astro'
+import { pressClasses, focusRingClasses } from '@/lib/interaction-classes'
 
 const { pb, user } = Astro.locals
 
@@ -58,7 +59,8 @@ if (Astro.request.method === 'POST') {
           {mcpUrl}
         </div>
         <button
-          class="btn btn-primary mt-4"
+          data-testid="copy-url-button"
+          class:list={['btn btn-primary mt-4', pressClasses, focusRingClasses]}
           onclick={`navigator.clipboard.writeText('${mcpUrl}')`}
         >
           URL kopieren
@@ -105,9 +107,9 @@ if (Astro.request.method === 'POST') {
                     Verbunden seit {new Date(grant.created_at * 1000).toLocaleDateString('de-DE')}
                   </p>
                 </div>
-                <form method="POST">
+                <form method="POST" data-loading-submit>
                   <input type="hidden" name="disconnect_client_id" value={grant.client_id} />
-                  <button type="submit" class="btn btn-error btn-sm">Trennen</button>
+                  <button type="submit" data-testid="disconnect-button" class:list={['btn btn-error btn-sm', pressClasses, focusRingClasses]}>Trennen</button>
                 </form>
               </div>
             ))}
@@ -117,7 +119,7 @@ if (Astro.request.method === 'POST') {
     </div>
 
     <div class="mt-8">
-      <a href="/" class="btn btn-ghost">← Zurück</a>
+      <a href="/" data-testid="admin-back-link" class:list={['btn btn-ghost', pressClasses, focusRingClasses]}>← Zurück</a>
     </div>
   </div>
 </Layout>
