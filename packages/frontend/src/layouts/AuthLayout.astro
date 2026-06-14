@@ -6,6 +6,7 @@
 
 import '@/styles/app.css'
 import PwaHead from '@/components/PwaHead.astro'
+import SubmitLoading from '@/components/SubmitLoading.astro'
 
 interface Props {
   title: string
@@ -22,6 +23,7 @@ const { title } = Astro.props
     <title>{title}</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <PwaHead />
+    <SubmitLoading />
   </head>
   <body class="min-h-screen bg-base-100">
     <slot />

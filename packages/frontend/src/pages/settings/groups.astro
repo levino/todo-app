@@ -1,6 +1,7 @@
 ---
 import Layout from '@/layouts/Layout.astro'
 import { getUserGroups } from '@/lib/groups'
+import { pressClasses, focusRingClasses, cardPressClasses } from '@/lib/interaction-classes'
 
 const { pb, user } = Astro.locals
 
@@ -22,25 +23,25 @@ const groups = await getUserGroups(pb, user.id)
           Gruppen ermöglichen es dir, Aufgaben für deine Familie zu verwalten.
           Erstelle eine neue Gruppe oder nutze Claude, um eine Gruppe zu erstellen.
         </p>
-        <a href="/admin" class="btn btn-primary">
+        <a href="/admin" data-testid="create-group-link" class:list={['btn btn-primary', pressClasses, focusRingClasses]}>
           Gruppe erstellen (via Claude)
         </a>
       </div>
     ) : (
       <div class="space-y-4">
         {groups.map((group) => (
-          <div class="card bg-base-200 p-4">
+          <a href={`/group/${group.id}/tasks`} data-testid="group-tasks-link" class:list={['card bg-base-200 p-4 no-underline', cardPressClasses, focusRingClasses]}>
             <div class="flex justify-between items-center">
               <h2 class="text-lg font-semibold">{group.name}</h2>
-              <a href={`/group/${group.id}/tasks`} class="btn btn-sm btn-primary">
+              <span class="btn btn-sm btn-primary pointer-events-none">
                 Aufgaben
-              </a>
+              </span>
             </div>
-          </div>
+          </a>
         ))}
 
         <div class="mt-6">
-          <a href="/admin" class="btn btn-outline">
+          <a href="/admin" data-testid="create-more-group-link" class:list={['btn btn-outline', pressClasses, focusRingClasses]}>
             Weitere Gruppe erstellen
           </a>
         </div>

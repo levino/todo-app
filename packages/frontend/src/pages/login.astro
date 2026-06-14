@@ -1,5 +1,6 @@
 ---
 import AuthLayout from '@/layouts/AuthLayout.astro'
+import { pressClasses, focusRingClasses } from '@/lib/interaction-classes'
 
 const error = Astro.url.searchParams.get('error')
 const next = Astro.url.searchParams.get('next')
@@ -19,7 +20,7 @@ const next = Astro.url.searchParams.get('next')
           </div>
         )}
 
-        <form method="POST" action="/api/auth/login" class="space-y-4">
+        <form method="POST" action="/api/auth/login" class="space-y-4" data-loading-submit>
           {next && <input type="hidden" name="next" value={next} />}
           <fieldset>
             <label class="label" for="email">E-Mail</label>
@@ -27,8 +28,9 @@ const next = Astro.url.searchParams.get('next')
               type="email"
               id="email"
               name="email"
+              data-testid="login-email"
               placeholder="name@example.com"
-              class="input w-full"
+              class:list={['input w-full', focusRingClasses]}
               required
               autocomplete="email"
             />
@@ -40,15 +42,16 @@ const next = Astro.url.searchParams.get('next')
               type="password"
               id="password"
               name="password"
+              data-testid="login-password"
               placeholder="********"
-              class="input w-full"
+              class:list={['input w-full', focusRingClasses]}
               required
               autocomplete="current-password"
             />
           </fieldset>
 
           <div class="mt-6">
-            <button type="submit" class="btn btn-primary w-full">
+            <button type="submit" data-testid="login-submit" class:list={['btn btn-primary w-full', pressClasses, focusRingClasses]}>
               Anmelden
             </button>
           </div>
@@ -57,7 +60,7 @@ const next = Astro.url.searchParams.get('next')
         <div class="divider">oder</div>
 
         <p class="text-center">
-          Noch kein Konto? <a href="/signup" class="link link-primary">Registrieren</a>
+          Noch kein Konto? <a href="/signup" class:list={['link link-primary', focusRingClasses]}>Registrieren</a>
         </p>
       </div>
     </div>

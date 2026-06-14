@@ -7,6 +7,7 @@
  */
 
 import Layout from '@/layouts/Layout.astro'
+import { pressClasses, focusRingClasses } from '@/lib/interaction-classes'
 
 const { pb, user } = Astro.locals
 
@@ -102,7 +103,7 @@ if (Astro.request.method === 'POST' && user && !error && !clientError) {
             <h2 class="card-title text-error">Fehler</h2>
             <p class="text-error">{error || clientError}</p>
             <div class="card-actions mt-4">
-              <a href="/" class="btn btn-ghost">Zur Startseite</a>
+              <a href="/" data-testid="oauth-home-link" class:list={['btn btn-ghost', pressClasses, focusRingClasses]}>Zur Startseite</a>
             </div>
           </>
         ) : needsLogin ? (
@@ -113,7 +114,7 @@ if (Astro.request.method === 'POST' && user && !error && !clientError) {
             <p class="text-sm text-base-content/70 mb-4">
               Bitte melde dich an, um den Zugriff zu autorisieren.
             </p>
-            <form method="POST" action="/api/auth/login" class="space-y-4">
+            <form method="POST" action="/api/auth/login" class="space-y-4" data-loading-submit>
               <input type="hidden" name="next" value={currentPath} />
               <fieldset>
                 <label class="label" for="email">E-Mail</label>
@@ -122,7 +123,7 @@ if (Astro.request.method === 'POST' && user && !error && !clientError) {
                   id="email"
                   name="email"
                   placeholder="name@example.com"
-                  class="input w-full"
+                  class:list={['input w-full', focusRingClasses]}
                   required
                   autocomplete="email"
                 />
@@ -134,13 +135,13 @@ if (Astro.request.method === 'POST' && user && !error && !clientError) {
                   id="password"
                   name="password"
                   placeholder="********"
-                  class="input w-full"
+                  class:list={['input w-full', focusRingClasses]}
                   required
                   autocomplete="current-password"
                 />
               </fieldset>
               <div class="mt-6">
-                <button type="submit" class="btn btn-primary w-full">
+                <button type="submit" class:list={['btn btn-primary w-full', pressClasses, focusRingClasses]}>
                   Anmelden
                 </button>
               </div>
@@ -167,9 +168,9 @@ if (Astro.request.method === 'POST' && user && !error && !clientError) {
                 </div>
               )}
             </div>
-            <form method="POST" class="card-actions justify-end gap-2">
-              <a href="/" class="btn btn-ghost">Abbrechen</a>
-              <button type="submit" class="btn btn-primary">
+            <form method="POST" class="card-actions justify-end gap-2" data-loading-submit>
+              <a href="/" class:list={['btn btn-ghost', pressClasses, focusRingClasses]}>Abbrechen</a>
+              <button type="submit" class:list={['btn btn-primary', pressClasses, focusRingClasses]}>
                 Zugriff erlauben
               </button>
             </form>

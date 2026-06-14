@@ -2,6 +2,7 @@
 import { actions } from 'astro:actions'
 import Layout from '@/layouts/Layout.astro'
 import ColoredInitials from '@/components/ColoredInitials.astro'
+import { pressClasses, focusRingClasses } from '@/lib/interaction-classes'
 import {
   type Task,
   type Child,
@@ -188,7 +189,7 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
 
       {selectedChild && pointsBalanceByChild[selectedChild.id] > 0 && (
         <div class="mb-8">
-          <div data-testid="points-balance" class="badge badge-lg badge-warning gap-1">
+          <div data-testid="points-balance" transition:name={`points-${selectedChild.id}`} class="badge badge-lg badge-warning gap-1">
             {pointsBalanceByChild[selectedChild.id]} Punkte
           </div>
         </div>
@@ -219,7 +220,7 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
                     {child.name}
                   </a>
                   {childPoints > 0 && (
-                    <div data-testid="points-balance" class="badge badge-warning badge-sm gap-1">
+                    <div data-testid="points-balance" transition:name={`points-${child.id}`} class="badge badge-warning badge-sm gap-1">
                       {childPoints} Punkte
                     </div>
                   )}
@@ -228,16 +229,16 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
 
               {tasks.length === 0 ? (
                 selectedChild ? (
-                  <div data-testid="celebration" class="text-center py-16">
-                    <div data-testid="celebration-emoji" class="text-8xl mb-6 animate-bounce">🌟</div>
+                  <div data-testid="celebration" transition:name={`celebration-${child.id}`} class="text-center py-16">
+                    <div data-testid="celebration-emoji" class="text-8xl mb-6 motion-safe:animate-bounce">🌟</div>
                     <h2 class="text-3xl md:text-4xl font-bold text-success mb-4">Super gemacht!</h2>
                     <p class="text-xl md:text-2xl text-base-content/70">
                       Alle Aufgaben erledigt!
                     </p>
                   </div>
                 ) : (
-                  <div data-testid="celebration" class="text-center py-8 bg-base-200 rounded-xl">
-                    <div data-testid="celebration-emoji" class="text-5xl mb-2 animate-bounce">🌟</div>
+                  <div data-testid="celebration" transition:name={`celebration-${child.id}`} class="text-center py-8 bg-base-200 rounded-xl">
+                    <div data-testid="celebration-emoji" class="text-5xl mb-2 motion-safe:animate-bounce">🌟</div>
                     <p class="text-lg text-success font-bold">Alles erledigt!</p>
                   </div>
                 )
@@ -323,7 +324,7 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
                           <button
                             type="submit"
                             data-testid="undo-button"
-                            class="btn btn-ghost btn-sm"
+                            class:list={['btn btn-ghost btn-sm', pressClasses, focusRingClasses]}
                             aria-label={`${task.title} rückgängig machen`}
                           >
                             ↩
@@ -369,7 +370,7 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
           <a
             data-testid="future-tasks-toggle"
             href={buildFutureToggleHref(!showFuture)}
-            class="btn btn-ghost btn-sm"
+            class:list={['btn btn-ghost btn-sm', pressClasses, focusRingClasses]}
           >
             {showFuture ? 'Zukünftige Aufgaben ausblenden' : 'Zukünftige Aufgaben anzeigen'}
           </a>
@@ -378,11 +379,11 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
 
       <div class="mt-8 pt-8 border-t border-base-300">
         {selectedChild ? (
-          <a href={`/group/${groupId}/tasks`} class="btn btn-ghost btn-sm">
+          <a href={`/group/${groupId}/tasks`} data-testid="back-link" class:list={['btn btn-ghost btn-sm', pressClasses, focusRingClasses]}>
             ← Zurück zur Übersicht
           </a>
         ) : (
-          <a href="/admin" class="btn btn-ghost btn-sm">
+          <a href="/admin" data-testid="back-link" class:list={['btn btn-ghost btn-sm', pressClasses, focusRingClasses]}>
             ← MCP Verbindung
           </a>
         )}
@@ -390,13 +391,13 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
     </div>
   </div>
 
-  <dialog data-testid="confirm-dialog" id="confirm-dialog" class="modal">
+  <dialog data-testid="confirm-dialog" id="confirm-dialog" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box">
       <h3 class="text-lg font-bold">Aufgabe erledigt?</h3>
       <p class="py-4">Hast du <strong id="confirm-task-title"></strong> wirklich erledigt?</p>
       <div class="modal-action">
-        <button data-testid="confirm-cancel" id="confirm-cancel" class="btn">Abbrechen</button>
-        <button data-testid="confirm-ok" id="confirm-ok" class="btn btn-success">Erledigt!</button>
+        <button data-testid="confirm-cancel" id="confirm-cancel" class:list={['btn', pressClasses, focusRingClasses]}>Abbrechen</button>
+        <button data-testid="confirm-ok" id="confirm-ok" class:list={['btn btn-success', pressClasses, focusRingClasses]}>Erledigt!</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop">
@@ -404,13 +405,13 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
     </form>
   </dialog>
 
-  <dialog data-testid="delete-confirm-dialog" id="delete-confirm-dialog" class="modal">
+  <dialog data-testid="delete-confirm-dialog" id="delete-confirm-dialog" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box">
       <h3 class="text-lg font-bold">Aufgabe löschen?</h3>
       <p class="py-4">Willst du <strong id="delete-confirm-task-title"></strong> wirklich löschen?</p>
       <div class="modal-action">
-        <button data-testid="delete-confirm-cancel" id="delete-confirm-cancel" class="btn">Abbrechen</button>
-        <button data-testid="delete-confirm-ok" id="delete-confirm-ok" class="btn btn-error">Löschen</button>
+        <button data-testid="delete-confirm-cancel" id="delete-confirm-cancel" class:list={['btn', pressClasses, focusRingClasses]}>Abbrechen</button>
+        <button data-testid="delete-confirm-ok" id="delete-confirm-ok" class:list={['btn btn-error', pressClasses, focusRingClasses]}>Löschen</button>
       </div>
     </div>
     <form method="dialog" class="modal-backdrop">
@@ -436,6 +437,13 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
 
       document.querySelectorAll('form[data-task-title]').forEach((form) => {
         form.addEventListener('submit', (e) => {
+          // Once confirmed, let the submit through so Astro's ViewTransitions
+          // router handles it (animated navigation). Using requestSubmit() below
+          // re-fires this event; the flag prevents re-opening the dialog.
+          if ((form as HTMLFormElement).dataset.confirmed === '1') {
+            ;(form as HTMLFormElement).removeAttribute('data-confirmed')
+            return
+          }
           e.preventDefault()
           pendingForm = form as HTMLFormElement
           titleEl.textContent = form.getAttribute('data-task-title') || ''
@@ -449,12 +457,21 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
       })
 
       okBtn.addEventListener('click', () => {
-        if (pendingForm) pendingForm.submit()
+        if (pendingForm) {
+          // requestSubmit() (not submit()) fires a real submit event the router
+          // intercepts, so the view transition runs instead of a hard reload.
+          pendingForm.dataset.confirmed = '1'
+          pendingForm.requestSubmit()
+        }
       })
 
       if (deleteDialog && deleteTitleEl && deleteCancelBtn && deleteOkBtn) {
         document.querySelectorAll('form[data-delete-task-title]').forEach((form) => {
           form.addEventListener('submit', (e) => {
+            if ((form as HTMLFormElement).dataset.confirmed === '1') {
+              ;(form as HTMLFormElement).removeAttribute('data-confirmed')
+              return
+            }
             e.preventDefault()
             e.stopPropagation()
             pendingDeleteForm = form as HTMLFormElement
@@ -469,7 +486,10 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
         })
 
         deleteOkBtn.addEventListener('click', () => {
-          if (pendingDeleteForm) pendingDeleteForm.submit()
+          if (pendingDeleteForm) {
+            pendingDeleteForm.dataset.confirmed = '1'
+            pendingDeleteForm.requestSubmit()
+          }
         })
       }
 
