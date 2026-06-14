@@ -13,6 +13,7 @@
     "dev:astro": "astro dev --port 4321",
     "build": "astro build",
     "start": "node --experimental-strip-types src/index.ts",
+    "migrate:pb": "tsx scripts/migrate-from-pocketbase.ts",
     "typecheck": "astro check && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -47,6 +48,7 @@
     "@types/nodemailer": "^6.4.16",
     "@vitest/coverage-v8": "^4.0.16",
     "concurrently": "^9.1.0",
+    "tsx": "^4.22.4",
     "typescript": "^5.8.2",
     "vitest": "^4.0.16"
   }
