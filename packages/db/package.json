@@ -1,0 +1,32 @@
+{
+  "name": "@family-todo/db",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Shared SQLite (raw SQL) data layer for the Family Todo App",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "migrations"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.7.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.12.0",
+    "typescript": "^5.5.4",
+    "vitest": "^4.0.8"
+  }
+}
