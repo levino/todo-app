@@ -247,6 +247,8 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
                     return (
                       <li
                         data-testid="task-item"
+                        transition:name={`task-${task.id}`}
+                        transition:animate="fade"
                         class:list={[
                           'flex items-center gap-4 p-4 rounded-xl min-h-[56px] transition-transform duration-150 active:scale-[0.97] hover:shadow-md cursor-pointer',
                           'bg-base-200',
@@ -308,6 +310,8 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
                     {completed.map((task) => (
                       <li
                         data-testid="completed-task-item"
+                        transition:name={`task-${task.id}`}
+                        transition:animate="fade"
                         class="flex items-center gap-4 p-3 rounded-xl bg-base-200/50 opacity-60"
                       >
                         <div class="flex-1">
@@ -338,6 +342,8 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
                     {futureTasks.map((task) => (
                       <li
                         data-testid="future-task-item"
+                        transition:name={`task-${task.id}`}
+                        transition:animate="fade"
                         class="flex items-center gap-4 p-3 rounded-xl bg-base-200/30 opacity-50"
                       >
                         <div class="flex-1">

@@ -83,5 +83,22 @@ describe('View Transitions', () => {
 
       expect(html).toMatch(/data-testid="child-column"[^>]*data-astro-transition-scope/)
     })
+
+    it('should give each task item its own transition scope so the list can morph', async () => {
+      await adminPb.collection('tasks').create({
+        title: 'Zähne putzen',
+        child: child1Id,
+        completed: false,
+        timeOfDay: 'afternoon',
+      })
+
+      const html = await container.renderToString(TasksPage, {
+        params: { groupId },
+        request: new Request(`http://localhost/group/${groupId}/tasks?child=${child1Id}`),
+        locals: { pb: userPb, user: authUser(userPb) },
+      })
+
+      expect(html).toMatch(/<li data-testid="task-item"[^>]*data-astro-transition-scope=/)
+    })
   })
 })
