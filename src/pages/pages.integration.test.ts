@@ -18,14 +18,16 @@ beforeEach(() => {
 })
 
 describe('login page', () => {
-  it('renders the magic link form when not logged in', async () => {
+  it('explains the ZITADEL login when not logged in', async () => {
     const container = await AstroContainer.create()
     const html = await container.renderToString(LoginPage, {
       locals: { db, user: null },
     })
     expect(html).toContain('Anmelden')
-    expect(html).toContain('action="/auth/magic/request"')
-    expect(html).toContain('name="email"')
+    expect(html).toContain('ZITADEL')
+    // No more in-app github / magic-link login UI.
+    expect(html).not.toContain('/auth/magic/request')
+    expect(html).not.toContain('/auth/github/start')
   })
 })
 

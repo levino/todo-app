@@ -4,24 +4,12 @@ import type { RequestHandler } from 'express'
 import express from 'express'
 import type { Hono } from 'hono'
 import { getAppContext } from './app-context.ts'
-import { makeMailerFromEnv } from './auth/email.ts'
 import { makeAuthRouter } from './auth/routes.ts'
 import { makeChatRouter } from './chat.ts'
 import { makeMcpRouter } from './mcp-server.ts'
 
 const { db, keys, baseUrl: BASE_URL } = await getAppContext()
 const PORT = Number(process.env.PORT ?? 3000)
-const mailer = makeMailerFromEnv(process.env)
-
-const github =
-  process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
-    ? {
-        clientId: process.env.GITHUB_CLIENT_ID,
-        clientSecret: process.env.GITHUB_CLIENT_SECRET,
-        redirectUri:
-          process.env.GITHUB_REDIRECT_URI ?? `${BASE_URL}/auth/github/callback`,
-      }
-    : null
 
 const honoToExpress =
   (honoApp: Hono): RequestHandler =>
@@ -63,9 +51,8 @@ const app = express()
 
 const mcpRouter = makeMcpRouter(db, keys)
 const chatRouter = makeChatRouter(db, keys)
-const authRouter = makeAuthRouter(db, keys, mailer, {
+const authRouter = makeAuthRouter(db, keys, {
   baseUrl: BASE_URL,
-  github,
 })
 
 app.use('/mcp', honoToExpress(mcpRouter))
@@ -101,12 +88,7 @@ if (existsSync(CLIENT_DIR)) {
 
 app.listen(PORT, () => {
   console.log(`levino-todo-app listening on :${PORT}`)
-  if (!github)
-    console.log(
-      '(GitHub OAuth disabled — set GITHUB_CLIENT_ID + GITHUB_CLIENT_SECRET)',
-    )
-  if (!process.env.SES_SMTP_HOST)
-    console.log(
-      '(Magic links printed to console — set SES_SMTP_* to send real mails)',
-    )
+  console.log(
+    '(Login via oauth2-proxy/ZITADEL: sessions are minted from the X-Forwarded-Email header)',
+  )
 })

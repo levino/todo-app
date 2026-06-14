@@ -1,11 +1,13 @@
 ---
 import Layout from '../layouts/Layout.astro'
 
+// Authentication happens at the oauth2-proxy/ZITADEL gatekeeper in front of
+// this process; the session cookie is then minted by src/middleware.ts from the
+// proxy's X-Forwarded-Email header. So a real browser that reaches the app is
+// already logged in. If we somehow have a user here, send them home.
 if (Astro.locals.user) {
   return Astro.redirect('/')
 }
-
-const githubEnabled = !!process.env.GITHUB_CLIENT_ID
 ---
 
 <Layout title="Anmelden">
@@ -13,31 +15,11 @@ const githubEnabled = !!process.env.GITHUB_CLIENT_ID
     <div class="card bg-base-100 shadow-md">
       <div class="card-body">
         <h1 class="card-title text-2xl mb-4">Anmelden</h1>
-
-        <form method="post" action="/auth/magic/request" class="flex flex-col gap-3">
-          <label class="form-control">
-            <span class="label-text">Email</span>
-            <input
-              type="email"
-              name="email"
-              required
-              placeholder="parent@example.com"
-              class="input input-bordered"
-            />
-          </label>
-          <button type="submit" class="btn btn-primary">
-            Magic-Link senden
-          </button>
-        </form>
-
-        {githubEnabled && (
-          <>
-            <div class="divider">oder</div>
-            <a href="/auth/github/start" class="btn">
-              Mit GitHub anmelden
-            </a>
-          </>
-        )}
+        <p class="text-base-content/70">
+          Die Anmeldung läuft über deinen ZITADEL-Account. Wenn du diese Seite
+          siehst, ist deine Sitzung noch nicht aktiv.
+        </p>
+        <a href="/" class="btn btn-primary mt-4">Zur Anmeldung</a>
       </div>
     </div>
   </div>
