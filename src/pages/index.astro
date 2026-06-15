@@ -1,0 +1,87 @@
+---
+import Layout from '../layouts/Layout.astro'
+import { listChildren } from '../domain/children.ts'
+import { listGroupsForUser } from '../domain/groups.ts'
+import { getPointsBalance } from '../domain/points.ts'
+import { listActiveTasksForChild } from '../domain/tasks.ts'
+
+const { db, user } = Astro.locals
+if (!user) return Astro.redirect('/login')
+
+const now = new Date()
+const groups = listGroupsForUser(db, user.sub)
+
+const groupsWithKids = groups.map((group) => {
+  const children = listChildren(db, group.id).map((child) => ({
+    ...child,
+    tasks: listActiveTasksForChild(db, child.id, now),
+    balance: getPointsBalance(db, child.id),
+  }))
+  return { ...group, children }
+})
+---
+
+<Layout title="Kiosk">
+  {groupsWithKids.length === 0 && (
+    <div class="alert">
+      <span>
+        Noch keine Gruppe. Geh in den <a href="/chat" class="link">Chat</a> und
+        lege eine an.
+      </span>
+    </div>
+  )}
+
+  {groupsWithKids.map((group) => (
+    <section class="mb-8">
+      <h2 class="text-2xl font-bold mb-4">{group.name}</h2>
+
+      {group.children.length === 0 && (
+        <p class="text-base-content/60">
+          Keine Kinder in dieser Gruppe. Der Chat-Assistent kann welche anlegen.
+        </p>
+      )}
+
+      <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {group.children.map((child) => (
+          <article class="card bg-base-100 shadow-sm">
+            <div class="card-body">
+              <div class="flex items-center justify-between">
+                <h3 class="card-title" style={`color: ${child.color}`}>
+                  {child.name}
+                </h3>
+                <span class="badge badge-primary">{child.balance} Punkte</span>
+              </div>
+
+              {child.tasks.length === 0 ? (
+                <p class="text-base-content/60">Alle Aufgaben erledigt!</p>
+              ) : (
+                <ul class="flex flex-col gap-2">
+                  {child.tasks.map((task) => (
+                    <li>
+                      <form
+                        method="post"
+                        action={`/tasks/${task.id}/complete`}
+                      >
+                        <button
+                          type="submit"
+                          class="btn btn-block justify-start"
+                        >
+                          <span class="flex-1 text-left">{task.title}</span>
+                          {task.points > 0 && (
+                            <span class="badge badge-secondary">
+                              +{task.points}
+                            </span>
+                          )}
+                        </button>
+                      </form>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  ))}
+</Layout>

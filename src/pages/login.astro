@@ -1,0 +1,26 @@
+---
+import Layout from '../layouts/Layout.astro'
+
+// Authentication happens at the oauth2-proxy/ZITADEL gatekeeper in front of
+// this process; the session cookie is then minted by src/middleware.ts from the
+// proxy's X-Forwarded-Email header. So a real browser that reaches the app is
+// already logged in. If we somehow have a user here, send them home.
+if (Astro.locals.user) {
+  return Astro.redirect('/')
+}
+---
+
+<Layout title="Anmelden">
+  <div class="max-w-md mx-auto mt-12">
+    <div class="card bg-base-100 shadow-md">
+      <div class="card-body">
+        <h1 class="card-title text-2xl mb-4">Anmelden</h1>
+        <p class="text-base-content/70">
+          Die Anmeldung läuft über deinen ZITADEL-Account. Wenn du diese Seite
+          siehst, ist deine Sitzung noch nicht aktiv.
+        </p>
+        <a href="/" class="btn btn-primary mt-4">Zur Anmeldung</a>
+      </div>
+    </div>
+  </div>
+</Layout>

@@ -1,0 +1,140 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: levino-todo-app
+  namespace: todo-app
+  labels:
+    app: levino-todo-app
+spec:
+  # Single replica: the SQLite file lives on a ReadWriteOnce PVC and is owned by
+  # the one app process. Recreate (not RollingUpdate) so the old pod releases
+  # the volume before the new one mounts it.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: levino-todo-app
+  template:
+    metadata:
+      labels:
+        app: levino-todo-app
+    spec:
+      containers:
+        # --- App container (Astro SSR + Hono /auth,/api,/mcp + better-sqlite3) ---
+        # Only reachable via the oauth2-proxy sidecar on 127.0.0.1 (no Service
+        # targets it directly). The proxy injects X-Forwarded-Email which the
+        # app's middleware turns into its own RS256 JWT session cookie.
+        - name: app
+          image: ghcr.io/levino/levino-todo-app:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: http
+          env:
+            - name: PORT
+              value: "3000"
+            - name: BASE_URL
+              value: https://todos.levinkeller.de
+            - name: DATABASE_PATH
+              value: /data/db.sqlite
+          envFrom:
+            # ANTHROPIC_API_KEY (chat) + JWT_PRIVATE_KEY/JWT_PUBLIC_KEY
+            # (RS256 session + MCP bearer keys, persisted so sessions/tokens
+            # survive restarts). Sealed at deploy time.
+            - secretRef:
+                name: levino-todo-app-secrets
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+        # --- oauth2-proxy sidecar (ZITADEL OIDC gatekeeper) ---
+        # The only thing the Ingress/Service routes to (port 4180). It upstreams
+        # to the app on 127.0.0.1:3000 and authenticates browsers against
+        # ZITADEL. /mcp is skipped (--skip-auth-route=^/mcp) so Claude's Bearer
+        # JWT calls reach the app's /mcp directly, unauthenticated by the proxy
+        # (the app still validates the Bearer JWT itself).
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
+          args:
+            - --provider=oidc
+            - --oidc-issuer-url=https://id.levinkeller.de
+            - --upstream=http://127.0.0.1:3000
+            - --http-address=0.0.0.0:4180
+            - --redirect-url=https://todos.levinkeller.de/oauth2/callback
+            - --email-domain=*
+            - --cookie-secure=true
+            - --cookie-samesite=lax
+            - --cookie-csrf-per-request=true
+            - --cookie-csrf-expire=15m
+            - --cookie-expire=720h
+            - --cookie-refresh=1h
+            - --scope=openid email profile offline_access
+            - --pass-user-headers=true
+            - --set-xauthrequest=true
+            - --skip-provider-button=true
+            # Bypass the proxy for the MCP endpoint: it authenticates via the
+            # app's RS256 JWT as a Bearer token, not the browser cookie.
+            - --skip-auth-route=^/mcp
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: todo-oauth2-proxy-secret
+                  key: client-id
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: todo-oauth2-proxy-secret
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: todo-oauth2-proxy-secret
+                  key: cookie-secret
+          ports:
+            - containerPort: 4180
+              name: proxy
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: proxy
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: proxy
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: levino-todo-app-data

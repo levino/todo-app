@@ -1,0 +1,39 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+  namespace: todo-app
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: levino-todo-app
+  namespace: todo-app
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    traefik.ingress.kubernetes.io/router.middlewares: todo-app-redirect-https@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - todos.levinkeller.de
+      secretName: todos-levinkeller-de-tls
+  rules:
+    - host: todos.levinkeller.de
+      http:
+        paths:
+          # Single path to the oauth2-proxy sidecar (Service port 80 →
+          # targetPort proxy/4180). The proxy itself lets /mcp through
+          # unauthenticated (--skip-auth-route=^/mcp) to the app upstream, so
+          # Claude's Bearer-JWT MCP calls work without a separate Ingress route.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: levino-todo-app
+                port:
+                  number: 80
