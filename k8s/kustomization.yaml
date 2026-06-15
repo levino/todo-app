@@ -12,3 +12,10 @@ resources:
   - deployment.yaml
   - service.yaml
   - ingress.yaml
+
+# CI (build-and-push) bumps newTag to the freshly built :<sha> on each merge to
+# main and commits it [skip ci]; Flux then rolls the deployment. The :latest in
+# deployment.yaml is the base ref this overrides.
+images:
+  - name: ghcr.io/levino/levino-todo-app
+    newTag: latest
