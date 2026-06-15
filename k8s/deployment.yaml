@@ -26,8 +26,8 @@ spec:
         # targets it directly). The proxy injects X-Forwarded-Email which the
         # app's middleware turns into its own RS256 JWT session cookie.
         - name: app
-          image: ghcr.io/levino/levino-todo-app:latest
-          imagePullPolicy: Always
+          image: ghcr.io/levino/levino-todo-app:c2b1e0a
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000
               name: http

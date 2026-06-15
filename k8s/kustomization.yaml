@@ -7,6 +7,7 @@ kind: Kustomization
 # operator, not by these manifests.
 resources:
   - namespace.yaml
+  - sealed-secrets.yaml
   - pvc.yaml
   - deployment.yaml
   - service.yaml
