@@ -848,6 +848,57 @@ describe('MCP Server', () => {
         expect(task.dailyOnly).toBe(true)
       })
 
+      it('should set isProject when creating a project task', async () => {
+        const createRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: { childId, title: 'Stricken', timeOfDay: 'afternoon', isProject: true },
+            },
+            id: 3,
+          })
+        const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        const task = getTask(db, taskId)!
+        expect(task.isProject).toBe(true)
+      })
+
+      it('should toggle isProject via update_task', async () => {
+        const createRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: { childId, title: 'Handarbeit', timeOfDay: 'afternoon' },
+            },
+            id: 3,
+          })
+        const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+        expect(getTask(db, taskId)!.isProject).toBe(false)
+
+        await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'update_task',
+              arguments: { taskId, isProject: true },
+            },
+            id: 4,
+          })
+
+        expect(getTask(db, taskId)!.isProject).toBe(true)
+      })
+
       it('should auto-set dueDate when creating weekly task without explicit dueDate', async () => {
         const today = new Date()
         const todayDay = today.getDay()

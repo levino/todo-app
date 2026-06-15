@@ -15,6 +15,8 @@ export interface Task {
   points: number
   isChore: boolean
   dailyOnly: boolean
+  isProject: boolean
+  deferredUntil: string | null
 }
 
 export interface Child {
@@ -54,6 +56,8 @@ export interface TasksPageViewRow {
   task_points: number
   task_is_chore: boolean
   task_daily_only: boolean
+  task_is_project: boolean
+  task_deferred_until: string | null
 }
 
 export const viewRowToTask = (row: TasksPageViewRow): Task => ({
@@ -73,6 +77,8 @@ export const viewRowToTask = (row: TasksPageViewRow): Task => ({
   points: row.task_points,
   isChore: !!row.task_is_chore,
   dailyOnly: !!row.task_daily_only,
+  isProject: !!row.task_is_project,
+  deferredUntil: row.task_deferred_until || null,
 })
 
 export interface ChildTasksSplit {
@@ -119,18 +125,27 @@ export const splitViewRowsByChild = (
     const completedAtDateStr = row.task_completed_at ? row.task_completed_at.slice(0, 10) : ''
     const lastCompletedAtDateStr = row.task_last_completed_at ? row.task_last_completed_at.slice(0, 10) : ''
 
+    // Project tasks ("Projektaufgaben") can be marked "done for today": this
+    // sets deferredUntil to the next day, hiding the task from the active list
+    // until then. While deferred it appears in the "done today" section (with
+    // an undo) so the child sees what they finished for the day.
+    const deferredUntilStr = row.task_deferred_until ? row.task_deferred_until.slice(0, 10) : ''
+    const isDeferred = !!deferredUntilStr && deferredUntilStr > params.todayDateStr
+
     // Daily-only ("Tagesaufgaben") tasks are bound to a single day: they are
     // only active exactly on their due date and expire silently afterwards
     // (no overdue, no carry-forward). Regular tasks stay active once due.
     const dailyOnly = !!row.task_daily_only
     const isActive =
       !row.task_completed &&
+      !isDeferred &&
       row.task_time_of_day === params.phase &&
       (dailyOnly
         ? dueDateStr === params.todayDateStr
         : !dueDateStr || dueDateStr <= params.todayDateStr)
 
     const isRecentlyCompleted =
+      isDeferred ||
       (row.task_completed && completedAtDateStr === params.todayDateStr) ||
       (!row.task_completed &&
         !!row.task_recurrence_type &&
@@ -268,6 +283,7 @@ import {
   completeTask as dbCompleteTask,
   undoTask as dbUndoTask,
   deleteTask as dbDeleteTask,
+  deferTask as dbDeferTask,
   getUserById,
 } from '@family-todo/db'
 
@@ -296,6 +312,16 @@ export const undoTask = async (
   timezone?: string,
 ): Promise<{ error?: string }> => {
   return dbUndoTask(db, taskId, timezone)
+}
+
+// Mark a project task as "done for today": defers it to the next day (so it
+// drops out of the active list and reappears tomorrow).
+export const deferTask = async (
+  db: DB,
+  taskId: string,
+  timezone?: string,
+): Promise<{ error?: string }> => {
+  return dbDeferTask(db, taskId, timezone)
 }
 
 export const deleteTask = async (

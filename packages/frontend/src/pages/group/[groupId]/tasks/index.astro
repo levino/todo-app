@@ -254,13 +254,32 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
                     return (
                       <li
                         data-testid="task-item"
+                        data-project={task.isProject ? 'true' : undefined}
                         transition:name={`task-${task.id}`}
                         transition:animate="fade"
                         class:list={[
-                          'flex items-center gap-4 p-4 rounded-xl min-h-[56px] transition-transform duration-150 active:scale-[0.97] hover:shadow-md cursor-pointer',
+                          'flex items-center gap-4 p-4 rounded-xl min-h-[56px] transition-transform duration-150 active:scale-[0.97] hover:shadow-md',
+                          task.isProject ? '' : 'cursor-pointer',
                           'bg-base-200',
                         ]}
                       >
+                        {task.isProject && (
+                          <form method="POST" action={`${actions.deferTask}${actionSuffix}`} data-defer-task-title={task.title}>
+                            <input type="hidden" name="taskId" value={task.id} />
+                            <input type="hidden" name="groupId" value={groupId} />
+                            <button
+                              type="submit"
+                              data-testid="defer-button"
+                              class="btn btn-circle btn-md btn-outline btn-warning min-w-[48px] min-h-[48px] transition-transform duration-150 active:scale-90"
+                              aria-label={`${task.title} für heute geschafft`}
+                              title="Für heute geschafft"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                              </svg>
+                            </button>
+                          </form>
+                        )}
                         <form method="POST" action={`${actions.completeTask}${actionSuffix}`} data-task-title={task.title}>
                           <input type="hidden" name="taskId" value={task.id} />
                           <input type="hidden" name="childId" value={child.id} />
@@ -270,7 +289,8 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
                             type="submit"
                             data-testid="complete-button"
                             class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px] transition-transform duration-150 active:scale-90"
-                            aria-label={`${task.title} erledigen`}
+                            aria-label={task.isProject ? `${task.title} ganz fertig` : `${task.title} erledigen`}
+                            title={task.isProject ? 'Ganz fertig' : undefined}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
@@ -279,6 +299,9 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
                         </form>
                         <div class="flex-1">
                           <span class="text-xl md:text-2xl">{task.title}</span>
+                          {task.isProject && (
+                            <span data-testid="project-badge" class="badge badge-outline badge-sm ml-2">Projekt</span>
+                          )}
                           {task.points > 0 && (
                             <span data-testid="task-points" class="badge badge-warning badge-sm ml-2">+{task.points}</span>
                           )}
@@ -411,6 +434,20 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
     </form>
   </dialog>
 
+  <dialog data-testid="defer-confirm-dialog" id="defer-confirm-dialog" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+      <h3 class="text-lg font-bold">Für heute geschafft?</h3>
+      <p class="py-4">Hast du heute an <strong id="defer-confirm-task-title"></strong> gearbeitet? Sie wird ausgeblendet und kommt morgen wieder.</p>
+      <div class="modal-action">
+        <button data-testid="defer-confirm-cancel" id="defer-confirm-cancel" class:list={['btn', pressClasses, focusRingClasses]}>Abbrechen</button>
+        <button data-testid="defer-confirm-ok" id="defer-confirm-ok" class:list={['btn btn-warning', pressClasses, focusRingClasses]}>Für heute!</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>
+
   <dialog data-testid="delete-confirm-dialog" id="delete-confirm-dialog" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box">
       <h3 class="text-lg font-bold">Aufgabe löschen?</h3>
@@ -438,6 +475,12 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
       const deleteTitleEl = document.getElementById('delete-confirm-task-title') as HTMLElement
       const deleteCancelBtn = document.getElementById('delete-confirm-cancel') as HTMLButtonElement
       const deleteOkBtn = document.getElementById('delete-confirm-ok') as HTMLButtonElement
+
+      let pendingDeferForm: HTMLFormElement | null = null
+      const deferDialog = document.getElementById('defer-confirm-dialog') as HTMLDialogElement
+      const deferTitleEl = document.getElementById('defer-confirm-task-title') as HTMLElement
+      const deferCancelBtn = document.getElementById('defer-confirm-cancel') as HTMLButtonElement
+      const deferOkBtn = document.getElementById('defer-confirm-ok') as HTMLButtonElement
 
       if (!dialog || !titleEl || !cancelBtn || !okBtn) return
 
@@ -499,8 +542,39 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
         })
       }
 
+      if (deferDialog && deferTitleEl && deferCancelBtn && deferOkBtn) {
+        document.querySelectorAll('form[data-defer-task-title]').forEach((form) => {
+          form.addEventListener('submit', (e) => {
+            if ((form as HTMLFormElement).dataset.confirmed === '1') {
+              ;(form as HTMLFormElement).removeAttribute('data-confirmed')
+              return
+            }
+            e.preventDefault()
+            e.stopPropagation()
+            pendingDeferForm = form as HTMLFormElement
+            deferTitleEl.textContent = form.getAttribute('data-defer-task-title') || ''
+            deferDialog.showModal()
+          })
+        })
+
+        deferCancelBtn.addEventListener('click', () => {
+          pendingDeferForm = null
+          deferDialog.close()
+        })
+
+        deferOkBtn.addEventListener('click', () => {
+          if (pendingDeferForm) {
+            pendingDeferForm.dataset.confirmed = '1'
+            pendingDeferForm.requestSubmit()
+          }
+        })
+      }
+
       document.querySelectorAll('[data-testid="task-item"]').forEach((li) => {
         li.addEventListener('click', (e) => {
+          // Project tasks expose explicit yellow/green buttons; a stray tap on
+          // the row must not trigger the (final) completion.
+          if ((li as HTMLElement).dataset.project === 'true') return
           const target = e.target as Element
           if (target.closest('button')) return
           if (target.closest('form[data-delete-task-title]')) return
@@ -586,6 +660,7 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
         var form = e.target
         if (!form || !(form instanceof HTMLFormElement)) return
         if (form.hasAttribute('data-task-title') ||
+            form.hasAttribute('data-defer-task-title') ||
             form.hasAttribute('data-delete-task-title') ||
             form.getAttribute('action') && form.getAttribute('action').indexOf('undoTask') !== -1) {
           saveScroll()
