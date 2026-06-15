@@ -1,42 +1,40 @@
 /**
  * MCP Server Integration Tests
  *
- * Tests the MCP server with actual HTTP requests using supertest.
- * Requires PocketBase to be running.
+ * Tests the MCP server with actual HTTP requests using supertest, backed by an
+ * in-memory @family-todo/db SQLite database (reset before each test). The query
+ * param `token` is the app user id, which the auth middleware resolves via
+ * getUserById.
  */
 
-import { describe, it, expect, beforeEach, beforeAll } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import request from 'supertest'
-import PocketBase from 'pocketbase'
+import {
+  type DB,
+  resetDb,
+  upsertUserByEmail,
+  getTask,
+  getGroup,
+  configurePhaseTimes,
+  createPointTransaction,
+} from '@family-todo/db'
 import { app, calculateNextDueDate, calculateInitialDueDate } from './server.js'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
-
 describe('MCP Server', () => {
-  let adminPb: PocketBase
+  let db: DB
   let authToken: string
   let userId: string
 
-  beforeAll(async () => {
-    // Create admin connection for setup
-    adminPb = new PocketBase(POCKETBASE_URL)
-    await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-  })
+  beforeEach(() => {
+    // Fresh in-memory database for each test (becomes the getDb() singleton).
+    db = resetDb()
 
-  beforeEach(async () => {
-    // Create a fresh test user for each test
-    const email = `test-${Date.now()}@example.com`
-    const user = await adminPb.collection('users').create({
-      email,
-      password: 'testtest123',
-      passwordConfirm: 'testtest123',
-    })
+    // Create a fresh test user for each test. The query-param token is the
+    // user's app id.
+    const email = `test-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`
+    const user = upsertUserByEmail(db, email)
     userId = user.id
-
-    // Get auth token
-    const userPb = new PocketBase(POCKETBASE_URL)
-    await userPb.collection('users').authWithPassword(email, 'testtest123')
-    authToken = userPb.authStore.token
+    authToken = userId
   })
 
   describe('Health Check', () => {
@@ -318,7 +316,7 @@ describe('MCP Server', () => {
         expect(res.body.result.content[0].text).toContain('Brush teeth')
 
         const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
-        const task = await adminPb.collection('tasks').getOne(taskId)
+        const task = getTask(db, taskId)!
         expect(task.timeOfDay).toBe('morning')
       })
 
@@ -413,7 +411,7 @@ describe('MCP Server', () => {
         expect(res.body.error).toBeUndefined()
         expect(res.body.result.content[0].text).toContain('Created task')
         const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
-        const task = await adminPb.collection('tasks').getOne(taskId)
+        const task = getTask(db, taskId)!
         expect(task.recurrenceDays).toEqual([0, 1, 2, 3, 4, 5, 6])
       })
 
@@ -593,7 +591,7 @@ describe('MCP Server', () => {
 
         // Verify fields in DB
         const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
-        const task = await adminPb.collection('tasks').getOne(taskId)
+        const task = getTask(db, taskId)!
         expect(task.recurrenceType).toBe('interval')
         expect(task.recurrenceInterval).toBe(2)
         expect(task.dueDate).toContain('2026-03-15')
@@ -625,7 +623,7 @@ describe('MCP Server', () => {
         expect(res.body.result.content[0].text).toContain('Repeats on weekdays')
 
         const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
-        const task = await adminPb.collection('tasks').getOne(taskId)
+        const task = getTask(db, taskId)!
         expect(task.recurrenceType).toBe('weekly')
         expect(task.recurrenceDays).toEqual([1, 2, 3, 4, 5])
       })
@@ -733,7 +731,7 @@ describe('MCP Server', () => {
             id: 4,
           })
 
-        const task = await adminPb.collection('tasks').getOne(taskId)
+        const task = getTask(db, taskId)!
         expect(task.timeOfDay).toBe('evening')
       })
 
@@ -780,7 +778,7 @@ describe('MCP Server', () => {
         expect(res.status).toBe(200)
         expect(res.body.result?.isError).toBeFalsy()
 
-        const task = await adminPb.collection('tasks').getOne(taskId)
+        const task = getTask(db, taskId)!
         expect(task.recurrenceDays).toEqual([1, 2, 3, 4, 5])
         expect(task.recurrenceType).toBe('weekly')
         expect(task.dueDate).toContain('2026-03-16')
@@ -846,7 +844,7 @@ describe('MCP Server', () => {
             id: 4,
           })
 
-        const task = await adminPb.collection('tasks').getOne(taskId)
+        const task = getTask(db, taskId)!
         expect(task.dailyOnly).toBe(true)
       })
 
@@ -877,7 +875,7 @@ describe('MCP Server', () => {
 
         expect(res.status).toBe(200)
         const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
-        const task = await adminPb.collection('tasks').getOne(taskId)
+        const task = getTask(db, taskId)!
         expect(task.dueDate).not.toBe('')
         expect(task.dueDate).not.toBeNull()
 
@@ -911,7 +909,7 @@ describe('MCP Server', () => {
 
         expect(res.status).toBe(200)
         const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
-        const task = await adminPb.collection('tasks').getOne(taskId)
+        const task = getTask(db, taskId)!
         expect(task.dueDate).not.toBe('')
         expect(task.dueDate).not.toBeNull()
 
@@ -936,10 +934,10 @@ describe('MCP Server', () => {
         const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
 
         // Mark as completed directly in DB
-        await adminPb.collection('tasks').update(taskId, {
-          completed: true,
-          completedAt: new Date().toISOString(),
-        })
+        db.prepare('UPDATE tasks SET completed = 1, completedAt = ? WHERE id = ?').run(
+          new Date().toISOString(),
+          taskId,
+        )
 
         // Reset task
         const res = await request(app)
@@ -959,7 +957,7 @@ describe('MCP Server', () => {
         expect(res.body.result.content[0].text).toContain('Reset task')
 
         // Verify task is incomplete
-        const task = await adminPb.collection('tasks').getOne(taskId)
+        const task = getTask(db, taskId)!
         expect(task.completed).toBe(false)
       })
     })
@@ -1004,7 +1002,7 @@ describe('MCP Server', () => {
         expect(res.status).toBe(200)
         expect(res.body.result.content[0].text).toContain('Updated phase times')
 
-        const group = await adminPb.collection('groups').getOne(groupId)
+        const group = getGroup(db, groupId)!
         expect(group.morningEnd).toBe('10:00')
         expect(group.eveningStart).toBe('19:00')
       })
@@ -1028,12 +1026,12 @@ describe('MCP Server', () => {
 
         expect(res.status).toBe(200)
 
-        const group = await adminPb.collection('groups').getOne(groupId)
+        const group = getGroup(db, groupId)!
         expect(group.timezone).toBe('America/New_York')
       })
 
       it('should list groups with phase times', async () => {
-        await adminPb.collection('groups').update(groupId, {
+        configurePhaseTimes(db, groupId, {
           morningEnd: '08:30',
           eveningStart: '17:30',
         })
@@ -1057,7 +1055,7 @@ describe('MCP Server', () => {
       })
 
       it('should list groups with timezone', async () => {
-        await adminPb.collection('groups').update(groupId, {
+        configurePhaseTimes(db, groupId, {
           timezone: 'Europe/Berlin',
         })
 
@@ -1270,8 +1268,8 @@ describe('MCP Server', () => {
       })
 
       it('should redeem a reward and deduct points', async () => {
-        await adminPb.collection('point_transactions').create({
-          child: childId,
+        createPointTransaction(db, {
+          childId,
           points: 100,
           type: 'earned',
           description: 'Test points',
@@ -1378,7 +1376,7 @@ describe('MCP Server', () => {
 
         expect(res.status).toBe(200)
         const taskId = res.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
-        const task = await adminPb.collection('tasks').getOne(taskId)
+        const task = getTask(db, taskId)!
         expect(task.points).toBe(10)
       })
 

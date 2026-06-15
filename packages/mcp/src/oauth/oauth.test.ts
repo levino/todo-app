@@ -11,18 +11,17 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import request from 'supertest'
-import PocketBase from 'pocketbase'
 import { rmSync, existsSync } from 'node:fs'
+import { type DB, resetDb, closeDb as closeAppDb, upsertUserByEmail } from '@family-todo/db'
 import { app, initOAuth } from '../server.js'
 import { closeDb } from './db.js'
 import { generateCodeChallenge } from './jwt.js'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 const TEST_DB_PATH = './test-data/oauth-integration.db'
 const TEST_KEY_PATH = './test-data/oauth-keys-integration'
 
 describe('OAuth 2.0 Integration', () => {
-  let adminPb: PocketBase
+  let appDb: DB
   let testUserId: string
   let testUserEmail: string
 
@@ -46,16 +45,17 @@ describe('OAuth 2.0 Integration', () => {
     process.env.OAUTH_KEY_PATH = TEST_KEY_PATH
     process.env.OAUTH_ISSUER = 'http://localhost:3001'
 
-    // Initialize OAuth (creates db and generates keys)
+    // Initialize OAuth (creates oauth.db and generates keys)
     await initOAuth()
 
-    // Create admin connection
-    adminPb = new PocketBase(POCKETBASE_URL)
-    await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
+    // Fresh in-memory app database (becomes the getDb() singleton used by the
+    // MCP auth middleware to resolve the JWT `sub` -> app user).
+    appDb = resetDb()
   })
 
   afterAll(() => {
     closeDb()
+    closeAppDb()
     // Clean up test data
     if (existsSync(TEST_DB_PATH)) {
       rmSync(TEST_DB_PATH, { recursive: true, force: true })
@@ -71,14 +71,10 @@ describe('OAuth 2.0 Integration', () => {
     }
   })
 
-  beforeEach(async () => {
-    // Create a fresh test user
-    testUserEmail = `oauth-test-${Date.now()}@example.com`
-    const user = await adminPb.collection('users').create({
-      email: testUserEmail,
-      password: 'testtest123',
-      passwordConfirm: 'testtest123',
-    })
+  beforeEach(() => {
+    // Create a fresh test user in the shared app database.
+    testUserEmail = `oauth-test-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`
+    const user = upsertUserByEmail(appDb, testUserEmail)
     testUserId = user.id
   })
 
@@ -442,14 +438,10 @@ describe('OAuth 2.0 Integration', () => {
     })
 
     it('should still accept query parameter token', async () => {
-      // Get a PocketBase token
-      const userPb = new PocketBase(POCKETBASE_URL)
-      await userPb.collection('users').authWithPassword(testUserEmail, 'testtest123')
-      const pbToken = userPb.authStore.token
-
+      // The query-param token is the app user id (resolved via getUserById).
       const res = await request(app)
         .post('/mcp')
-        .query({ token: pbToken })
+        .query({ token: testUserId })
         .send({
           jsonrpc: '2.0',
           method: 'tools/list',

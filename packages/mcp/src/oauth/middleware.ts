@@ -2,53 +2,37 @@
  * OAuth 2.0 JWT Authentication Middleware
  *
  * Supports two authentication methods:
- * 1. Bearer token (OAuth JWT) - Verifies JWT and impersonates user via PocketBase admin
- * 2. Query param token (PocketBase) - Direct PocketBase authentication token
+ * 1. Bearer token (OAuth JWT) - Verifies the MCP's own JWT and loads the app
+ *    user identified by the `sub` claim from @family-todo/db.
+ * 2. Query param token - the app user id (from @family-todo/db). Used by the
+ *    frontend / tests as a direct authentication shortcut.
+ *
+ * In both cases the resolved app user id is attached to the request as `userId`
+ * (alongside the shared `db` connection) and tool handlers scope queries to the
+ * groups that user belongs to. There is no PocketBase impersonation anymore.
  */
 
 import type { Request, Response, NextFunction } from 'express'
-import PocketBase from 'pocketbase'
+import { getDb, getUserById, type DB } from '@family-todo/db'
 import { verifyAccessToken } from './jwt.js'
 import { isGrantActive } from './db.js'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://localhost:8090'
-
-// Singleton admin PocketBase client
-let adminPb: PocketBase | null = null
-
 /**
- * Get authenticated admin PocketBase client.
- * Creates once and reuses. Only re-authenticates if token is invalid.
+ * Request augmented with the shared app DB connection and the authenticated
+ * app user id. Tool handlers read these instead of a PocketBase client.
  */
-async function getAdminPb(): Promise<PocketBase> {
-  if (!adminPb) {
-    adminPb = new PocketBase(POCKETBASE_URL)
-  }
-
-  if (!adminPb.authStore.isValid) {
-    const email = process.env.POCKETBASE_ADMIN_EMAIL || 'admin@test.local'
-    const password = process.env.POCKETBASE_ADMIN_PASSWORD || 'testtest123'
-    await adminPb.collection('_superusers').authWithPassword(email, password)
-  }
-
-  return adminPb
-}
-
-/**
- * Impersonate a user via PocketBase admin API.
- * Returns a new PocketBase client authenticated as that user.
- */
-async function impersonateUser(userId: string): Promise<PocketBase> {
-  const admin = await getAdminPb()
-  return admin.collection('users').impersonate(userId, 15768000)
+export interface AuthedRequest extends Request {
+  db?: DB
+  userId?: string
 }
 
 /**
  * JWT authentication middleware.
- * Verifies Bearer token and attaches impersonated PocketBase client to request.
+ * Verifies the Bearer token, checks the grant is still active, then loads the
+ * app user named by the `sub` claim and attaches { db, userId } to the request.
  */
 export async function authenticateJWT(
-  req: Request & { pb?: PocketBase },
+  req: AuthedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -93,8 +77,20 @@ export async function authenticateJWT(
   }
 
   try {
-    const userPb = await impersonateUser(claims.sub)
-    req.pb = userPb
+    const db = getDb()
+    const user = getUserById(db, claims.sub)
+    if (!user) {
+      res.status(401).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32600,
+          message: 'Invalid or expired access token',
+        },
+      })
+      return
+    }
+    req.db = db
+    req.userId = user.id
     next()
   } catch {
     res.status(500).json({
@@ -108,11 +104,12 @@ export async function authenticateJWT(
 }
 
 /**
- * PocketBase token authentication middleware.
- * Validates a PocketBase token (from query param) and creates authenticated client.
+ * Query-param token authentication middleware.
+ * The token is the app user id (from @family-todo/db). Validates that a user
+ * with that id exists and creates the authenticated context.
  */
-export async function authenticatePocketBase(
-  req: Request & { pb?: PocketBase },
+export async function authenticateQueryToken(
+  req: AuthedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -129,19 +126,28 @@ export async function authenticatePocketBase(
     return
   }
 
-  const pb = new PocketBase(POCKETBASE_URL)
-  pb.authStore.save(token, null)
-
   try {
-    await pb.collection('users').authRefresh()
-    req.pb = pb
+    const db = getDb()
+    const user = getUserById(db, token)
+    if (!user) {
+      res.status(401).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32600,
+          message: 'Invalid or expired token',
+        },
+      })
+      return
+    }
+    req.db = db
+    req.userId = user.id
     next()
   } catch {
     res.status(401).json({
       jsonrpc: '2.0',
       error: {
         code: -32600,
-        message: 'Invalid or expired PocketBase token',
+        message: 'Invalid or expired token',
       },
     })
   }
@@ -149,10 +155,10 @@ export async function authenticatePocketBase(
 
 /**
  * Flexible authentication middleware.
- * Supports both Bearer token (OAuth JWT) and query param token (PocketBase).
+ * Supports both Bearer token (OAuth JWT) and query param token (app user id).
  */
 export async function authenticateFlexible(
-  req: Request & { pb?: PocketBase },
+  req: AuthedRequest,
   res: Response,
   next: NextFunction
 ): Promise<void> {
@@ -164,7 +170,7 @@ export async function authenticateFlexible(
   }
 
   if (queryToken) {
-    return authenticatePocketBase(req, res, next)
+    return authenticateQueryToken(req, res, next)
   }
 
   res.status(401).json({

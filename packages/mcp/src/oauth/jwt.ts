@@ -20,7 +20,7 @@ let publicKey: JWTKey | null = null
 let publicKeyJWK: jose.JWK | null = null
 
 export interface AccessTokenPayload {
-  sub: string // PocketBase user ID
+  sub: string // app user id (from @family-todo/db)
   client_id: string
   scope?: string
 }
