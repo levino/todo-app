@@ -6,13 +6,48 @@
  * to call these tools via JSON-RPC.
  *
  * Supports OAuth 2.0 authentication for Claude MCP integration.
+ *
+ * Data backend: @family-todo/db (shared SQLite, raw SQL). The previous
+ * PocketBase backend has been removed; tool behaviour (names, schemas,
+ * semantics) is preserved.
  */
 
 import express from 'express'
-import type { Request, Response } from 'express'
+import type { Response } from 'express'
 import cors from 'cors'
-import PocketBase from 'pocketbase'
 import { z } from 'zod'
+import {
+  type DB,
+  getUserGroups,
+  createGroup,
+  deleteGroup,
+  configurePhaseTimes,
+  addUserToGroup,
+  removeUserFromGroup,
+  listMembers,
+  userInGroup,
+  getUserByEmail,
+  listChildren,
+  createChild,
+  updateChild,
+  deleteChild,
+  listTasks,
+  createTask,
+  updateTask,
+  deleteTaskRow,
+  resetTask,
+  listRewards,
+  getReward,
+  createReward,
+  updateReward,
+  deleteReward,
+  getPointsBalance,
+  countPointTransactions,
+  redeemReward,
+  calculateNextDueDate as dbCalculateNextDueDate,
+  calculateInitialDueDate as dbCalculateInitialDueDate,
+  validateRecurrenceDays as dbValidateRecurrenceDays,
+} from '@family-todo/db'
 
 // OAuth modules
 import { initOAuthDb } from './oauth/db.js'
@@ -23,63 +58,18 @@ import clientInfoRouter from './oauth/endpoints/client-info.js'
 import tokenRouter from './oauth/endpoints/token.js'
 import authorizeRouter from './oauth/endpoints/authorize.js'
 import grantsRouter from './oauth/endpoints/grants.js'
-import { authenticateFlexible } from './oauth/middleware.js'
-
-const POCKETBASE_URL = process.env.POCKETBASE_URL
-if (!POCKETBASE_URL) {
-  throw new Error('POCKETBASE_URL environment variable is required')
-}
+import { authenticateFlexible, type AuthedRequest } from './oauth/middleware.js'
 
 const PORT = parseInt(process.env.PORT || '3001', 10)
 
-// PocketBase record types
-interface ChildRecord {
-  id: string
-  name: string
-  color: string
-  group: string
-  collectionId: string
-  collectionName: string
-}
-
-interface TaskRecord {
-  id: string
-  title: string
-  priority: number | null
-  completed: boolean
-  completedAt: string | null
-  dueDate: string | null
-  lastCompletedAt: string | null
-  recurrenceType: string | null
-  recurrenceInterval: number | null
-  recurrenceDays: number[] | null
-  timeOfDay: string
-  points: number | null
-  child: string
-  collectionId: string
-  collectionName: string
-}
-
-interface RewardRecord {
-  id: string
-  name: string
-  description: string
-  pointsCost: number
-  group: string
-  collectionId: string
-  collectionName: string
-}
-
-interface PointTransactionRecord {
-  id: string
-  child: string
-  points: number
-  type: string
-  description: string
-  reward: string | null
-  task: string | null
-  collectionId: string
-  collectionName: string
+/**
+ * Authenticated tool execution context. Replaces the PocketBase client that
+ * used to be threaded through every handler: `db` is the shared @family-todo/db
+ * connection and `userId` is the authenticated app user (for membership scoping).
+ */
+interface ToolContext {
+  db: DB
+  userId: string
 }
 
 // Available colors for children
@@ -93,122 +83,20 @@ export const CHILD_COLORS = [
   { name: 'Pink', value: '#F783AC' },
 ]
 
-export function getLocalDateParts(timezone: string, date: Date): { year: number; month: number; day: number; weekday: number } {
-  const tz = timezone || 'Europe/Berlin'
-  const formatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    weekday: 'short',
-  })
-  const parts = formatter.formatToParts(date)
-  const year = Number(parts.find((p) => p.type === 'year')?.value)
-  const month = Number(parts.find((p) => p.type === 'month')?.value)
-  const day = Number(parts.find((p) => p.type === 'day')?.value)
-  const weekdayStr = parts.find((p) => p.type === 'weekday')?.value || ''
-  const weekdayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
-  const weekday = weekdayMap[weekdayStr] ?? date.getDay()
-  return { year, month, day, weekday }
-}
-
-export function getLocalDateString(timezone: string, date: Date): string {
-  const { year, month, day } = getLocalDateParts(timezone, date)
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-}
-
-export function calculateNextDueDate(
-  recurrenceType: string | null,
-  recurrenceInterval: number | null,
-  recurrenceDays: number[] | null,
-  completedAt: Date,
-  timezone?: string,
-): string | null {
-  const tz = timezone || 'UTC'
-
-  if (recurrenceType === 'interval' && recurrenceInterval) {
-    const localDate = getLocalDateString(tz, completedAt)
-    const next = new Date(localDate + 'T00:00:00Z')
-    next.setUTCDate(next.getUTCDate() + recurrenceInterval)
-    return next.toISOString()
-  }
-
-  if (recurrenceType === 'weekly' && recurrenceDays && recurrenceDays.length > 0) {
-    const sorted = [...recurrenceDays].sort((a, b) => a - b)
-    const { weekday: currentDay } = getLocalDateParts(tz, completedAt)
-    const localDate = getLocalDateString(tz, completedAt)
-
-    const nextDay = sorted.find((d) => d > currentDay) ?? sorted[0]
-    const daysUntil = nextDay > currentDay
-      ? nextDay - currentDay
-      : 7 - currentDay + nextDay
-
-    const next = new Date(localDate + 'T00:00:00Z')
-    next.setUTCDate(next.getUTCDate() + daysUntil)
-    return next.toISOString()
-  }
-
-  return null
-}
-
-export function calculateInitialDueDate(
-  recurrenceType: string | null,
-  recurrenceInterval: number | null,
-  recurrenceDays: number[] | null,
-  today: Date,
-  timezone?: string,
-): string | null {
-  const tz = timezone || 'UTC'
-
-  if (recurrenceType === 'interval' && recurrenceInterval) {
-    const localDate = getLocalDateString(tz, today)
-    return new Date(localDate + 'T00:00:00Z').toISOString()
-  }
-
-  if (recurrenceType === 'weekly' && recurrenceDays && recurrenceDays.length > 0) {
-    const sorted = [...recurrenceDays].sort((a, b) => a - b)
-    const { weekday: currentDay } = getLocalDateParts(tz, today)
-    const localDate = getLocalDateString(tz, today)
-
-    const nextDay = sorted.find((d) => d >= currentDay) ?? sorted[0]
-    const daysUntil = nextDay >= currentDay
-      ? nextDay - currentDay
-      : 7 - currentDay + nextDay
-
-    const next = new Date(localDate + 'T00:00:00Z')
-    next.setUTCDate(next.getUTCDate() + daysUntil)
-    return next.toISOString()
-  }
-
-  return null
-}
-
-/**
- * Validate the canonical weekday encoding for recurrenceDays.
- *
- * Canonical encoding is JavaScript's Date.getDay(): 0=Sunday, 1=Monday, ...,
- * 6=Saturday. Sunday is ONLY 0 (7 is rejected so it is never double-encoded).
- * Returns an error message string, or null when valid.
- */
-export function validateRecurrenceDays(days: number[] | null | undefined): string | null {
-  if (days == null) return null
-  if (!Array.isArray(days)) return 'recurrenceDays must be an array of weekday numbers.'
-  for (const d of days) {
-    if (!Number.isInteger(d) || d < 0 || d > 6) {
-      return `Invalid weekday ${d} in recurrenceDays. Use 0=Sunday, 1=Monday, ..., 6=Saturday (7 is not allowed; Sunday is 0).`
-    }
-  }
-  if (new Set(days).size !== days.length) {
-    return 'recurrenceDays must not contain duplicate weekdays.'
-  }
-  return null
-}
+// Recurrence / date helpers are owned by @family-todo/db. Re-exported here so
+// existing imports (and tests) keep working with identical semantics.
+export const calculateNextDueDate = dbCalculateNextDueDate
+export const calculateInitialDueDate = dbCalculateInitialDueDate
+export const validateRecurrenceDays = dbValidateRecurrenceDays
 
 // Tool registry
 interface Tool {
   description: string
   inputSchema?: z.ZodType
-  handler: (args: Record<string, unknown>, pb: PocketBase) => Promise<{ content: { type: 'text'; text: string }[]; isError?: boolean }>
+  handler: (
+    args: Record<string, unknown>,
+    ctx: ToolContext,
+  ) => Promise<{ content: { type: 'text'; text: string }[]; isError?: boolean }>
 }
 
 const tools: Map<string, Tool> = new Map()
@@ -219,27 +107,17 @@ function registerTools() {
 
   tools.set('list_groups', {
     description: 'List all groups the current user belongs to',
-    handler: async (_, pb) => {
-      const user = pb.authStore.record
-      if (!user) {
+    handler: async (_, { db, userId }) => {
+      if (!userId) {
         return { content: [{ type: 'text', text: 'Error: Not authenticated' }], isError: true }
       }
 
-      const memberships = await pb.collection('user_groups').getList(1, 100, {
-        filter: `user = "${user.id}"`,
-        expand: 'group',
-      })
-
-      interface MembershipWithGroup {
-        expand?: { group?: { id: string; name: string; morningEnd?: string; eveningStart?: string; timezone?: string } }
-      }
-
-      const groups = memberships.items.map((m: MembershipWithGroup) => ({
-        id: m.expand?.group?.id,
-        name: m.expand?.group?.name,
-        morningEnd: m.expand?.group?.morningEnd || '09:00',
-        eveningStart: m.expand?.group?.eveningStart || '18:00',
-        timezone: m.expand?.group?.timezone || 'Europe/Berlin',
+      const groups = getUserGroups(db, userId).map((g) => ({
+        id: g.id,
+        name: g.name,
+        morningEnd: g.morningEnd || '09:00',
+        eveningStart: g.eveningStart || '18:00',
+        timezone: g.timezone || 'Europe/Berlin',
       }))
 
       return { content: [{ type: 'text', text: JSON.stringify(groups, null, 2) }] }
@@ -251,19 +129,14 @@ function registerTools() {
     inputSchema: z.object({
       name: z.string().describe('Name of the group (e.g., "Schmidt Family")'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db, userId }) => {
       const { name } = args as { name: string }
-      const user = pb.authStore.record
 
-      if (!user) {
+      if (!userId) {
         return { content: [{ type: 'text', text: 'Error: Not authenticated' }], isError: true }
       }
 
-      const group = await pb.collection('groups').create({ name })
-      await pb.collection('user_groups').create({
-        user: user.id,
-        group: group.id,
-      })
+      const group = createGroup(db, userId, name)
 
       return { content: [{ type: 'text', text: `Created group "${name}" (ID: ${group.id})` }] }
     },
@@ -274,34 +147,12 @@ function registerTools() {
     inputSchema: z.object({
       groupId: z.string().describe('ID of the group to delete'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { groupId } = args as { groupId: string }
 
-      // Delete all children and their tasks
-      const children = await pb.collection('children').getList(1, 1000, {
-        filter: `group = "${groupId}"`,
-      })
-
-      for (const child of children.items) {
-        const tasks = await pb.collection('tasks').getList(1, 1000, {
-          filter: `child = "${child.id}"`,
-        })
-        for (const task of tasks.items) {
-          await pb.collection('tasks').delete(task.id)
-        }
-        await pb.collection('children').delete(child.id)
-      }
-
-      // Delete all memberships
-      const memberships = await pb.collection('user_groups').getList(1, 1000, {
-        filter: `group = "${groupId}"`,
-      })
-      for (const m of memberships.items) {
-        await pb.collection('user_groups').delete(m.id)
-      }
-
-      // Delete the group
-      await pb.collection('groups').delete(groupId)
+      // Cascade-deletes children, their tasks, point_transactions, rewards and
+      // memberships in a single transaction.
+      deleteGroup(db, groupId)
 
       return { content: [{ type: 'text', text: `Deleted group ${groupId}` }] }
     },
@@ -314,15 +165,10 @@ function registerTools() {
     inputSchema: z.object({
       groupId: z.string().describe('ID of the group'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { groupId } = args as { groupId: string }
 
-      const children = await pb.collection<ChildRecord>('children').getList(1, 100, {
-        filter: `group = "${groupId}"`,
-        sort: 'name',
-      })
-
-      const result = children.items.map((c) => ({
+      const result = listChildren(db, groupId).map((c) => ({
         id: c.id,
         name: c.name,
         color: c.color,
@@ -339,14 +185,10 @@ function registerTools() {
       name: z.string().describe('Name of the child'),
       color: z.string().describe('Color hex code (e.g., "#FF6B6B" for red)'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { groupId, name, color } = args as { groupId: string; name: string; color: string }
 
-      const child = await pb.collection('children').create({
-        name,
-        color,
-        group: groupId,
-      })
+      const child = createChild(db, groupId, name, color)
 
       return { content: [{ type: 'text', text: `Created child "${name}" (ID: ${child.id})` }] }
     },
@@ -359,14 +201,14 @@ function registerTools() {
       name: z.string().optional().describe('New name'),
       color: z.string().optional().describe('New color hex code'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { childId, name, color } = args as { childId: string; name?: string; color?: string }
 
-      const updates: Record<string, string> = {}
+      const updates: { name?: string; color?: string } = {}
       if (name) updates.name = name
       if (color) updates.color = color
 
-      await pb.collection('children').update(childId, updates)
+      updateChild(db, childId, updates)
 
       return { content: [{ type: 'text', text: `Updated child ${childId}` }] }
     },
@@ -377,19 +219,11 @@ function registerTools() {
     inputSchema: z.object({
       childId: z.string().describe('ID of the child'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { childId } = args as { childId: string }
 
-      // Delete all tasks for this child
-      const tasks = await pb.collection('tasks').getList(1, 1000, {
-        filter: `child = "${childId}"`,
-      })
-      for (const task of tasks.items) {
-        await pb.collection('tasks').delete(task.id)
-      }
-
-      // Delete the child
-      await pb.collection('children').delete(childId)
+      // Deletes the child's tasks and point_transactions, then the child.
+      deleteChild(db, childId)
 
       return { content: [{ type: 'text', text: `Deleted child ${childId}` }] }
     },
@@ -403,16 +237,10 @@ function registerTools() {
       childId: z.string().describe('ID of the child'),
       includeCompleted: z.boolean().optional().describe('Include completed tasks (default: false)'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { childId, includeCompleted = false } = args as { childId: string; includeCompleted?: boolean }
 
-      const filter = includeCompleted
-        ? `child = "${childId}"`
-        : `child = "${childId}" && completed = false`
-
-      const tasks = await pb.collection<TaskRecord>('tasks').getList(1, 100, { filter })
-
-      const result = tasks.items.map((t) => ({
+      const result = listTasks(db, childId, includeCompleted).map((t) => ({
         id: t.id,
         title: t.title,
         priority: t.priority,
@@ -446,7 +274,7 @@ function registerTools() {
       isChore: z.boolean().optional().describe('If true, task never shows as overdue and silently rolls over to the next day if not completed'),
       dailyOnly: z.boolean().optional().describe('If true, the task is a "Tagesaufgabe": it only shows on its due date and expires silently afterwards (never overdue, never carried forward). Good for optional/bonus tasks.'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { childId, title, timeOfDay, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays, points, isChore, dailyOnly } = args as {
         childId: string; title: string; timeOfDay: string; priority?: number; dueDate?: string;
         recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]; points?: number; isChore?: boolean; dailyOnly?: boolean
@@ -457,20 +285,11 @@ function registerTools() {
         return { content: [{ type: 'text', text: `Error: ${daysError}` }], isError: true }
       }
 
-      const child = await pb.collection('children').getOne(childId)
-      const group = await pb.collection('groups').getOne(child.group)
-      const timezone = group.timezone || 'Europe/Berlin'
-
-      const effectiveDueDate = dueDate
-        ?? calculateInitialDueDate(recurrenceType ?? null, recurrenceInterval ?? null, recurrenceDays ?? null, new Date(), timezone)
-
-      const task = await pb.collection('tasks').create({
+      const task = createTask(db, childId, {
         title,
-        child: childId,
         timeOfDay,
         priority: priority ?? null,
-        completed: false,
-        dueDate: effectiveDueDate,
+        dueDate: dueDate ?? null,
         recurrenceType: recurrenceType ?? null,
         recurrenceInterval: recurrenceInterval ?? null,
         recurrenceDays: recurrenceDays ?? null,
@@ -503,7 +322,7 @@ function registerTools() {
       recurrenceInterval: z.number().optional().describe('Days between recurrences (for interval type)'),
       recurrenceDays: z.array(z.number()).optional().describe('Weekdays for recurrence (0=Sunday, 1=Monday, ..., 6=Saturday)'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { taskId, title, priority, childId, timeOfDay, isChore, dailyOnly, dueDate, recurrenceType, recurrenceInterval, recurrenceDays } = args as {
         taskId: string; title?: string; priority?: number; childId?: string; timeOfDay?: string; isChore?: boolean;
         dailyOnly?: boolean; dueDate?: string; recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]
@@ -514,19 +333,18 @@ function registerTools() {
         return { content: [{ type: 'text', text: `Error: ${daysError}` }], isError: true }
       }
 
-      const updates: Record<string, unknown> = {}
-      if (title) updates.title = title
-      if (priority !== undefined) updates.priority = priority
-      if (childId) updates.child = childId
-      if (timeOfDay) updates.timeOfDay = timeOfDay
-      if (isChore !== undefined) updates.isChore = isChore
-      if (dailyOnly !== undefined) updates.dailyOnly = dailyOnly
-      if (dueDate !== undefined) updates.dueDate = dueDate
-      if (recurrenceType !== undefined) updates.recurrenceType = recurrenceType
-      if (recurrenceInterval !== undefined) updates.recurrenceInterval = recurrenceInterval
-      if (recurrenceDays !== undefined) updates.recurrenceDays = recurrenceDays
-
-      await pb.collection('tasks').update(taskId, updates)
+      updateTask(db, taskId, {
+        title,
+        priority,
+        childId,
+        timeOfDay,
+        isChore,
+        dailyOnly,
+        dueDate,
+        recurrenceType,
+        recurrenceInterval,
+        recurrenceDays,
+      })
 
       return { content: [{ type: 'text', text: `Updated task ${taskId}` }] }
     },
@@ -537,10 +355,10 @@ function registerTools() {
     inputSchema: z.object({
       taskId: z.string().describe('ID of the task'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { taskId } = args as { taskId: string }
 
-      await pb.collection('tasks').delete(taskId)
+      deleteTaskRow(db, taskId)
 
       return { content: [{ type: 'text', text: `Deleted task ${taskId}` }] }
     },
@@ -552,24 +370,10 @@ function registerTools() {
       taskId: z.string().describe('ID of the task'),
       dueDate: z.string().optional().describe('Optional due date to set (ISO date string). If omitted, restores to lastCompletedAt for recurring tasks.'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { taskId, dueDate } = args as { taskId: string; dueDate?: string }
 
-      const updateData: Record<string, unknown> = {
-        completed: false,
-        completedAt: null,
-      }
-
-      if (dueDate) {
-        updateData.dueDate = dueDate
-      } else {
-        const task = await pb.collection('tasks').getOne(taskId)
-        if (task.lastCompletedAt && task.recurrenceType) {
-          updateData.dueDate = task.lastCompletedAt
-        }
-      }
-
-      await pb.collection('tasks').update(taskId, updateData)
+      resetTask(db, taskId, dueDate)
 
       return { content: [{ type: 'text', text: `Reset task ${taskId}` }] }
     },
@@ -582,21 +386,12 @@ function registerTools() {
     inputSchema: z.object({
       groupId: z.string().describe('ID of the group'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { groupId } = args as { groupId: string }
 
-      const memberships = await pb.collection('user_groups').getList(1, 100, {
-        filter: `group = "${groupId}"`,
-        expand: 'user',
-      })
-
-      interface MembershipWithUser {
-        expand?: { user?: { id: string; email: string } }
-      }
-
-      const members = memberships.items.map((m: MembershipWithUser) => ({
-        id: m.expand?.user?.id,
-        email: m.expand?.user?.email,
+      const members = listMembers(db, groupId).map((u) => ({
+        id: u.id,
+        email: u.email,
       }))
 
       return { content: [{ type: 'text', text: JSON.stringify(members, null, 2) }] }
@@ -609,34 +404,22 @@ function registerTools() {
       groupId: z.string().describe('ID of the group'),
       email: z.string().describe('Email of the user to add'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { groupId, email } = args as { groupId: string; email: string }
 
       // Find user by email
-      const users = await pb.collection('users').getList(1, 1, {
-        filter: `email = "${email}"`,
-      })
-
-      if (users.items.length === 0) {
+      const user = getUserByEmail(db, email)
+      if (!user) {
         return { content: [{ type: 'text', text: `Error: No user found with email "${email}"` }], isError: true }
       }
 
-      const userId = users.items[0].id
-
       // Check if already member
-      const existing = await pb.collection('user_groups').getList(1, 1, {
-        filter: `user = "${userId}" && group = "${groupId}"`,
-      })
-
-      if (existing.items.length > 0) {
+      if (userInGroup(db, user.id, groupId)) {
         return { content: [{ type: 'text', text: `User "${email}" is already a member of this group` }] }
       }
 
       // Add to group
-      await pb.collection('user_groups').create({
-        user: userId,
-        group: groupId,
-      })
+      addUserToGroup(db, user.id, groupId)
 
       return { content: [{ type: 'text', text: `Added "${email}" to group` }] }
     },
@@ -650,15 +433,15 @@ function registerTools() {
       eveningStart: z.string().optional().describe('Start of evening phase (HH:MM format, e.g. "18:00")'),
       timezone: z.string().optional().describe('IANA timezone (e.g. "Europe/Berlin", "America/New_York")'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { groupId, morningEnd, eveningStart, timezone } = args as { groupId: string; morningEnd?: string; eveningStart?: string; timezone?: string }
 
-      const updates: Record<string, string> = {}
+      const updates: { morningEnd?: string; eveningStart?: string; timezone?: string } = {}
       if (morningEnd) updates.morningEnd = morningEnd
       if (eveningStart) updates.eveningStart = eveningStart
       if (timezone) updates.timezone = timezone
 
-      await pb.collection('groups').update(groupId, updates)
+      configurePhaseTimes(db, groupId, updates)
 
       return { content: [{ type: 'text', text: `Updated phase times for group ${groupId}` }] }
     },
@@ -670,18 +453,14 @@ function registerTools() {
       groupId: z.string().describe('ID of the group'),
       userId: z.string().describe('ID of the user to remove'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { groupId, userId } = args as { groupId: string; userId: string }
 
-      const memberships = await pb.collection('user_groups').getList(1, 1, {
-        filter: `user = "${userId}" && group = "${groupId}"`,
-      })
-
-      if (memberships.items.length === 0) {
+      if (!userInGroup(db, userId, groupId)) {
         return { content: [{ type: 'text', text: 'User is not a member of this group' }], isError: true }
       }
 
-      await pb.collection('user_groups').delete(memberships.items[0].id)
+      removeUserFromGroup(db, userId, groupId)
 
       return { content: [{ type: 'text', text: `Removed user ${userId} from group` }] }
     },
@@ -697,15 +476,10 @@ function registerTools() {
       description: z.string().optional().describe('Description of the reward'),
       pointsCost: z.number().describe('How many points this reward costs'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { groupId, name, description, pointsCost } = args as { groupId: string; name: string; description?: string; pointsCost: number }
 
-      const reward = await pb.collection('rewards').create({
-        name,
-        description: description ?? '',
-        pointsCost,
-        group: groupId,
-      })
+      const reward = createReward(db, groupId, name, pointsCost, description ?? '')
 
       return { content: [{ type: 'text', text: `Created reward "${name}" (ID: ${reward.id}) - costs ${pointsCost} points` }] }
     },
@@ -716,15 +490,10 @@ function registerTools() {
     inputSchema: z.object({
       groupId: z.string().describe('ID of the group'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { groupId } = args as { groupId: string }
 
-      const rewards = await pb.collection<RewardRecord>('rewards').getList(1, 100, {
-        filter: `group = "${groupId}"`,
-        sort: 'name',
-      })
-
-      const result = rewards.items.map((r) => ({
+      const result = listRewards(db, groupId).map((r) => ({
         id: r.id,
         name: r.name,
         description: r.description,
@@ -743,15 +512,15 @@ function registerTools() {
       description: z.string().optional().describe('New description'),
       pointsCost: z.number().optional().describe('New points cost'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { rewardId, name, description, pointsCost } = args as { rewardId: string; name?: string; description?: string; pointsCost?: number }
 
-      const updates: Record<string, unknown> = {}
+      const updates: { name?: string; description?: string; pointsCost?: number } = {}
       if (name) updates.name = name
       if (description !== undefined) updates.description = description
       if (pointsCost !== undefined) updates.pointsCost = pointsCost
 
-      await pb.collection('rewards').update(rewardId, updates)
+      updateReward(db, rewardId, updates)
 
       return { content: [{ type: 'text', text: `Updated reward ${rewardId}` }] }
     },
@@ -762,10 +531,10 @@ function registerTools() {
     inputSchema: z.object({
       rewardId: z.string().describe('ID of the reward'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { rewardId } = args as { rewardId: string }
 
-      await pb.collection('rewards').delete(rewardId)
+      deleteReward(db, rewardId)
 
       return { content: [{ type: 'text', text: `Deleted reward ${rewardId}` }] }
     },
@@ -776,16 +545,13 @@ function registerTools() {
     inputSchema: z.object({
       childId: z.string().describe('ID of the child'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { childId } = args as { childId: string }
 
-      const transactions = await pb.collection<PointTransactionRecord>('point_transactions').getFullList({
-        filter: `child = "${childId}"`,
-      })
+      const balance = getPointsBalance(db, childId)
+      const totalTransactions = countPointTransactions(db, childId)
 
-      const balance = transactions.reduce((sum, t) => sum + t.points, 0)
-
-      return { content: [{ type: 'text', text: JSON.stringify({ childId, balance, totalTransactions: transactions.length }, null, 2) }] }
+      return { content: [{ type: 'text', text: JSON.stringify({ childId, balance, totalTransactions }, null, 2) }] }
     },
   })
 
@@ -795,29 +561,23 @@ function registerTools() {
       childId: z.string().describe('ID of the child'),
       rewardId: z.string().describe('ID of the reward to redeem'),
     }),
-    handler: async (args, pb) => {
+    handler: async (args, { db }) => {
       const { childId, rewardId } = args as { childId: string; rewardId: string }
 
-      const reward = await pb.collection<RewardRecord>('rewards').getOne(rewardId)
+      const result = redeemReward(db, childId, rewardId)
 
-      const transactions = await pb.collection<PointTransactionRecord>('point_transactions').getFullList({
-        filter: `child = "${childId}"`,
-      })
-      const balance = transactions.reduce((sum, t) => sum + t.points, 0)
-
-      if (balance < reward.pointsCost) {
-        return { content: [{ type: 'text', text: `Insufficient points. Balance: ${balance}, Cost: ${reward.pointsCost}` }], isError: true }
+      if (result.error === 'reward-not-found') {
+        throw new Error(`reward not found: ${rewardId}`)
       }
 
-      await pb.collection('point_transactions').create({
-        child: childId,
-        points: -reward.pointsCost,
-        type: 'redeemed',
-        description: `Redeemed: ${reward.name}`,
-        reward: rewardId,
-      })
+      if (result.error === 'insufficient-points') {
+        const reward = getReward(db, rewardId)
+        const cost = reward?.pointsCost ?? 0
+        return { content: [{ type: 'text', text: `Insufficient points. Balance: ${result.balance}, Cost: ${cost}` }], isError: true }
+      }
 
-      return { content: [{ type: 'text', text: `Redeemed "${reward.name}" for ${reward.pointsCost} points. New balance: ${balance - reward.pointsCost}` }] }
+      const reward = result.reward!
+      return { content: [{ type: 'text', text: `Redeemed "${reward.name}" for ${reward.pointsCost} points. New balance: ${result.newBalance}` }] }
     },
   })
 }
@@ -901,8 +661,8 @@ app.use('/oauth/authorize', authorizeRouter)
 app.use('/oauth/grants', grantsRouter)
 
 // MCP endpoint - JSON-RPC handler (supports Bearer token or query param)
-app.post('/mcp', authenticateFlexible, async (req: Request, res: Response) => {
-  const pb = (req as Request & { pb: PocketBase }).pb
+app.post('/mcp', authenticateFlexible, async (req: AuthedRequest, res: Response) => {
+  const ctx: ToolContext = { db: req.db as DB, userId: req.userId as string }
   const { jsonrpc, method, params, id } = req.body
 
 
@@ -979,7 +739,7 @@ app.post('/mcp', authenticateFlexible, async (req: Request, res: Response) => {
       }
 
       // Call the tool
-      const result = await tool.handler(args || {}, pb)
+      const result = await tool.handler(args || {}, ctx)
 
       res.json({
         jsonrpc: '2.0',
