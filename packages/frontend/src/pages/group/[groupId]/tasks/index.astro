@@ -1,0 +1,600 @@
+---
+import { actions } from 'astro:actions'
+import Layout from '@/layouts/Layout.astro'
+import ColoredInitials from '@/components/ColoredInitials.astro'
+import { pressClasses, focusRingClasses } from '@/lib/interaction-classes'
+import {
+  type Task,
+  type Child,
+  type Group,
+  type TasksPageViewRow,
+  type ChildTasksSplit,
+  getCurrentPhase,
+  phaseLabels,
+  phaseIcons,
+  getLocalDateString,
+  isValidPhase,
+  splitViewRowsByChild,
+  PHASES,
+  type Phase,
+} from '@/lib/tasks'
+import { getGroup, isUserInGroup, getTasksPageViewForGroup } from '@family-todo/db'
+
+const { groupId } = Astro.params
+const { db, user } = Astro.locals
+
+if (!user || !groupId) {
+  return Astro.redirect('/login')
+}
+
+const selectedChildId = Astro.url.searchParams.get('child')
+const showFuture = Astro.url.searchParams.get('showFuture') === 'true'
+const phaseParam = Astro.url.searchParams.get('phase')
+const phaseOverride = isValidPhase(phaseParam) ? phaseParam : null
+
+const actionResult = Astro.getActionResult(actions.completeTask)
+const error = actionResult?.error?.message || ''
+
+let childSplits: ChildTasksSplit[] = []
+let currentPhase: Phase = 'afternoon'
+let groupMorningEnd = '09:00'
+let groupEveningStart = '18:00'
+let groupTimezone = 'Europe/Berlin'
+let groupName = ''
+
+try {
+  // Per-group scoping: only members may see a group's data (this mirrors the
+  // access the PocketBase collection rules used to grant). A non-member is
+  // treated exactly like the previous "fetch failed" path → empty render.
+  if (!isUserInGroup(db, user.id, groupId)) {
+    throw new Error('forbidden')
+  }
+  const group = getGroup(db, groupId) as Group | null
+  if (!group) {
+    throw new Error('not-found')
+  }
+  const viewRows = getTasksPageViewForGroup(db, groupId) as unknown as TasksPageViewRow[]
+
+  groupName = group.name
+  groupMorningEnd = group.morningEnd || '09:00'
+  groupEveningStart = group.eveningStart || '18:00'
+  groupTimezone = group.timezone || 'Europe/Berlin'
+  currentPhase = phaseOverride ?? (getCurrentPhase(groupMorningEnd, groupEveningStart, groupTimezone) as Phase)
+
+  const todayDateStr = getLocalDateString(groupTimezone)
+
+  childSplits = splitViewRowsByChild(viewRows, {
+    phase: currentPhase,
+    todayDateStr,
+    timezone: groupTimezone,
+    showFuture,
+  })
+} catch (e) {
+  console.error('Page fetch error:', e)
+}
+
+const children: Child[] = childSplits.map((s) => s.child)
+const selectedSplit = selectedChildId
+  ? childSplits.find((s) => s.child.id === selectedChildId) ?? null
+  : null
+const selectedChild: Child | null = selectedSplit?.child ?? null
+
+const showSwitcher = selectedChild && children.length > 1
+const displaySplits = selectedSplit ? [selectedSplit] : childSplits
+const displayChildren: Child[] = displaySplits.map((s) => s.child)
+
+const tasksByChild: Record<string, Task[]> = Object.fromEntries(
+  displaySplits.map((s) => [s.child.id, s.active]),
+)
+const recentlyCompletedByChild: Record<string, Task[]> = Object.fromEntries(
+  displaySplits.map((s) => [s.child.id, s.recentlyCompleted]),
+)
+const futureTasksByChild: Record<string, Task[]> = Object.fromEntries(
+  displaySplits.map((s) => [s.child.id, s.future]),
+)
+const pointsBalanceByChild: Record<string, number> = Object.fromEntries(
+  displaySplits.map((s) => [s.child.id, s.pointsBalance]),
+)
+
+const buildPhaseHref = (phase: string) => {
+  const params = new URLSearchParams()
+  if (selectedChildId) params.set('child', selectedChildId)
+  params.set('phase', phase)
+  return `/group/${groupId}/tasks?${params.toString()}`
+}
+
+const preservedParams = new URLSearchParams()
+if (selectedChildId) preservedParams.set('child', selectedChildId)
+if (phaseOverride) preservedParams.set('phase', phaseOverride)
+if (showFuture) preservedParams.set('showFuture', 'true')
+const preservedQuery = preservedParams.toString()
+const actionSuffix = preservedQuery ? `&${preservedQuery}` : ''
+
+const buildChildHref = (childIdParam: string) => {
+  const params = new URLSearchParams()
+  params.set('child', childIdParam)
+  if (phaseOverride) params.set('phase', phaseOverride)
+  return `/group/${groupId}/tasks?${params.toString()}`
+}
+
+const buildFutureToggleHref = (nextShowFuture: boolean) => {
+  const params = new URLSearchParams()
+  if (selectedChildId) params.set('child', selectedChildId)
+  if (phaseOverride) params.set('phase', phaseOverride)
+  if (nextShowFuture) params.set('showFuture', 'true')
+  return `/group/${groupId}/tasks?${params.toString()}`
+}
+---
+
+<Layout title={selectedChild ? `${selectedChild.name} - Aufgaben` : `${groupName} - Aufgaben`}>
+  <div transition:animate="fade" class="min-h-screen bg-base-100 p-4 md:p-8">
+    <div class:list={[selectedChild ? 'max-w-3xl' : 'max-w-6xl', 'mx-auto']}>
+      {error && (
+        <div class="alert alert-error mb-6">
+          <span>{error}</span>
+        </div>
+      )}
+
+      {showSwitcher && (
+        <nav data-testid="child-switcher" class="flex gap-2 mb-6 overflow-x-auto pb-2">
+          {children.map((sibling) => (
+            <a
+              href={buildChildHref(sibling.id)}
+              data-testid="child-tab"
+              class:list={[
+                'flex items-center gap-2 px-4 py-3 rounded-xl min-h-[56px] min-w-[120px] transition-all duration-150 active:scale-95',
+                sibling.id === selectedChildId
+                  ? 'bg-primary text-primary-content font-bold'
+                  : 'bg-base-200 hover:bg-base-300',
+              ]}
+            >
+              <ColoredInitials name={sibling.name} color={sibling.color} size="sm" />
+              <span class="text-lg">{sibling.name}</span>
+            </a>
+          ))}
+        </nav>
+      )}
+
+      {selectedChild ? (
+        <header class="flex items-center gap-4 mb-4">
+          <ColoredInitials name={selectedChild.name} color={selectedChild.color} size="lg" />
+          <h1 transition:name="page-title" class="text-3xl md:text-4xl font-bold flex-1">{selectedChild.name}</h1>
+        </header>
+      ) : (
+        <header class="flex items-center gap-4 mb-4">
+          <h1 class="text-3xl font-bold flex-1">{groupName}</h1>
+        </header>
+      )}
+
+      <nav
+        data-testid="phase-switcher"
+        transition:name="phase-indicator"
+        class="flex gap-2 mb-6"
+      >
+        {PHASES.map((phase) => (
+          <a
+            href={buildPhaseHref(phase)}
+            data-testid={`phase-button-${phase}`}
+            data-active={phase === currentPhase ? 'true' : 'false'}
+            data-astro-prefetch
+            aria-current={phase === currentPhase ? 'page' : undefined}
+            class:list={[
+              'flex-1 flex flex-col items-center justify-center gap-1 px-2 py-3 rounded-2xl min-h-[88px] transition-all duration-150 active:scale-95 no-underline',
+              phase === currentPhase
+                ? 'bg-primary text-primary-content font-bold shadow-lg ring-2 ring-primary'
+                : 'bg-base-200 text-base-content hover:bg-base-300',
+            ]}
+          >
+            <span class="text-4xl md:text-5xl leading-none" aria-hidden="true">{phaseIcons[phase]}</span>
+            <span class="text-base md:text-lg">{phaseLabels[phase]}</span>
+          </a>
+        ))}
+      </nav>
+
+      <div data-testid="phase-indicator" class="sr-only">{phaseLabels[currentPhase]}</div>
+
+      {selectedChild && pointsBalanceByChild[selectedChild.id] > 0 && (
+        <div class="mb-8">
+          <div data-testid="points-balance" transition:name={`points-${selectedChild.id}`} class="badge badge-lg badge-warning gap-1">
+            {pointsBalanceByChild[selectedChild.id]} Punkte
+          </div>
+        </div>
+      )}
+
+      {children.length === 0 && !selectedChild && (
+        <div class="text-center py-16">
+          <p class="text-xl text-base-content/70 mb-4">Noch keine Kinder angelegt.</p>
+          <p class="text-base-content/50">Verwende den MCP Server, um Kinder hinzuzufügen.</p>
+          <a href="/admin" class="btn btn-primary mt-4">
+            MCP Verbindung
+          </a>
+        </div>
+      )}
+
+      <div class={selectedChild ? '' : 'grid gap-6 md:grid-cols-2'}>
+        {displayChildren.map((child) => {
+          const tasks = tasksByChild[child.id] || []
+          const completed = recentlyCompletedByChild[child.id] || []
+          const futureTasks = futureTasksByChild[child.id] || []
+          const childPoints = pointsBalanceByChild[child.id] || 0
+          return (
+            <div data-testid="child-column" transition:name={`child-${child.id}`}>
+              {!selectedChild && (
+                <header class="flex items-center gap-3 mb-4">
+                  <a href={buildChildHref(child.id)} class="flex items-center gap-3 text-2xl font-bold no-underline hover:-translate-y-0.5 transition-transform duration-150">
+                    <ColoredInitials name={child.name} color={child.color} size="md" />
+                    {child.name}
+                  </a>
+                  {childPoints > 0 && (
+                    <div data-testid="points-balance" transition:name={`points-${child.id}`} class="badge badge-warning badge-sm gap-1">
+                      {childPoints} Punkte
+                    </div>
+                  )}
+                </header>
+              )}
+
+              {tasks.length === 0 ? (
+                selectedChild ? (
+                  <div data-testid="celebration" transition:name={`celebration-${child.id}`} class="text-center py-16">
+                    <div data-testid="celebration-emoji" class="text-8xl mb-6 motion-safe:animate-bounce">🌟</div>
+                    <h2 class="text-3xl md:text-4xl font-bold text-success mb-4">Super gemacht!</h2>
+                    <p class="text-xl md:text-2xl text-base-content/70">
+                      Alle Aufgaben erledigt!
+                    </p>
+                  </div>
+                ) : (
+                  <div data-testid="celebration" transition:name={`celebration-${child.id}`} class="text-center py-8 bg-base-200 rounded-xl">
+                    <div data-testid="celebration-emoji" class="text-5xl mb-2 motion-safe:animate-bounce">🌟</div>
+                    <p class="text-lg text-success font-bold">Alles erledigt!</p>
+                  </div>
+                )
+              ) : (
+                <ul class="space-y-3">
+                  {tasks.map((task) => {
+                    return (
+                      <li
+                        data-testid="task-item"
+                        transition:name={`task-${task.id}`}
+                        transition:animate="fade"
+                        class:list={[
+                          'flex items-center gap-4 p-4 rounded-xl min-h-[56px] transition-transform duration-150 active:scale-[0.97] hover:shadow-md cursor-pointer',
+                          'bg-base-200',
+                        ]}
+                      >
+                        <form method="POST" action={`${actions.completeTask}${actionSuffix}`} data-task-title={task.title}>
+                          <input type="hidden" name="taskId" value={task.id} />
+                          <input type="hidden" name="childId" value={child.id} />
+                          <input type="hidden" name="completedBy" value={child.id} />
+                          <input type="hidden" name="groupId" value={groupId} />
+                          <button
+                            type="submit"
+                            data-testid="complete-button"
+                            class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px] transition-transform duration-150 active:scale-90"
+                            aria-label={`${task.title} erledigen`}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                            </svg>
+                          </button>
+                        </form>
+                        <div class="flex-1">
+                          <span class="text-xl md:text-2xl">{task.title}</span>
+                          {task.points > 0 && (
+                            <span data-testid="task-points" class="badge badge-warning badge-sm ml-2">+{task.points}</span>
+                          )}
+                        </div>
+                        <form
+                          method="POST"
+                          action={`${actions.deleteTask}${actionSuffix}`}
+                          data-testid="delete-form"
+                          data-delete-task-title={task.title}
+                        >
+                          <input type="hidden" name="taskId" value={task.id} />
+                          <button
+                            type="submit"
+                            data-testid="delete-button"
+                            class="btn btn-ghost text-error opacity-60 hover:opacity-100 transition-opacity flex items-center justify-center min-w-[56px] min-h-[56px] p-3"
+                            aria-label={`${task.title} löschen`}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+                            </svg>
+                          </button>
+                        </form>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+
+              {completed.length > 0 && (
+                <div data-testid="recently-completed" class={selectedChild ? 'mt-8' : 'mt-4'}>
+                  <h2 class:list={[
+                    'font-semibold text-base-content/60',
+                    selectedChild ? 'text-lg mb-3' : 'text-sm mb-2',
+                  ]}>Heute erledigt</h2>
+                  <ul class="space-y-2">
+                    {completed.map((task) => (
+                      <li
+                        data-testid="completed-task-item"
+                        transition:name={`task-${task.id}`}
+                        transition:animate="fade"
+                        class="flex items-center gap-4 p-3 rounded-xl bg-base-200/50 opacity-60"
+                      >
+                        <div class="flex-1">
+                          <span class="text-lg line-through">{task.title}</span>
+                          <span class="badge badge-sm badge-outline ml-2">{phaseLabels[task.timeOfDay]}</span>
+                        </div>
+                        <form method="POST" action={`${actions.undoTask}${actionSuffix}`} data-undo-form>
+                          <input type="hidden" name="taskId" value={task.id} />
+                          <button
+                            type="submit"
+                            data-testid="undo-button"
+                            class:list={['btn btn-ghost btn-sm', pressClasses, focusRingClasses]}
+                            aria-label={`${task.title} rückgängig machen`}
+                          >
+                            ↩
+                          </button>
+                        </form>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {selectedChild && showFuture && futureTasks.length > 0 && (
+                <div data-testid="future-tasks-section" class="mt-8">
+                  <h2 class="text-lg font-semibold mb-3 text-base-content/60">Zukünftige Aufgaben</h2>
+                  <ul class="space-y-2">
+                    {futureTasks.map((task) => (
+                      <li
+                        data-testid="future-task-item"
+                        transition:name={`task-${task.id}`}
+                        transition:animate="fade"
+                        class="flex items-center gap-4 p-3 rounded-xl bg-base-200/30 opacity-50"
+                      >
+                        <div class="flex-1">
+                          <span class="text-lg">{task.title}</span>
+                          {task.dueDate && (
+                            <span data-testid="future-task-date" class="badge badge-sm badge-outline ml-2">
+                              {task.dueDate.slice(0, 10)}
+                            </span>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {selectedChild && (
+        <div class="mt-6">
+          <a
+            data-testid="future-tasks-toggle"
+            href={buildFutureToggleHref(!showFuture)}
+            class:list={['btn btn-ghost btn-sm', pressClasses, focusRingClasses]}
+          >
+            {showFuture ? 'Zukünftige Aufgaben ausblenden' : 'Zukünftige Aufgaben anzeigen'}
+          </a>
+        </div>
+      )}
+
+      <div class="mt-8 pt-8 border-t border-base-300">
+        {selectedChild ? (
+          <a href={`/group/${groupId}/tasks`} data-testid="back-link" class:list={['btn btn-ghost btn-sm', pressClasses, focusRingClasses]}>
+            ← Zurück zur Übersicht
+          </a>
+        ) : (
+          <a href="/admin" data-testid="back-link" class:list={['btn btn-ghost btn-sm', pressClasses, focusRingClasses]}>
+            ← MCP Verbindung
+          </a>
+        )}
+      </div>
+    </div>
+  </div>
+
+  <dialog data-testid="confirm-dialog" id="confirm-dialog" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+      <h3 class="text-lg font-bold">Aufgabe erledigt?</h3>
+      <p class="py-4">Hast du <strong id="confirm-task-title"></strong> wirklich erledigt?</p>
+      <div class="modal-action">
+        <button data-testid="confirm-cancel" id="confirm-cancel" class:list={['btn', pressClasses, focusRingClasses]}>Abbrechen</button>
+        <button data-testid="confirm-ok" id="confirm-ok" class:list={['btn btn-success', pressClasses, focusRingClasses]}>Erledigt!</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>
+
+  <dialog data-testid="delete-confirm-dialog" id="delete-confirm-dialog" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+      <h3 class="text-lg font-bold">Aufgabe löschen?</h3>
+      <p class="py-4">Willst du <strong id="delete-confirm-task-title"></strong> wirklich löschen?</p>
+      <div class="modal-action">
+        <button data-testid="delete-confirm-cancel" id="delete-confirm-cancel" class:list={['btn', pressClasses, focusRingClasses]}>Abbrechen</button>
+        <button data-testid="delete-confirm-ok" id="delete-confirm-ok" class:list={['btn btn-error', pressClasses, focusRingClasses]}>Löschen</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>
+
+  <script>
+    document.addEventListener('astro:page-load', () => {
+      let pendingForm: HTMLFormElement | null = null
+      const dialog = document.getElementById('confirm-dialog') as HTMLDialogElement
+      const titleEl = document.getElementById('confirm-task-title') as HTMLElement
+      const cancelBtn = document.getElementById('confirm-cancel') as HTMLButtonElement
+      const okBtn = document.getElementById('confirm-ok') as HTMLButtonElement
+
+      let pendingDeleteForm: HTMLFormElement | null = null
+      const deleteDialog = document.getElementById('delete-confirm-dialog') as HTMLDialogElement
+      const deleteTitleEl = document.getElementById('delete-confirm-task-title') as HTMLElement
+      const deleteCancelBtn = document.getElementById('delete-confirm-cancel') as HTMLButtonElement
+      const deleteOkBtn = document.getElementById('delete-confirm-ok') as HTMLButtonElement
+
+      if (!dialog || !titleEl || !cancelBtn || !okBtn) return
+
+      document.querySelectorAll('form[data-task-title]').forEach((form) => {
+        form.addEventListener('submit', (e) => {
+          // Once confirmed, let the submit through so Astro's ViewTransitions
+          // router handles it (animated navigation). Using requestSubmit() below
+          // re-fires this event; the flag prevents re-opening the dialog.
+          if ((form as HTMLFormElement).dataset.confirmed === '1') {
+            ;(form as HTMLFormElement).removeAttribute('data-confirmed')
+            return
+          }
+          e.preventDefault()
+          pendingForm = form as HTMLFormElement
+          titleEl.textContent = form.getAttribute('data-task-title') || ''
+          dialog.showModal()
+        })
+      })
+
+      cancelBtn.addEventListener('click', () => {
+        pendingForm = null
+        dialog.close()
+      })
+
+      okBtn.addEventListener('click', () => {
+        if (pendingForm) {
+          // requestSubmit() (not submit()) fires a real submit event the router
+          // intercepts, so the view transition runs instead of a hard reload.
+          pendingForm.dataset.confirmed = '1'
+          pendingForm.requestSubmit()
+        }
+      })
+
+      if (deleteDialog && deleteTitleEl && deleteCancelBtn && deleteOkBtn) {
+        document.querySelectorAll('form[data-delete-task-title]').forEach((form) => {
+          form.addEventListener('submit', (e) => {
+            if ((form as HTMLFormElement).dataset.confirmed === '1') {
+              ;(form as HTMLFormElement).removeAttribute('data-confirmed')
+              return
+            }
+            e.preventDefault()
+            e.stopPropagation()
+            pendingDeleteForm = form as HTMLFormElement
+            deleteTitleEl.textContent = form.getAttribute('data-delete-task-title') || ''
+            deleteDialog.showModal()
+          })
+        })
+
+        deleteCancelBtn.addEventListener('click', () => {
+          pendingDeleteForm = null
+          deleteDialog.close()
+        })
+
+        deleteOkBtn.addEventListener('click', () => {
+          if (pendingDeleteForm) {
+            pendingDeleteForm.dataset.confirmed = '1'
+            pendingDeleteForm.requestSubmit()
+          }
+        })
+      }
+
+      document.querySelectorAll('[data-testid="task-item"]').forEach((li) => {
+        li.addEventListener('click', (e) => {
+          const target = e.target as Element
+          if (target.closest('button')) return
+          if (target.closest('form[data-delete-task-title]')) return
+          const form = li.querySelector('form[data-task-title]') as HTMLFormElement
+          if (form) {
+            const event = new Event('submit', { cancelable: true, bubbles: true })
+            form.dispatchEvent(event)
+          }
+        })
+      })
+    })
+  </script>
+
+  <script define:vars={{ currentPhase, groupMorningEnd, groupEveningStart, groupTimezone, phaseOverride }}>
+    if (!phaseOverride) {
+      const parseTime = (timeStr) => {
+        const [h, m] = timeStr.split(':').map(Number)
+        return h * 60 + m
+      }
+
+      const morningEndMinutes = parseTime(groupMorningEnd)
+      const eveningStartMinutes = parseTime(groupEveningStart)
+
+      const getLocalMinutes = () => {
+        const now = new Date()
+        const formatter = new Intl.DateTimeFormat('en-US', {
+          timeZone: groupTimezone || 'Europe/Berlin',
+          hour: 'numeric',
+          minute: 'numeric',
+          hour12: false,
+        })
+        const parts = formatter.formatToParts(now)
+        const hour = Number(parts.find(p => p.type === 'hour')?.value || 0)
+        const minute = Number(parts.find(p => p.type === 'minute')?.value || 0)
+        return hour * 60 + minute
+      }
+
+      const getPhase = (minutes) => {
+        if (minutes < morningEndMinutes) return 'morning'
+        if (minutes < eveningStartMinutes) return 'afternoon'
+        return 'evening'
+      }
+
+      setInterval(() => {
+        if (getPhase(getLocalMinutes()) !== currentPhase) {
+          window.location.reload()
+        }
+      }, 60000)
+    }
+  </script>
+
+  <script is:inline>
+    document.addEventListener('astro:page-load', function() {
+      document.querySelectorAll('.btn-success[type="submit"]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          if (navigator.vibrate) navigator.vibrate(50)
+        })
+      })
+    })
+  </script>
+
+  <script is:inline data-scroll-preservation>
+    (function () {
+      var KEY = 'task-page-scroll-y'
+
+      function saveScroll() {
+        try { sessionStorage.setItem(KEY, String(window.scrollY)) } catch (_) {}
+      }
+
+      function restoreScroll() {
+        try {
+          var saved = sessionStorage.getItem(KEY)
+          if (saved === null) return
+          sessionStorage.removeItem(KEY)
+          var y = parseInt(saved, 10)
+          if (!isNaN(y)) window.scrollTo(0, y)
+        } catch (_) {}
+      }
+
+      if ('scrollRestoration' in history) history.scrollRestoration = 'manual'
+
+      document.addEventListener('submit', function (e) {
+        var form = e.target
+        if (!form || !(form instanceof HTMLFormElement)) return
+        if (form.hasAttribute('data-task-title') ||
+            form.hasAttribute('data-delete-task-title') ||
+            form.getAttribute('action') && form.getAttribute('action').indexOf('undoTask') !== -1) {
+          saveScroll()
+        }
+      }, true)
+
+      document.addEventListener('astro:before-preparation', saveScroll)
+      document.addEventListener('astro:page-load', restoreScroll)
+      window.addEventListener('pageshow', restoreScroll)
+    })()
+  </script>
+</Layout>

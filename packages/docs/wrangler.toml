@@ -1,0 +1,5 @@
+name = "family-todo-docs"
+compatibility_date = "2025-01-15"
+
+[assets]
+directory = "./dist"

@@ -1,0 +1,95 @@
+{
+  "$schema": "../tasks.schema.json",
+  "version": 1,
+  "tasks": [
+    {
+      "id": "remove-auto-group-creation",
+      "title": "New users start without a group after signup",
+      "description": "**User Story:** As a new user signing up, I want to start without any pre-created group, so that I can either create my own family group or join an existing one through invitation.\n\n**Acceptance Criteria:**\n- WHEN a user completes signup THEN the system SHALL NOT create a default group for them\n- WHEN a user completes signup THEN the user's group field SHALL be empty/null\n- WHEN a new user logs in THEN they SHALL be redirected to a page prompting them to create or join a group\n- IF a user has no group THEN they SHALL NOT be able to access the kiosk or other group-dependent features\n\n**Technical Notes:**\n- Modify signup handler to remove auto-group creation\n- Update user schema to allow null group field\n- Add redirect logic for users without groups",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "notes": []
+    },
+    {
+      "id": "view-groups-list",
+      "title": "User can see a list of their groups in settings",
+      "description": "**User Story:** Als Benutzer moechte ich eine Liste meiner Gruppen sehen, damit ich weiss, zu welchen Familien ich gehoere.\n\n**User Story (EN):** As a user, I want to see a list of my groups, so that I know which families I belong to.\n\n**Acceptance Criteria:**\n- WHEN user navigates to Einstellungen > Gruppen THEN the system SHALL display a list of all groups they belong to\n- WHEN displaying groups THEN each group SHALL show its name\n- WHEN displaying groups THEN the currently active group SHALL be visually highlighted\n- IF user belongs to no groups THEN the system SHALL show an empty state message in German (e.g., \"Du gehoerst noch zu keiner Gruppe\")\n\n**UI Text (German):**\n- Page title: \"Gruppen\"\n- Empty state: \"Du gehoerst noch zu keiner Gruppe.\"\n- Active indicator: \"Aktiv\"",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["remove-auto-group-creation"],
+      "notes": []
+    },
+    {
+      "id": "create-new-group",
+      "title": "User can create a new group with a German name",
+      "description": "**User Story:** Als Benutzer moechte ich eine neue Gruppe erstellen koennen, damit ich meine Familie einrichten kann.\n\n**User Story (EN):** As a user, I want to create a new group, so that I can set up my family.\n\n**Acceptance Criteria:**\n- WHEN user is on the groups page THEN there SHALL be a button \"Neue Gruppe erstellen\"\n- WHEN user clicks the create button THEN a form SHALL appear with a name input field\n- WHEN entering a group name THEN the system SHALL accept German characters (umlauts: ae, oe, ue, ss) and spaces\n- WHEN entering a group name THEN examples like \"Familie Mueller\", \"Schmidt-Bauer\" SHALL be valid\n- WHEN user submits a valid name THEN the group SHALL be created and user SHALL be added as a member\n- WHEN group is created THEN it SHALL become the user's active group\n- IF name is empty THEN the system SHALL show error \"Bitte gib einen Namen ein\"\n- IF name is too long (>100 chars) THEN the system SHALL show error \"Name ist zu lang\"\n\n**UI Text (German):**\n- Button: \"Neue Gruppe erstellen\"\n- Label: \"Gruppenname\"\n- Placeholder: \"z.B. Familie Mueller\"\n- Submit: \"Erstellen\"\n- Success: \"Gruppe erfolgreich erstellt\"",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["view-groups-list"],
+      "notes": []
+    },
+    {
+      "id": "switch-active-group",
+      "title": "User can switch between their groups",
+      "description": "**User Story:** Als Benutzer mit mehreren Gruppen moechte ich zwischen meinen Gruppen wechseln koennen, damit ich verschiedene Familien verwalten kann.\n\n**User Story (EN):** As a user with multiple groups, I want to switch between my groups, so that I can manage different families.\n\n**Acceptance Criteria:**\n- WHEN viewing the groups list THEN each group SHALL have a \"Aktivieren\" button (except the currently active one)\n- WHEN user clicks \"Aktivieren\" on a group THEN that group SHALL become the active group\n- WHEN active group changes THEN the kiosk and other features SHALL show data from the new active group\n- WHEN active group changes THEN user SHALL see confirmation \"Gruppe gewechselt\"\n- IF user has only one group THEN the activate button SHALL be hidden (no need to switch)\n\n**UI Text (German):**\n- Button: \"Aktivieren\"\n- Active badge: \"Aktiv\"\n- Success: \"Gruppe gewechselt\"",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["view-groups-list"],
+      "notes": []
+    },
+    {
+      "id": "add-user-to-group",
+      "title": "User can add existing users to their group by email",
+      "description": "**User Story:** Als Benutzer moechte ich andere Benutzer per E-Mail-Adresse zu meiner Gruppe hinzufuegen, damit beide Elternteile die Familie verwalten koennen.\n\n**User Story (EN):** As a user, I want to add other users to my group by email address, so that both parents can manage the family.\n\n**Acceptance Criteria:**\n- WHEN viewing group details THEN there SHALL be an \"Mitglied hinzufuegen\" button\n- WHEN clicking add member THEN a form SHALL appear with an email input field\n- WHEN user enters a valid email of an existing user THEN that user SHALL be added to the group\n- WHEN user is added THEN they SHALL see this group in their groups list\n- IF email does not exist in the system THEN show error \"Benutzer mit dieser E-Mail-Adresse nicht gefunden\"\n- IF email is invalid format THEN show error \"Bitte gib eine gueltige E-Mail-Adresse ein\"\n- IF user is already in the group THEN show error \"Dieser Benutzer ist bereits Mitglied dieser Gruppe\"\n\n**UI Text (German):**\n- Button: \"Mitglied hinzufuegen\"\n- Label: \"E-Mail-Adresse\"\n- Placeholder: \"beispiel@email.de\"\n- Submit: \"Hinzufuegen\"\n- Success: \"Mitglied erfolgreich hinzugefuegt\"\n- Error (not found): \"Benutzer mit dieser E-Mail-Adresse nicht gefunden\"\n- Error (already member): \"Dieser Benutzer ist bereits Mitglied dieser Gruppe\"",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["view-groups-list"],
+      "notes": []
+    },
+    {
+      "id": "view-children-list",
+      "title": "User can see children in the active group",
+      "description": "**User Story:** Als Benutzer moechte ich die Kinder meiner aktiven Gruppe sehen, damit ich weiss, welche Kinder eingerichtet sind.\n\n**User Story (EN):** As a user, I want to see the children in my active group, so that I know which children are set up.\n\n**Acceptance Criteria:**\n- WHEN user has an active group THEN they SHALL see a \"Kinder\" section in settings\n- WHEN displaying children THEN each child SHALL show their name and colored initials circle\n- WHEN displaying initials THEN the system SHALL use the first letter of each word (e.g., \"Lisa Mueller\" -> \"LM\", \"Max\" -> \"M\")\n- WHEN displaying the circle THEN it SHALL use the child's assigned color as background\n- IF no children exist THEN show message \"Noch keine Kinder hinzugefuegt\"\n- IF user has no active group THEN the children section SHALL NOT be visible\n\n**UI Text (German):**\n- Section title: \"Kinder\"\n- Empty state: \"Noch keine Kinder hinzugefuegt.\"",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["switch-active-group"],
+      "notes": []
+    },
+    {
+      "id": "add-child-to-group",
+      "title": "User can add a child with name and color",
+      "description": "**User Story:** Als Benutzer moechte ich ein Kind mit Namen und Farbe zu meiner Gruppe hinzufuegen, damit das Kind im Kiosk-Modus erscheint.\n\n**User Story (EN):** As a user, I want to add a child with a name and color to my group, so that the child appears in kiosk mode.\n\n**Acceptance Criteria:**\n- WHEN viewing children section THEN there SHALL be a \"Kind hinzufuegen\" button\n- WHEN clicking add child THEN a form SHALL appear with name input and color picker\n- WHEN entering a name THEN the system SHALL accept German characters and spaces\n- WHEN selecting a color THEN the system SHALL offer a predefined set of child-friendly colors\n- WHEN user submits valid data THEN the child SHALL be created in the active group\n- WHEN child is created THEN the colored initials circle SHALL preview immediately\n- IF name is empty THEN show error \"Bitte gib einen Namen ein\"\n- IF no color is selected THEN the system SHALL assign a default color\n\n**Color Options:**\n- Rot (Red): #EF4444\n- Orange: #F97316\n- Gelb (Yellow): #EAB308\n- Gruen (Green): #22C55E\n- Blau (Blue): #3B82F6\n- Lila (Purple): #A855F7\n- Pink: #EC4899\n\n**UI Text (German):**\n- Button: \"Kind hinzufuegen\"\n- Label (name): \"Name\"\n- Label (color): \"Farbe\"\n- Placeholder: \"z.B. Lisa\"\n- Submit: \"Hinzufuegen\"\n- Success: \"Kind erfolgreich hinzugefuegt\"",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["view-children-list"],
+      "notes": []
+    },
+    {
+      "id": "edit-child",
+      "title": "User can edit a child's name and color",
+      "description": "**User Story:** Als Benutzer moechte ich den Namen und die Farbe eines Kindes bearbeiten koennen, falls ich einen Fehler gemacht habe oder die Farbe aendern moechte.\n\n**User Story (EN):** As a user, I want to edit a child's name and color, in case I made a mistake or want to change the color.\n\n**Acceptance Criteria:**\n- WHEN viewing a child in the list THEN there SHALL be an \"Bearbeiten\" button\n- WHEN clicking edit THEN a form SHALL appear pre-filled with current name and color\n- WHEN user changes the name THEN the initials circle SHALL update to reflect new initials\n- WHEN user changes the color THEN the circle background SHALL update\n- WHEN user saves changes THEN the child record SHALL be updated\n- WHEN changes are saved THEN show confirmation \"Aenderungen gespeichert\"\n\n**UI Text (German):**\n- Button: \"Bearbeiten\"\n- Title: \"Kind bearbeiten\"\n- Submit: \"Speichern\"\n- Success: \"Aenderungen gespeichert\"",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["add-child-to-group"],
+      "notes": []
+    },
+    {
+      "id": "delete-child",
+      "title": "User can delete a child from the group",
+      "description": "**User Story:** Als Benutzer moechte ich ein Kind aus der Gruppe loeschen koennen, falls es nicht mehr benoetigt wird.\n\n**User Story (EN):** As a user, I want to delete a child from the group, in case it is no longer needed.\n\n**Acceptance Criteria:**\n- WHEN viewing a child in the list THEN there SHALL be a \"Loeschen\" button\n- WHEN clicking delete THEN a confirmation dialog SHALL appear\n- WHEN confirmation dialog appears THEN it SHALL warn about data loss in German\n- WHEN user confirms deletion THEN the child SHALL be removed from the group\n- WHEN child is deleted THEN their tasks SHALL also be removed (cascade delete)\n- WHEN deletion is complete THEN show confirmation \"Kind geloescht\"\n- IF user cancels THEN no changes SHALL be made\n\n**UI Text (German):**\n- Button: \"Loeschen\"\n- Confirmation title: \"Kind loeschen?\"\n- Confirmation message: \"Bist du sicher? Alle Aufgaben dieses Kindes werden ebenfalls geloescht.\"\n- Confirm button: \"Ja, loeschen\"\n- Cancel button: \"Abbrechen\"\n- Success: \"Kind geloescht\"",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["add-child-to-group"],
+      "notes": []
+    },
+    {
+      "id": "update-kiosk-child-display",
+      "title": "Kiosk mode shows children with colored initials instead of emoji avatars",
+      "description": "**User Story:** Als Kind im Kiosk-Modus moechte ich mich an meiner Farbe und meinen Initialen erkennen, damit ich schnell meine Aufgaben finden kann.\n\n**User Story (EN):** As a child in kiosk mode, I want to recognize myself by my color and initials, so that I can quickly find my tasks.\n\n**Acceptance Criteria:**\n- WHEN kiosk mode displays children THEN each child SHALL show a colored circle with their initials\n- WHEN displaying initials THEN the system SHALL use first letters of name words (same logic as settings)\n- WHEN displaying the circle THEN it SHALL use the child's assigned color as background with white text\n- WHEN a child is selected THEN their colored circle SHALL be visually emphasized (larger, border, etc.)\n- IF a child has no color assigned THEN use a default gray color\n\n**Visual Specifications:**\n- Circle size: 48x48px (normal), 56x56px (selected)\n- Text color: white (#FFFFFF)\n- Font: bold, centered\n- Border on selected: 3px white border or shadow",
+      "status": "pending",
+      "createdAt": "2026-01-13T10:00:00Z",
+      "dependsOn": ["add-child-to-group"],
+      "notes": []
+    }
+  ]
+}

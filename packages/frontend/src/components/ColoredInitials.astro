@@ -1,0 +1,35 @@
+---
+/**
+ * Colored circle with initials
+ * Used to display children without photos
+ */
+
+import { getInitials } from '@/lib/groups'
+
+interface Props {
+  name: string
+  color: string
+  size?: 'sm' | 'md' | 'lg'
+}
+
+const { name, color, size = 'md' } = Astro.props
+
+const initials = getInitials(name)
+
+const sizeClasses = {
+  sm: 'w-8 h-8 text-sm',
+  md: 'w-12 h-12 text-lg',
+  lg: 'w-14 h-14 text-xl',
+}
+---
+
+<div
+  class:list={[
+    'rounded-full flex items-center justify-center font-bold text-white',
+    sizeClasses[size],
+  ]}
+  style={`background-color: ${color};`}
+  title={name}
+>
+  {initials}
+</div>

@@ -1,0 +1,28 @@
+---
+const { db } = Astro.locals
+
+let totalTasks = 0
+let error = ''
+
+try {
+  const row = db.prepare('SELECT COUNT(*) AS n FROM tasks').get() as { n: number }
+  totalTasks = row.n
+} catch (e) {
+  error = 'Failed to load stats'
+}
+---
+
+<html>
+  <head>
+    <title>Stats</title>
+  </head>
+  <body>
+    <div data-testid="stats-page">
+      {error ? (
+        <p data-testid="error">{error}</p>
+      ) : (
+        <p data-testid="total-tasks">Total tasks: {totalTasks}</p>
+      )}
+    </div>
+  </body>
+</html>

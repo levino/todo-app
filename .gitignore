@@ -1,22 +1,41 @@
+# Dependencies
 node_modules/
-dist/
-.astro/
-coverage/
 
+# Build output
+dist/
+
+# PocketBase data (development only)
+**/pb_data/
+
+# Environment files
 .env
 .env.local
 .env.*.local
 
-*.sqlite
-*.sqlite-journal
-*.sqlite-shm
-*.sqlite-wal
-/data/
-
+# IDE
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# OS
 .DS_Store
 Thumbs.db
+
+# Logs
 *.log
+npm-debug.log*
+
+# Test outputs
+playwright-report/
+test-results/
+coverage/
+
+# Astro
+.astro/
+
+# MCP OAuth data (secrets and local state)
+packages/mcp/data/
+
+# Nested package-lock.json (monorepo uses root lock file)
+packages/*/package-lock.json

@@ -7,69 +7,57 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: levino/levino-todo-app
 
 jobs:
+  # Required check (ruleset): build + test every workspace.
   test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '22'
           cache: 'npm'
       - run: npm ci
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npm run test
+      - run: npm run build --workspaces --if-present
+      - run: npm run test --workspaces --if-present
 
-  # Build on a NATIVE arm64 runner (the cluster is single-node aarch64) — never
-  # QEMU. Push :<sha> + :latest to GHCR, then bump the image tag in the k8s
-  # overlay and commit it back to main ([skip ci] loop guard). Flux pulls and
-  # deploys — CI has no cluster access.
+  # Build BOTH images on a NATIVE arm64 runner (single-node aarch64 cluster) —
+  # never QEMU. Push :<sha> + :latest to GHCR via the built-in token. Flux pulls
+  # :latest and deploys (no CI cluster access, no commit back to main).
   build-and-push:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04-arm
     permissions:
-      contents: write
+      contents: read
       packages: write
+    strategy:
+      matrix:
+        include:
+          - name: frontend
+            image: levino/todo-app-frontend
+            dockerfile: packages/frontend/Dockerfile
+          - name: mcp
+            image: levino/todo-app-mcp
+            dockerfile: packages/mcp/Dockerfile
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: main
-
       - uses: docker/setup-buildx-action@v3
-
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: docker/build-push-action@v6
         with:
           context: .
+          file: ${{ matrix.dockerfile }}
           platforms: linux/arm64
           push: true
           provenance: false
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Install kustomize
-        uses: imranismail/setup-kustomize@v2
-
-      - name: Bump image tag in k8s overlay
-        working-directory: k8s
-        run: kustomize edit set image ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-
-      - name: Commit & push image bump
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add k8s/kustomization.yaml
-          git diff --staged --quiet || git commit -m "ci: deploy ${{ github.sha }} [skip ci]"
-          git push
+            ${{ env.REGISTRY }}/${{ matrix.image }}:${{ github.sha }}
+            ${{ env.REGISTRY }}/${{ matrix.image }}:latest
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max

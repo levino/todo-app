@@ -1,39 +1,36 @@
-FROM node:24-bookworm-slim AS builder
-WORKDIR /app
+FROM node:alpine AS builder
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends python3 make g++ \
- && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
 
 COPY package.json package-lock.json ./
+
 RUN npm ci
 
-COPY tsconfig.json astro.config.mjs biome.json ./
-COPY src ./src
+COPY . .
 
-RUN npm run build \
- && npm prune --omit=dev
+RUN npm run build
 
+FROM node:alpine AS runner
 
-FROM node:24-bookworm-slim AS runtime
 WORKDIR /app
 
-ENV NODE_ENV=production \
-    PORT=3000 \
-    DATABASE_PATH=/data/db.sqlite
+ENV NODE_ENV=production
+ENV HOST=::
+ENV PORT=3000
 
-RUN useradd --system --uid 1001 --home /app app \
- && mkdir -p /data \
- && chown -R app:app /data /app
+# Auth configuration - set AUTH_POCKETBASE_URL to your auth provider
+# Defaults to local pocketbase service, override for external auth
+ENV AUTH_POCKETBASE_URL=http://pocketbase:8090
+ENV AUTH_POCKETBASE_GROUP=default
 
-COPY --from=builder --chown=app:app /app/node_modules ./node_modules
-COPY --from=builder --chown=app:app /app/dist ./dist
-COPY --from=builder --chown=app:app /app/package.json ./package.json
-COPY --from=builder --chown=app:app /app/src ./src
-COPY --from=builder --chown=app:app /app/tsconfig.json ./tsconfig.json
+# Copy built assets and server
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/package.json ./
 
-USER app
+# Install only production dependencies needed for runtime
+RUN npm install --omit=dev
+
 EXPOSE 3000
-VOLUME ["/data"]
 
-CMD ["node", "--experimental-strip-types", "src/index.ts"]
+# Start the Astro SSR server on all interfaces
+CMD ["node", "./dist/server/entry.mjs", "--host", "0.0.0.0", "--port", "3000"]
