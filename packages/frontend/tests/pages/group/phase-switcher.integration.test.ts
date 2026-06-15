@@ -1,24 +1,21 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
-import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
-import { authUser } from '../../helpers'
+import { authUser, createPb, type PbShim } from '../../helpers'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+
 
 describe('Phase Switcher', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let adminPb: PbShim
+  let userPb: PbShim
   let container: AstroContainer
   let groupId: string
   let childId: string
 
   beforeEach(async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
-    resetPocketBase()
 
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     const email = `test-${Date.now()}@example.com`
@@ -28,7 +25,7 @@ describe('Phase Switcher', () => {
       passwordConfirm: 'testtest123',
     })
 
-    userPb = new PocketBase(POCKETBASE_URL)
+    userPb = createPb()
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
     const group = await adminPb.collection('groups').create({
@@ -83,7 +80,7 @@ describe('Phase Switcher', () => {
   const renderPage = (query = '') =>
     container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
       request: new Request(`http://localhost/group/${groupId}/tasks?child=${childId}${query ? `&${query}` : ''}`),
     })
 
@@ -167,7 +164,7 @@ describe('Phase Switcher', () => {
     vi.setSystemTime(new Date('2026-03-10T13:00:00Z'))
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
       request: new Request(`http://localhost/group/${groupId}/tasks`),
     })
     expect(html).toContain('data-testid="phase-button-morning"')

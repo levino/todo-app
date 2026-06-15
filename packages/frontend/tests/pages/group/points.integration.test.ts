@@ -1,25 +1,22 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import TasksIndexPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
 import { getCurrentPhase } from '@/lib/tasks'
-import { authUser } from '../../helpers'
+import { authUser, createPb, type PbShim } from '../../helpers'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+
 
 describe('Points Display on Task Page', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let adminPb: PbShim
+  let userPb: PbShim
   let container: AstroContainer
   let groupId: string
   let childId: string
   let userId: string
 
   beforeEach(async () => {
-    resetPocketBase()
 
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     const email = `test-${Date.now()}@example.com`
@@ -30,7 +27,7 @@ describe('Points Display on Task Page', () => {
     })
     userId = user.id
 
-    userPb = new PocketBase(POCKETBASE_URL)
+    userPb = createPb()
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
     const group = await adminPb.collection('groups').create({
@@ -68,7 +65,7 @@ describe('Points Display on Task Page', () => {
     const request = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
     const html = await container.renderToString(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
       request,
     })
 
@@ -88,7 +85,7 @@ describe('Points Display on Task Page', () => {
     const request = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
     const html = await container.renderToString(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
       request,
     })
 
@@ -108,7 +105,7 @@ describe('Points Display on Task Page', () => {
     const request = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
     const html = await container.renderToString(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
       request,
     })
 
@@ -149,7 +146,7 @@ describe('Points Display on Task Page', () => {
     const request = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
     const html = await container.renderToString(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
       request,
     })
 

@@ -1,17 +1,14 @@
-import PocketBase from 'pocketbase'
 import { describe, expect, it, beforeEach } from 'vitest'
-
-const POCKETBASE_URL =
-  process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { createPb, type PbShim } from '../helpers'
 
 describe('Kiosk Mode - Task List', () => {
-  let pb: PocketBase
+  let pb: PbShim
   let groupId: string
   let childId: string
   let taskIds: string[] = []
 
   beforeEach(async () => {
-    pb = new PocketBase(POCKETBASE_URL)
+    pb = createPb()
     await pb
       .collection('_superusers')
       .authWithPassword('admin@test.local', 'testtest123')

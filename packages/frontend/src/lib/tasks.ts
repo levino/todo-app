@@ -257,144 +257,53 @@ export const calculateNextDueDate = (
   return null
 }
 
+// The task mutation operations are delegated to the shared SQLite data layer
+// `@family-todo/db`, which ports the exact same recurrence/undo/delete logic
+// from the original PocketBase implementation (verified identical). We re-wrap
+// them here keeping the same exported names, argument order and return shape
+// ({ error?: string }) so callers (actions, api routes) are unaffected — only
+// the first argument changes from a PocketBase instance to a DB connection.
+import {
+  type DB,
+  completeTask as dbCompleteTask,
+  undoTask as dbUndoTask,
+  deleteTask as dbDeleteTask,
+  getUserById,
+} from '@family-todo/db'
+
 export const completeTask = async (
-  pb: import('pocketbase').default,
+  db: DB,
   taskId: string,
   childId: string,
   completedBy: string,
   groupId: string,
 ): Promise<{ error?: string }> => {
-  const now = new Date()
-  const task = await pb.collection('tasks').getOne(taskId)
-
-  if (task.completed) {
-    return { error: 'already-completed' }
-  }
-
-  const group = await pb.collection('groups').getOne(groupId)
-  const timezone = group.timezone || 'Europe/Berlin'
-
-  if (task.dueDate) {
-    const dueDateStr = task.dueDate.slice(0, 10)
-    const todayStr = getLocalDateString(timezone, now)
-    if (dueDateStr > todayStr) {
-      return { error: 'not-yet-due' }
-    }
-  }
-
-  const nextDueDate = calculateNextDueDate(
-    task.recurrenceType,
-    task.recurrenceInterval,
-    task.recurrenceDays,
-    now,
-    timezone,
-  )
-
-  if (nextDueDate) {
-    await pb.collection('tasks').update(taskId, {
-      completed: false,
-      completedAt: null,
-      completedBy: '',
-      lastCompletedAt: now.toISOString(),
-      dueDate: nextDueDate,
-      previousDueDate: task.dueDate || null,
-    })
-  } else {
-    await pb.collection('tasks').update(taskId, {
-      completed: true,
-      completedAt: now.toISOString(),
-      completedBy,
-      lastCompletedAt: now.toISOString(),
-      previousDueDate: task.dueDate || null,
-    })
-  }
-
-  return {}
+  // `completedBy` is a real FK to users(id) in the SQLite store. The app's
+  // completion form posts the *child's* id (kids tap their own task), which is
+  // not a user — under PocketBase the relation accepted any string, but SQLite
+  // enforces the FK. Since the value is never surfaced (the page view always
+  // reports completedBy as null) we normalise a non-user value to NULL, keeping
+  // behaviour identical and avoiding a FOREIGN KEY violation.
+  const validCompletedBy = getUserById(db, completedBy)
+    ? completedBy
+    : (null as unknown as string)
+  return dbCompleteTask(db, taskId, childId, validCompletedBy, groupId)
 }
 
 export const undoTask = async (
-  pb: import('pocketbase').default,
+  db: DB,
   taskId: string,
   timezone?: string,
 ): Promise<{ error?: string }> => {
-  const task = await pb.collection('tasks').getOne(taskId)
-  const now = new Date()
-  const tz = timezone || 'Europe/Berlin'
-  const todayStr = getLocalDateString(tz, now)
-  const todayStart = todayStr + ' 00:00:00.000Z'
-
-  const completedToday = task.completed && task.completedAt && task.completedAt >= todayStart
-  const recurringCompletedToday = !task.completed && task.lastCompletedAt && task.lastCompletedAt >= todayStart && task.recurrenceType
-
-  if (!completedToday && !recurringCompletedToday) {
-    return { error: 'not-completed-today' }
-  }
-
-  if (task.recurrenceType && recurringCompletedToday) {
-    await pb.collection('tasks').update(taskId, {
-      dueDate: task.previousDueDate || task.dueDate,
-      lastCompletedAt: null,
-      previousDueDate: null,
-    })
-  } else {
-    await pb.collection('tasks').update(taskId, {
-      completed: false,
-      completedAt: null,
-      completedBy: '',
-      lastCompletedAt: null,
-      previousDueDate: null,
-    })
-  }
-
-  return {}
+  return dbUndoTask(db, taskId, timezone)
 }
 
 export const deleteTask = async (
-  pb: import('pocketbase').default,
+  db: DB,
   taskId: string,
   timezone?: string,
 ): Promise<{ error?: string }> => {
-  try {
-    const task = await pb.collection('tasks').getOne(taskId)
-
-    if (task.recurrenceType && task.dueDate) {
-      const tz = timezone || 'Europe/Berlin'
-      const todayStr = getLocalDateString(tz, new Date())
-      const dueDateStr = task.dueDate.slice(0, 10)
-      // Deleting a recurring task skips the current instance. If the task piled
-      // up overdue instances (dueDate stuck in the past while never completed),
-      // we must clear the whole backlog up to and including today in one click,
-      // landing on the next occurrence strictly after today. Otherwise the task
-      // would just reappear the next (still overdue) day.
-      const threshold = todayStr > dueDateStr ? todayStr : dueDateStr
-
-      let nextDueDate: string | null = task.dueDate
-      let guard = 0
-      while (nextDueDate) {
-        const base = new Date(nextDueDate.slice(0, 10) + 'T00:00:00Z')
-        nextDueDate = calculateNextDueDate(
-          task.recurrenceType,
-          task.recurrenceInterval,
-          task.recurrenceDays,
-          base,
-          tz,
-        )
-        if (!nextDueDate || nextDueDate.slice(0, 10) > threshold) break
-        // Safety valve so a misconfigured recurrence can never loop forever.
-        if (++guard > 4000) break
-      }
-
-      if (nextDueDate) {
-        await pb.collection('tasks').update(taskId, { dueDate: nextDueDate })
-        return {}
-      }
-    }
-
-    await pb.collection('tasks').delete(taskId)
-    return {}
-  } catch {
-    return { error: 'not-found' }
-  }
+  return dbDeleteTask(db, taskId, timezone)
 }
 
 // Sorts purely by priority. The "overdue" concept was removed, so past-due

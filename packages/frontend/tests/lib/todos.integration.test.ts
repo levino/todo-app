@@ -1,12 +1,9 @@
-import PocketBase from 'pocketbase'
 import { describe, expect, it } from 'vitest'
-
-const POCKETBASE_URL =
-  process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { createPb } from '../helpers'
 
 describe('Todos Collection', () => {
   it('should create a todo', async () => {
-    const pb = new PocketBase(POCKETBASE_URL)
+    const pb = createPb()
     await pb
       .collection('_superusers')
       .authWithPassword('admin@test.local', 'testtest123')
@@ -23,7 +20,7 @@ describe('Todos Collection', () => {
   })
 
   it('should toggle a todo', async () => {
-    const pb = new PocketBase(POCKETBASE_URL)
+    const pb = createPb()
     await pb
       .collection('_superusers')
       .authWithPassword('admin@test.local', 'testtest123')
@@ -42,7 +39,7 @@ describe('Todos Collection', () => {
   })
 
   it('should delete a todo', async () => {
-    const pb = new PocketBase(POCKETBASE_URL)
+    const pb = createPb()
     await pb
       .collection('_superusers')
       .authWithPassword('admin@test.local', 'testtest123')

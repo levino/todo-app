@@ -1,13 +1,11 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach, afterEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
-import { authUser } from '../../helpers'
+import { authUser, createPb, type PbShim } from '../../helpers'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
-const makeTimeOfDayOptional = (adminPb: PocketBase) =>
+
+const makeTimeOfDayOptional = (adminPb: PbShim) =>
   adminPb.collections.getOne('tasks').then((collection) =>
     adminPb.collections.update(collection.id, {
       fields: collection.fields.map((field: { name: string }) =>
@@ -16,7 +14,7 @@ const makeTimeOfDayOptional = (adminPb: PocketBase) =>
     }),
   )
 
-const makeTimeOfDayRequired = (adminPb: PocketBase) =>
+const makeTimeOfDayRequired = (adminPb: PbShim) =>
   adminPb.collections.getOne('tasks').then((collection) =>
     adminPb.collections.update(collection.id, {
       fields: collection.fields.map((field: { name: string }) =>
@@ -25,7 +23,7 @@ const makeTimeOfDayRequired = (adminPb: PocketBase) =>
     }),
   )
 
-const runMigrationSql = (adminPb: PocketBase) =>
+const runMigrationSql = (adminPb: PbShim) =>
   adminPb.send('/api/batch', {
     method: 'POST',
     body: {
@@ -40,16 +38,15 @@ const runMigrationSql = (adminPb: PocketBase) =>
   }).catch(() => {})
 
 describe('timeOfDay Migration', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let adminPb: PbShim
+  let userPb: PbShim
   let container: AstroContainer
   let groupId: string
   let childId: string
 
   beforeEach(async () => {
-    resetPocketBase()
 
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     const email = `test-${Date.now()}@example.com`
@@ -59,7 +56,7 @@ describe('timeOfDay Migration', () => {
       passwordConfirm: 'testtest123',
     })
 
-    userPb = new PocketBase(POCKETBASE_URL)
+    userPb = createPb()
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
     const group = await adminPb.collection('groups').create({ name: 'Migration Family' })
@@ -150,7 +147,7 @@ describe('timeOfDay Migration', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
       request: new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`),
     })
 

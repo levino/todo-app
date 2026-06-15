@@ -1,8 +1,7 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
-import { resetPocketBase } from '@/lib/pocketbase'
+import { createPb, type PbShim } from '../helpers'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+
 
 interface TasksPageViewRow {
   id: string
@@ -24,13 +23,12 @@ interface TasksPageViewRow {
 }
 
 describe('tasks_page_view collection', () => {
-  let adminPb: PocketBase
+  let adminPb: PbShim
   let groupId: string
   let childId: string
 
   beforeEach(async () => {
-    resetPocketBase()
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     const group = await adminPb.collection('groups').create({ name: 'Test Group' })

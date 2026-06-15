@@ -1,17 +1,17 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
+import { createPb, type PbShim } from '../helpers'
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import StatsPage from '../../src/pages/stats.astro'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+
 
 describe('Stats Page', () => {
-  let pb: PocketBase
+  let pb: PbShim
   let container: AstroContainer
 
   beforeEach(async () => {
     // Setup PocketBase client
-    pb = new PocketBase(POCKETBASE_URL)
+    pb = createPb()
     await pb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     // Create Astro container
@@ -20,7 +20,7 @@ describe('Stats Page', () => {
 
   it('should render the stats page showing zero tasks when empty', async () => {
     const result = await container.renderToString(StatsPage, {
-      locals: { pb },
+      locals: { db: pb.db },
     })
 
     expect(result).toContain('data-testid="stats-page"')
@@ -49,7 +49,7 @@ describe('Stats Page', () => {
     }
 
     const result = await container.renderToString(StatsPage, {
-      locals: { pb },
+      locals: { db: pb.db },
     })
 
     expect(result).toContain('Total tasks: 3')

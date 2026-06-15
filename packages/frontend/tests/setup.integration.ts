@@ -1,49 +1,20 @@
 /**
  * Integration Test Setup
  *
- * Resets the database before each test:
- * 1. Clears all records from all collections (respecting foreign key order)
- * 2. Resets the PocketBase singleton to ensure fresh connections
+ * The app's data store is the `@family-todo/db` SQLite layer. Before each test
+ * we reset the process-wide singleton to a fresh in-memory database (schema +
+ * view created by the package's migrations), giving every test a clean slate —
+ * the same isolation the old PocketBase "clear all collections" setup provided.
+ *
+ * Tests seed data through the PocketBase-compatible shim (tests/pb-shim.ts),
+ * which writes to this exact connection, so the rendered pages (which read
+ * `locals.db` = this singleton) observe the seeded data identically.
  */
 
-import PocketBase from 'pocketbase'
 import { beforeEach } from 'vitest'
-import { resetPocketBase } from '../src/lib/pocketbase'
+import { resetDb } from '@family-todo/db'
 
-const POCKETBASE_URL =
-  process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
-
-/**
- * Clear all records from a collection
- */
-async function clearCollection(pb: PocketBase, collectionName: string) {
-  try {
-    const records = await pb.collection(collectionName).getFullList()
-    for (const record of records) {
-      await pb.collection(collectionName).delete(record.id)
-    }
-  } catch {
-    // Collection might not exist yet
-  }
-}
-
-beforeEach(async () => {
-  // Reset the PocketBase singleton to pick up correct URL
-  resetPocketBase()
-
-  const pb = new PocketBase(POCKETBASE_URL)
-  await pb
-    .collection('_superusers')
-    .authWithPassword('admin@test.local', 'testtest123')
-
-  // Clear all test data before each test (order matters for relations!)
-  // Delete children of relations first, then parents
-  await clearCollection(pb, 'point_transactions') // depends on children, rewards, tasks
-  await clearCollection(pb, 'rewards')            // depends on groups
-  await clearCollection(pb, 'tasks')              // depends on children
-  await clearCollection(pb, 'children')           // depends on groups
-  await clearCollection(pb, 'user_groups')        // junction table
-  await clearCollection(pb, 'groups')
-  await clearCollection(pb, 'todos')
-  await clearCollection(pb, 'users')              // clear test users
+beforeEach(() => {
+  // Fresh in-memory DB as the new singleton for this test.
+  resetDb()
 })

@@ -1,25 +1,12 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
-import PocketBase from 'pocketbase'
-import request from 'supertest'
-import { app } from '@family-todo/mcp/src/server.js'
 import TasksIndexPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
-import { authUser } from '../../helpers'
+import { authUser, createPb, type PbShim } from '../../helpers'
+import { createMcpCall } from '../../mcp-stub'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
-const mcpCall = (token: string, toolName: string, args: Record<string, unknown>) =>
-  request(app)
-    .post('/mcp')
-    .query({ token })
-    .send({
-      jsonrpc: '2.0',
-      method: 'tools/call',
-      params: { name: toolName, arguments: args },
-      id: 1,
-    })
-    .then((res) => res.body)
+
+let mcpCall: ReturnType<typeof createMcpCall>
 
 const extractId = (text: string) => text.match(/ID: ([a-z0-9]+)/)?.[1] ?? ''
 
@@ -27,17 +14,16 @@ const travelTo = (datetime: string) => vi.setSystemTime(new Date(datetime))
 
 describe('Bug #47: Completed task stays visible after completion', () => {
   let authToken: string
-  let userPb: PocketBase
-  let adminPb: PocketBase
+  let userPb: PbShim
+  let adminPb: PbShim
   let container: AstroContainer
   let groupId: string
   let childId: string
 
   beforeEach(async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
-    resetPocketBase()
 
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb
       .collection('_superusers')
       .authWithPassword('admin@test.local', 'testtest123')
@@ -49,9 +35,10 @@ describe('Bug #47: Completed task stays visible after completion', () => {
       passwordConfirm: 'testtest123',
     })
 
-    userPb = new PocketBase(POCKETBASE_URL)
+    userPb = createPb()
     await userPb.collection('users').authWithPassword(email, 'testtest123')
     authToken = userPb.authStore.token
+    mcpCall = createMcpCall(userPb.db, userPb.authStore.record!.id)
 
     container = await AstroContainer.create()
 
@@ -85,7 +72,7 @@ describe('Bug #47: Completed task stays visible after completion', () => {
     const req = new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`)
     return container.renderToString(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
       request: req,
     })
   }
@@ -93,7 +80,7 @@ describe('Bug #47: Completed task stays visible after completion', () => {
   const renderOverviewPage = () =>
     container.renderToString(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
       request: new Request(`http://localhost/group/${groupId}/tasks`),
     })
 

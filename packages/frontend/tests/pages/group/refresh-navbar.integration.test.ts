@@ -1,24 +1,21 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
-import { authUser } from '../../helpers'
+import { authUser, createPb, type PbShim } from '../../helpers'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+
 
 describe('Refresh button in navbar', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let adminPb: PbShim
+  let userPb: PbShim
   let container: AstroContainer
   let groupId: string
   let childId: string
   let userId: string
 
   beforeEach(async () => {
-    resetPocketBase()
 
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     const email = `test-${Date.now()}@example.com`
@@ -29,7 +26,7 @@ describe('Refresh button in navbar', () => {
     })
     userId = user.id
 
-    userPb = new PocketBase(POCKETBASE_URL)
+    userPb = createPb()
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
     const group = await adminPb.collection('groups').create({ name: 'Test Family' })
@@ -53,7 +50,7 @@ describe('Refresh button in navbar', () => {
   it('should render refresh button inside the navbar, not in page content, in overview mode', async () => {
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
     })
 
     // The refresh button must exist
@@ -77,7 +74,7 @@ describe('Refresh button in navbar', () => {
   it('should render refresh button inside the navbar in child view', async () => {
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
       request: new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`),
     })
 
@@ -98,7 +95,7 @@ describe('Refresh button in navbar', () => {
   it('should only have one refresh button on the page', async () => {
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
     })
 
     const matches = html.match(/data-testid="refresh-button"/g)

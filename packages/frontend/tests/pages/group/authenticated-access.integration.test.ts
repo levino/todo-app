@@ -1,27 +1,24 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import TasksIndexPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
-import { authUser } from '../../helpers'
+import { authUser, createPb, type PbShim } from '../../helpers'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+
 
 /**
  * Regression test: Authenticated users should be able to access group pages
  * when they have groupId in the URL params, not just in locals
  */
 describe('Authenticated Group Page Access', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let adminPb: PbShim
+  let userPb: PbShim
   let container: AstroContainer
   let groupId: string
   let userId: string
 
   beforeEach(async () => {
-    resetPocketBase()
 
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     // Create test user
@@ -34,7 +31,7 @@ describe('Authenticated Group Page Access', () => {
     userId = user.id
 
     // Create user connection
-    userPb = new PocketBase(POCKETBASE_URL)
+    userPb = createPb()
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
     const group = await adminPb.collection('groups').create({ name: 'Test Family' })
@@ -52,7 +49,7 @@ describe('Authenticated Group Page Access', () => {
   it('should access tasks page with groupId from URL params', async () => {
     const response = await container.renderToResponse(TasksIndexPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
     })
 
     expect(response.status).toBe(200)

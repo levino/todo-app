@@ -1,4 +1,6 @@
 import type { APIRoute } from 'astro'
+import { generateId } from '@family-todo/db'
+import { ensureTodosTable } from '@/lib/todos'
 
 export const POST: APIRoute = async ({ request, redirect, locals }) => {
   const formData = await request.formData()
@@ -8,14 +10,14 @@ export const POST: APIRoute = async ({ request, redirect, locals }) => {
     return redirect('/?error=missing-title')
   }
 
-  const { pb, user } = locals
+  const { db, user } = locals
 
   try {
-    await pb.collection('todos').create({
-      title,
-      completed: false,
-      user_id: user?.id,
-    })
+    ensureTodosTable(db)
+    const now = new Date().toISOString()
+    db.prepare(
+      'INSERT INTO todos (id, title, completed, user_id, created, updated) VALUES (?, ?, 0, ?, ?, ?)',
+    ).run(generateId(), title, user?.id ?? null, now, now)
   } catch {
     return redirect('/?error=create-failed')
   }

@@ -1,8 +1,21 @@
 /**
  * Group Management Helpers
+ *
+ * Backed by the shared SQLite data layer `@family-todo/db`. The exported
+ * function names, argument order (db first, mirroring the old pb-first
+ * convention) and RETURN SHAPES are kept identical to the previous PocketBase
+ * implementation so callers/templates are unaffected.
  */
 
-import type PocketBase from 'pocketbase'
+import {
+  type DB,
+  getUserGroups as dbGetUserGroups,
+  isUserInGroup as dbIsUserInGroup,
+  addUserToGroup as dbAddUserToGroup,
+  removeUserFromGroup as dbRemoveUserFromGroup,
+  getInitials as dbGetInitials,
+  CHILD_COLORS as DB_CHILD_COLORS,
+} from '@family-todo/db'
 
 export interface Group {
   id: string
@@ -19,88 +32,53 @@ export interface UserGroup {
 }
 
 /**
- * Get all groups a user belongs to
+ * Get all groups a user belongs to. Same return shape as before: objects with
+ * at least { id, name } (the underlying rows carry extra columns, which the
+ * templates ignore — they only read .id and .name).
  */
-export async function getUserGroups(pb: PocketBase, userId: string): Promise<Group[]> {
-  const result = await pb.collection('user_groups').getList<UserGroup>(1, 100, {
-    filter: `user = "${userId}"`,
-    expand: 'group',
-  })
-
-  return result.items
-    .map((ug) => ug.expand?.group)
-    .filter((g): g is Group => g !== undefined)
+export async function getUserGroups(db: DB, userId: string): Promise<Group[]> {
+  return dbGetUserGroups(db, userId)
 }
 
 /**
- * Check if a user is a member of a specific group
+ * Check if a user is a member of a specific group.
  */
 export async function isUserInGroup(
-  pb: PocketBase,
+  db: DB,
   userId: string,
-  groupId: string
+  groupId: string,
 ): Promise<boolean> {
-  try {
-    const result = await pb.collection('user_groups').getList(1, 1, {
-      filter: `user = "${userId}" && group = "${groupId}"`,
-    })
-    return result.totalItems > 0
-  } catch {
-    return false
-  }
+  return dbIsUserInGroup(db, userId, groupId)
 }
 
 /**
- * Add a user to a group
+ * Add a user to a group.
  */
 export async function addUserToGroup(
-  pb: PocketBase,
+  db: DB,
   userId: string,
-  groupId: string
+  groupId: string,
 ): Promise<void> {
-  await pb.collection('user_groups').create({
-    user: userId,
-    group: groupId,
-  })
+  dbAddUserToGroup(db, userId, groupId)
 }
 
 /**
- * Remove a user from a group
+ * Remove a user from a group.
  */
 export async function removeUserFromGroup(
-  pb: PocketBase,
+  db: DB,
   userId: string,
-  groupId: string
+  groupId: string,
 ): Promise<void> {
-  const result = await pb.collection('user_groups').getList(1, 1, {
-    filter: `user = "${userId}" && group = "${groupId}"`,
-  })
-
-  if (result.items.length > 0) {
-    await pb.collection('user_groups').delete(result.items[0].id)
-  }
+  dbRemoveUserFromGroup(db, userId, groupId)
 }
 
 /**
- * Get initials from a name (e.g., "Max Müller" → "MM")
+ * Get initials from a name (e.g., "Max Müller" → "MM").
  */
-export function getInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((word) => word.charAt(0).toUpperCase())
-    .join('')
-    .slice(0, 2) // Max 2 characters
-}
+export const getInitials = dbGetInitials
 
 /**
- * Predefined child-friendly colors
+ * Predefined child-friendly colors.
  */
-export const CHILD_COLORS = [
-  { name: 'Rot', value: '#FF6B6B' },
-  { name: 'Orange', value: '#FFA94D' },
-  { name: 'Gelb', value: '#FFE066' },
-  { name: 'Grün', value: '#69DB7C' },
-  { name: 'Blau', value: '#4DABF7' },
-  { name: 'Lila', value: '#B197FC' },
-  { name: 'Pink', value: '#F783AC' },
-] as const
+export const CHILD_COLORS = DB_CHILD_COLORS

@@ -13,12 +13,12 @@
   "dependencies": {
     "@astrojs/check": "^0.9.6",
     "@astrojs/node": "^9.0.0",
+    "@family-todo/db": "*",
     "@levino/shipyard-base": "^0.7.5",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4",
     "astro": "^5.16.0",
     "daisyui": "^5",
-    "pocketbase": "^0.26.5",
     "tailwindcss": "^4"
   },
   "devDependencies": {

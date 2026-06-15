@@ -6,22 +6,19 @@
 
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import GroupsPage from '../../../src/pages/settings/groups.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
-import { authUser } from '../../helpers'
+import { authUser, createPb, type PbShim } from '../../helpers'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+
 
 describe('Settings Groups Page', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let adminPb: PbShim
+  let userPb: PbShim
   let container: AstroContainer
 
   beforeEach(async () => {
-    resetPocketBase()
 
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     // Create test user
@@ -32,7 +29,7 @@ describe('Settings Groups Page', () => {
       passwordConfirm: 'testtest123',
     })
 
-    userPb = new PocketBase(POCKETBASE_URL)
+    userPb = createPb()
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
     container = await AstroContainer.create()
@@ -42,7 +39,7 @@ describe('Settings Groups Page', () => {
     it('should render the groups settings page', async () => {
       const response = await container.renderToResponse(GroupsPage, {
         request: new Request('http://localhost:4321/settings/groups'),
-        locals: { pb: userPb, user: authUser(userPb) },
+        locals: { db: userPb.db, user: authUser(userPb) },
       })
 
       expect(response.status).toBe(200)
@@ -53,7 +50,7 @@ describe('Settings Groups Page', () => {
     it('should show create group option for user with no groups', async () => {
       const response = await container.renderToResponse(GroupsPage, {
         request: new Request('http://localhost:4321/settings/groups'),
-        locals: { pb: userPb, user: authUser(userPb) },
+        locals: { db: userPb.db, user: authUser(userPb) },
       })
 
       expect(response.status).toBe(200)
@@ -64,11 +61,11 @@ describe('Settings Groups Page', () => {
 
   describe('Unauthenticated User', () => {
     it('should redirect to login', async () => {
-      const unauthPb = new PocketBase(POCKETBASE_URL)
+      const unauthPb = createPb()
 
       const response = await container.renderToResponse(GroupsPage, {
         request: new Request('http://localhost:4321/settings/groups'),
-        locals: { pb: unauthPb, user: undefined },
+        locals: { db: unauthPb.db, user: undefined },
       })
 
       expect(response.status).toBe(302)

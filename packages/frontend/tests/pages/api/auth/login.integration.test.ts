@@ -8,20 +8,20 @@
  */
 
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
+import { createPb, type PbShim } from '../../../helpers'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+
 
 // We can't easily test Astro API routes with AstroContainer,
 // so we test the logic by importing the handler directly
 // For now, we test via the running dev server or document expected behavior
 
 describe('Login API', () => {
-  let adminPb: PocketBase
+  let adminPb: PbShim
   let testEmail: string
 
   beforeEach(async () => {
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     // Create test user

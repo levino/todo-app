@@ -1,40 +1,26 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
-import request from 'supertest'
-import { app } from '@family-todo/mcp/src/server.js'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
 import { getCurrentPhase } from '@/lib/tasks'
-import { authUser } from '../../helpers'
+import { authUser, createPb, type PbShim } from '../../helpers'
+import { createMcpCall } from '../../mcp-stub'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
 
-const mcpCall = (token: string, toolName: string, args: Record<string, unknown>) =>
-  request(app)
-    .post('/mcp')
-    .query({ token })
-    .send({
-      jsonrpc: '2.0',
-      method: 'tools/call',
-      params: { name: toolName, arguments: args },
-      id: 1,
-    })
-    .then((res) => res.body)
+
+let mcpCall: ReturnType<typeof createMcpCall>
 
 const extractId = (text: string) =>
   text.match(/ID: ([a-z0-9]+)/)?.[1] ?? ''
 
 describe('MCP → Frontend Integration', () => {
   let authToken: string
-  let userPb: PocketBase
-  let adminPb: PocketBase
+  let userPb: PbShim
+  let adminPb: PbShim
   let container: AstroContainer
 
   beforeEach(async () => {
-    resetPocketBase()
 
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     const email = `test-${Date.now()}@example.com`
@@ -44,9 +30,10 @@ describe('MCP → Frontend Integration', () => {
       passwordConfirm: 'testtest123',
     })
 
-    userPb = new PocketBase(POCKETBASE_URL)
+    userPb = createPb()
     await userPb.collection('users').authWithPassword(email, 'testtest123')
     authToken = userPb.authStore.token
+    mcpCall = createMcpCall(userPb.db, userPb.authStore.record!.id)
 
     container = await AstroContainer.create()
   })
@@ -54,7 +41,7 @@ describe('MCP → Frontend Integration', () => {
   const renderChildPage = (groupId: string, childId: string) =>
     container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
       request: new Request(`http://localhost/group/${groupId}/tasks?child=${childId}`),
     })
 

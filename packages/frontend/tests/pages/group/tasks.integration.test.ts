@@ -1,24 +1,21 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
 import { getCurrentPhase } from '@/lib/tasks'
-import { authUser } from '../../helpers'
+import { authUser, createPb, type PbShim } from '../../helpers'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+
 
 describe('Tasks Page - Overview (no ?child)', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let adminPb: PbShim
+  let userPb: PbShim
   let container: AstroContainer
   let groupId: string
   let userId: string
 
   beforeEach(async () => {
-    resetPocketBase()
 
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     const email = `test-${Date.now()}@example.com`
@@ -29,7 +26,7 @@ describe('Tasks Page - Overview (no ?child)', () => {
     })
     userId = user.id
 
-    userPb = new PocketBase(POCKETBASE_URL)
+    userPb = createPb()
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
     const group = await adminPb.collection('groups').create({ name: 'Test Family' })
@@ -46,7 +43,7 @@ describe('Tasks Page - Overview (no ?child)', () => {
   it('should show message when no children exist', async () => {
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
     })
 
     expect(html).toContain('Noch keine Kinder angelegt')
@@ -62,7 +59,7 @@ describe('Tasks Page - Overview (no ?child)', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
     })
 
     expect(html).toContain('Max')
@@ -79,7 +76,7 @@ describe('Tasks Page - Overview (no ?child)', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
     })
 
     expect(html).toContain(`/group/${groupId}/tasks?child=${child.id}`)
@@ -99,7 +96,7 @@ describe('Tasks Page - Overview (no ?child)', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
     })
 
     expect(html).toContain('Max')
@@ -108,8 +105,8 @@ describe('Tasks Page - Overview (no ?child)', () => {
 })
 
 describe('Tasks Page - Child View (?child=id)', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let adminPb: PbShim
+  let userPb: PbShim
   let container: AstroContainer
   let groupId: string
   let childId: string
@@ -117,10 +114,9 @@ describe('Tasks Page - Child View (?child=id)', () => {
   let currentPhase: string
 
   beforeEach(async () => {
-    resetPocketBase()
     currentPhase = getCurrentPhase('00:00', '23:59', 'Europe/Berlin')
 
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     const email = `test-${Date.now()}@example.com`
@@ -131,7 +127,7 @@ describe('Tasks Page - Child View (?child=id)', () => {
     })
     userId = user.id
 
-    userPb = new PocketBase(POCKETBASE_URL)
+    userPb = createPb()
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
     const group = await adminPb.collection('groups').create({
@@ -159,7 +155,7 @@ describe('Tasks Page - Child View (?child=id)', () => {
   const renderChildPage = (childIdParam: string = childId) =>
     container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
       request: new Request(`http://localhost/group/${groupId}/tasks?child=${childIdParam}`),
     })
 

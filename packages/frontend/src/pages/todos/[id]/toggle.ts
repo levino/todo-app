@@ -1,18 +1,25 @@
 import type { APIRoute } from 'astro'
+import { ensureTodosTable } from '@/lib/todos'
 
 export const POST: APIRoute = async ({ params, redirect, locals }) => {
   const { id } = params
-  const { pb } = locals
+  const { db } = locals
 
   if (!id) {
     return redirect('/?error=missing-id')
   }
 
   try {
-    const todo = await pb.collection('todos').getOne(id)
-    await pb.collection('todos').update(id, {
-      completed: !todo.completed,
-    })
+    ensureTodosTable(db)
+    const todo = db.prepare('SELECT completed FROM todos WHERE id = ?').get(id) as
+      | { completed: number }
+      | undefined
+    if (!todo) throw new Error('not-found')
+    db.prepare('UPDATE todos SET completed = ?, updated = ? WHERE id = ?').run(
+      todo.completed ? 0 : 1,
+      new Date().toISOString(),
+      id,
+    )
   } catch {
     return redirect('/?error=toggle-failed')
   }

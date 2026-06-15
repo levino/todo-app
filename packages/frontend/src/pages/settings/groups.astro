@@ -3,13 +3,13 @@ import Layout from '@/layouts/Layout.astro'
 import { getUserGroups } from '@/lib/groups'
 import { pressClasses, focusRingClasses, cardPressClasses } from '@/lib/interaction-classes'
 
-const { pb, user } = Astro.locals
+const { db, user } = Astro.locals
 
 if (!user) {
   return Astro.redirect('/login')
 }
 
-const groups = await getUserGroups(pb, user.id)
+const groups = await getUserGroups(db, user.id)
 ---
 
 <Layout title="Gruppen">

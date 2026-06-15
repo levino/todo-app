@@ -1,12 +1,10 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
 import { getCurrentPhase, getLocalDateString } from '@/lib/tasks'
-import { authUser } from '../../helpers'
+import { authUser, createPb, type PbShim } from '../../helpers'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+
 
 /**
  * Regression tests for the per-task Astro view transitions.
@@ -25,8 +23,8 @@ const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:809
  * browser and lives in the E2E layer.
  */
 describe('Task list view transitions', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let adminPb: PbShim
+  let userPb: PbShim
   let container: AstroContainer
   let groupId: string
   let childId: string
@@ -34,8 +32,7 @@ describe('Task list view transitions', () => {
   let todayStr: string
 
   beforeEach(async () => {
-    resetPocketBase()
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
     const email = `vt-${Date.now()}@test.local`
@@ -45,7 +42,7 @@ describe('Task list view transitions', () => {
       passwordConfirm: 'testtest123',
     })
 
-    userPb = new PocketBase(POCKETBASE_URL)
+    userPb = createPb()
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
     const group = await adminPb.collection('groups').create({
@@ -75,7 +72,7 @@ describe('Task list view transitions', () => {
       request: child
         ? new Request(`http://localhost/group/${groupId}/tasks?child=${child}`)
         : undefined,
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
     })
 
   const scopesFor = (html: string, testid: string): string[] => {

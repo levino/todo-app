@@ -1,12 +1,12 @@
 ---
-const { pb } = Astro.locals
+const { db } = Astro.locals
 
 let totalTasks = 0
 let error = ''
 
 try {
-  const result = await pb.collection('tasks').getList(1, 1)
-  totalTasks = result.totalItems
+  const row = db.prepare('SELECT COUNT(*) AS n FROM tasks').get() as { n: number }
+  totalTasks = row.n
 } catch (e) {
   error = 'Failed to load stats'
 }

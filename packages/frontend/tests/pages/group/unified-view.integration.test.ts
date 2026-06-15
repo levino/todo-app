@@ -1,17 +1,12 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
 import { getCurrentPhase, completeTask } from '@/lib/tasks'
-import { authUser } from '../../helpers'
-
-const POCKETBASE_URL =
-  process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { authUser, createPb, type PbShim } from '../../helpers'
 
 describe('Unified Task View', () => {
-  let adminPb: PocketBase
-  let userPb: PocketBase
+  let adminPb: PbShim
+  let userPb: PbShim
   let container: AstroContainer
   let groupId: string
   let child1Id: string
@@ -23,9 +18,7 @@ describe('Unified Task View', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date('2026-03-13T14:00:00Z'))
 
-    resetPocketBase()
-
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb
       .collection('_superusers')
       .authWithPassword('admin@test.local', 'testtest123')
@@ -38,7 +31,7 @@ describe('Unified Task View', () => {
     })
     userId = user.id
 
-    userPb = new PocketBase(POCKETBASE_URL)
+    userPb = createPb()
     await userPb.collection('users').authWithPassword(email, 'testtest123')
 
     const group = await adminPb.collection('groups').create({
@@ -78,13 +71,13 @@ describe('Unified Task View', () => {
   const renderOverview = () =>
     container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
     })
 
   const renderDetailView = (childId: string) =>
     container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb: userPb, user: authUser(userPb) },
+      locals: { db: userPb.db, user: authUser(userPb) },
       request: new Request(
         `http://localhost/group/${groupId}/tasks?child=${childId}`,
       ),
@@ -206,7 +199,7 @@ describe('Unified Task View', () => {
         dueDate: '2026-03-13T00:00:00.000Z',
       })
 
-      await completeTask(userPb, task.id, child1Id, child1Id, groupId)
+      await completeTask(userPb.db, task.id, child1Id, child1Id, groupId)
 
       const html = await renderOverview()
 

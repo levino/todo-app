@@ -1,18 +1,13 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
-import { authUser } from '../../helpers'
-
-const POCKETBASE_URL =
-  process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { authUser, createPb, type PbShim } from '../../helpers'
 
 // The "Überfällig" (overdue) feature was removed entirely: past-due tasks must
 // still be shown (so they can be completed) but must NEVER be flagged overdue.
 describe('No overdue marking', () => {
-  let pb: PocketBase
-  let adminPb: PocketBase
+  let pb: PbShim
+  let adminPb: PbShim
   let container: AstroContainer
   let groupId: string
   let childId: string
@@ -20,14 +15,12 @@ describe('No overdue marking', () => {
   beforeEach(async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     vi.setSystemTime(new Date('2026-03-13T14:00:00Z'))
-
-    resetPocketBase()
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb
       .collection('_superusers')
       .authWithPassword('admin@test.local', 'testtest123')
 
-    pb = new PocketBase(POCKETBASE_URL)
+    pb = createPb()
     const user = await adminPb.collection('users').create({
       email: `no-overdue-${Date.now()}@test.local`,
       password: 'testtest123',
@@ -61,7 +54,7 @@ describe('No overdue marking', () => {
   const render = () =>
     container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb, user: authUser(pb) },
+      locals: { db: pb.db, user: authUser(pb) },
     })
 
   it('shows a past-due task but never marks it as überfällig', async () => {

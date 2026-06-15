@@ -1,6 +1,5 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import LoginPage from '../../src/pages/login.astro'
 import SignupPage from '../../src/pages/signup.astro'
 import LogoutPage from '../../src/pages/logout.astro'
@@ -8,10 +7,9 @@ import GroupsPage from '../../src/pages/settings/groups.astro'
 import AdminPage from '../../src/pages/admin.astro'
 import OAuthPage from '../../src/pages/oauth/authorize.astro'
 import TasksPage from '../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
-import { authUser } from '../helpers'
+import { authUser, createPb, type PbShim } from '../helpers'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+
 
 // Matches `data-testid="x" ... active:scale-95` within the same tag.
 const pressedTestid = (id: string) =>
@@ -46,12 +44,11 @@ describe('Interaction animations & accessibility', () => {
   })
 
   describe('Pages behind auth', () => {
-    let adminPb: PocketBase
-    let userPb: PocketBase
+    let adminPb: PbShim
+    let userPb: PbShim
 
     beforeEach(async () => {
-      resetPocketBase()
-      adminPb = new PocketBase(POCKETBASE_URL)
+      adminPb = createPb()
       await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
       const email = `ia-${Date.now()}@test.local`
@@ -60,7 +57,7 @@ describe('Interaction animations & accessibility', () => {
         password: 'testtest123',
         passwordConfirm: 'testtest123',
       })
-      userPb = new PocketBase(POCKETBASE_URL)
+      userPb = createPb()
       await userPb.collection('users').authWithPassword(email, 'testtest123')
 
       const group = await adminPb.collection('groups').create({ name: 'IA Family' })
@@ -69,14 +66,14 @@ describe('Interaction animations & accessibility', () => {
 
     it('logout: Abmelden button has press feedback', async () => {
       const html = await container.renderToString(LogoutPage, {
-        locals: { pb: userPb, user: authUser(userPb) },
+        locals: { db: userPb.db, user: authUser(userPb) },
       })
       expect(html).toMatch(pressedTestid('logout-submit'))
     })
 
     it('settings/groups: the clickable group card has card press feedback', async () => {
       const html = await container.renderToString(GroupsPage, {
-        locals: { pb: userPb, user: authUser(userPb) },
+        locals: { db: userPb.db, user: authUser(userPb) },
       })
       expect(html).toMatch(
         /data-testid="group-tasks-link"[^>]*active:scale-\[0\.99\][^>]*motion-reduce:active:scale-100/,
@@ -85,7 +82,7 @@ describe('Interaction animations & accessibility', () => {
 
     it('admin: the copy-url button has press feedback', async () => {
       const html = await container.renderToString(AdminPage, {
-        locals: { pb: userPb, user: authUser(userPb) },
+        locals: { db: userPb.db, user: authUser(userPb) },
         request: new Request('http://localhost/admin'),
       })
       expect(html).toMatch(pressedTestid('copy-url-button'))
@@ -96,9 +93,9 @@ describe('Interaction animations & accessibility', () => {
     it('error branch: the home link has press feedback', async () => {
       // No OAuth params -> error branch renders a "Zur Startseite" link.
       // pb/user are unused on this branch, but Locals requires a pb instance.
-      const pb = new PocketBase(POCKETBASE_URL)
+      const pb = createPb()
       const html = await container.renderToString(OAuthPage, {
-        locals: { pb, user: undefined },
+        locals: { db: pb.db, user: undefined },
         request: new Request('http://localhost/oauth/authorize'),
       })
       expect(html).toMatch(pressedTestid('oauth-home-link'))
@@ -106,14 +103,13 @@ describe('Interaction animations & accessibility', () => {
   })
 
   describe('Tasks page', () => {
-    let adminPb: PocketBase
-    let userPb: PocketBase
+    let adminPb: PbShim
+    let userPb: PbShim
     let groupId: string
     let childId: string
 
     beforeEach(async () => {
-      resetPocketBase()
-      adminPb = new PocketBase(POCKETBASE_URL)
+      adminPb = createPb()
       await adminPb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
 
       const email = `iat-${Date.now()}@test.local`
@@ -122,7 +118,7 @@ describe('Interaction animations & accessibility', () => {
         password: 'testtest123',
         passwordConfirm: 'testtest123',
       })
-      userPb = new PocketBase(POCKETBASE_URL)
+      userPb = createPb()
       await userPb.collection('users').authWithPassword(email, 'testtest123')
 
       const group = await adminPb.collection('groups').create({
@@ -144,7 +140,7 @@ describe('Interaction animations & accessibility', () => {
       container.renderToString(TasksPage, {
         params: { groupId },
         request: new Request(`http://localhost/group/${groupId}/tasks?child=${childId}${extra}`),
-        locals: { pb: userPb, user: authUser(userPb) },
+        locals: { db: userPb.db, user: authUser(userPb) },
       })
 
     it('confirm dialog buttons have press feedback', async () => {

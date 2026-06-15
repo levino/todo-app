@@ -1,17 +1,12 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
 import { getCurrentPhase } from '@/lib/tasks'
-import { authUser } from '../../helpers'
-
-const POCKETBASE_URL =
-  process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { authUser, createPb, type PbShim } from '../../helpers'
 
 describe('Task Page Animations and Haptic Feedback', () => {
-  let pb: PocketBase
-  let adminPb: PocketBase
+  let pb: PbShim
+  let adminPb: PbShim
   let container: AstroContainer
   let groupId: string
   let child1Id: string
@@ -19,13 +14,12 @@ describe('Task Page Animations and Haptic Feedback', () => {
   let currentPhase: string
 
   beforeEach(async () => {
-    resetPocketBase()
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb
       .collection('_superusers')
       .authWithPassword('admin@test.local', 'testtest123')
 
-    pb = new PocketBase(POCKETBASE_URL)
+    pb = createPb()
     const user = await adminPb.collection('users').create({
       email: `animations-${Date.now()}@test.local`,
       password: 'testtest123',
@@ -77,7 +71,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
 
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: authUser(pb) },
+        locals: { db: pb.db, user: authUser(pb) },
       })
 
       // Task items should have press-down animation classes
@@ -96,7 +90,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
 
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: authUser(pb) },
+        locals: { db: pb.db, user: authUser(pb) },
       })
 
       expect(html).toMatch(/data-testid="task-item"[^>]*hover:shadow-md/)
@@ -105,7 +99,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
     it('should have transition classes on child name links', async () => {
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: authUser(pb) },
+        locals: { db: pb.db, user: authUser(pb) },
       })
 
       // Child name links should have hover lift and transition
@@ -122,7 +116,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
 
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: authUser(pb) },
+        locals: { db: pb.db, user: authUser(pb) },
       })
 
       expect(html).toMatch(/data-testid="complete-button"[^>]*transition-transform/)
@@ -133,7 +127,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
       // No tasks = celebration shown
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: authUser(pb) },
+        locals: { db: pb.db, user: authUser(pb) },
       })
 
       expect(html).toMatch(/data-testid="celebration-emoji"[^>]*animate-bounce/)
@@ -145,7 +139,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
         request: new Request(`http://localhost/group/${groupId}/tasks?child=${child1Id}`),
-        locals: { pb, user: authUser(pb) },
+        locals: { db: pb.db, user: authUser(pb) },
       })
 
       expect(html).toMatch(/data-testid="child-tab"[^>]*transition-all/)
@@ -163,7 +157,7 @@ describe('Task Page Animations and Haptic Feedback', () => {
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
         request: new Request(`http://localhost/group/${groupId}/tasks?child=${child1Id}`),
-        locals: { pb, user: authUser(pb) },
+        locals: { db: pb.db, user: authUser(pb) },
       })
 
       expect(html).toMatch(/data-testid="task-item"[^>]*transition-transform/)

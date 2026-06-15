@@ -18,9 +18,10 @@ import {
   PHASES,
   type Phase,
 } from '@/lib/tasks'
+import { getGroup, isUserInGroup, getTasksPageViewForGroup } from '@family-todo/db'
 
 const { groupId } = Astro.params
-const { pb, user } = Astro.locals
+const { db, user } = Astro.locals
 
 if (!user || !groupId) {
   return Astro.redirect('/login')
@@ -42,12 +43,17 @@ let groupTimezone = 'Europe/Berlin'
 let groupName = ''
 
 try {
-  const [group, viewRows] = await Promise.all([
-    pb.collection('groups').getOne<Group>(groupId),
-    pb.collection('tasks_page_view').getFullList<TasksPageViewRow>({
-      filter: `group_id = "${groupId}"`,
-    }),
-  ])
+  // Per-group scoping: only members may see a group's data (this mirrors the
+  // access the PocketBase collection rules used to grant). A non-member is
+  // treated exactly like the previous "fetch failed" path → empty render.
+  if (!isUserInGroup(db, user.id, groupId)) {
+    throw new Error('forbidden')
+  }
+  const group = getGroup(db, groupId) as Group | null
+  if (!group) {
+    throw new Error('not-found')
+  }
+  const viewRows = getTasksPageViewForGroup(db, groupId) as unknown as TasksPageViewRow[]
 
   groupName = group.name
   groupMorningEnd = group.morningEnd || '09:00'

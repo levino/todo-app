@@ -18,12 +18,12 @@ export const completeTask = defineAction({
       groupId: z.string().min(1),
     }),
     handler: async (input, context) => {
-      const { pb, user } = context.locals
+      const { db, user } = context.locals
       if (!user) {
         throw new ActionError({ code: 'UNAUTHORIZED', message: 'Nicht angemeldet.' })
       }
 
-      const result = await completeTaskLib(pb, input.taskId, input.childId, input.completedBy, input.groupId)
+      const result = await completeTaskLib(db, input.taskId, input.childId, input.completedBy, input.groupId)
 
       if (result.error) {
         throw new ActionError({
@@ -42,12 +42,12 @@ export const undoTask = defineAction({
       taskId: z.string().min(1),
     }),
     handler: async (input, context) => {
-      const { pb, user } = context.locals
+      const { db, user } = context.locals
       if (!user) {
         throw new ActionError({ code: 'UNAUTHORIZED', message: 'Nicht angemeldet.' })
       }
 
-      const result = await undoTaskLib(pb, input.taskId)
+      const result = await undoTaskLib(db, input.taskId)
 
       if (result.error) {
         throw new ActionError({
@@ -66,12 +66,12 @@ export const deleteTask = defineAction({
       taskId: z.string().min(1),
     }),
     handler: async (input, context) => {
-      const { pb, user } = context.locals
+      const { db, user } = context.locals
       if (!user) {
         throw new ActionError({ code: 'UNAUTHORIZED', message: 'Nicht angemeldet.' })
       }
 
-      const result = await deleteTaskLib(pb, input.taskId)
+      const result = await deleteTaskLib(db, input.taskId)
 
       if (result.error) {
         throw new ActionError({

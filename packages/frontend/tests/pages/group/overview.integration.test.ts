@@ -1,17 +1,12 @@
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
 import { describe, expect, it, beforeEach, vi, afterEach } from 'vitest'
-import PocketBase from 'pocketbase'
 import TasksPage from '../../../src/pages/group/[groupId]/tasks/index.astro'
-import { resetPocketBase } from '@/lib/pocketbase'
 import { getCurrentPhase, completeTask, undoTask } from '@/lib/tasks'
-import { authUser } from '../../helpers'
-
-const POCKETBASE_URL =
-  process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
+import { authUser, createPb, type PbShim } from '../../helpers'
 
 describe('Tasks Overview Page', () => {
-  let pb: PocketBase
-  let adminPb: PocketBase
+  let pb: PbShim
+  let adminPb: PbShim
   let container: AstroContainer
   let groupId: string
   let child1Id: string
@@ -19,13 +14,12 @@ describe('Tasks Overview Page', () => {
   let currentPhase: string
 
   beforeEach(async () => {
-    resetPocketBase()
-    adminPb = new PocketBase(POCKETBASE_URL)
+    adminPb = createPb()
     await adminPb
       .collection('_superusers')
       .authWithPassword('admin@test.local', 'testtest123')
 
-    pb = new PocketBase(POCKETBASE_URL)
+    pb = createPb()
     const user = await adminPb.collection('users').create({
       email: `overview-${Date.now()}@test.local`,
       password: 'testtest123',
@@ -87,7 +81,7 @@ describe('Tasks Overview Page', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb, user: authUser(pb) },
+      locals: { db: pb.db, user: authUser(pb) },
     })
 
     expect(html).toContain('Max')
@@ -106,7 +100,7 @@ describe('Tasks Overview Page', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb, user: authUser(pb) },
+      locals: { db: pb.db, user: authUser(pb) },
     })
 
     expect(html).toContain('Max')
@@ -135,7 +129,7 @@ describe('Tasks Overview Page', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb, user: authUser(pb) },
+      locals: { db: pb.db, user: authUser(pb) },
     })
 
     expect(html).not.toContain('Future Task')
@@ -152,7 +146,7 @@ describe('Tasks Overview Page', () => {
 
     const html = await container.renderToString(TasksPage, {
       params: { groupId },
-      locals: { pb, user: authUser(pb) },
+      locals: { db: pb.db, user: authUser(pb) },
     })
 
     expect(html).toContain('name="completedBy"')
@@ -179,11 +173,11 @@ describe('Tasks Overview Page', () => {
         dueDate: '2026-03-10',
       })
 
-      await completeTask(pb, task.id, child1Id, child1Id, groupId)
+      await completeTask(pb.db, task.id, child1Id, child1Id, groupId)
 
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: authUser(pb) },
+        locals: { db: pb.db, user: authUser(pb) },
       })
 
       expect(html).toContain('data-testid="recently-completed"')
@@ -203,12 +197,12 @@ describe('Tasks Overview Page', () => {
         dueDate: '2026-03-10',
       })
 
-      await completeTask(pb, task.id, child1Id, child1Id, groupId)
-      await undoTask(pb, task.id)
+      await completeTask(pb.db, task.id, child1Id, child1Id, groupId)
+      await undoTask(pb.db, task.id)
 
       const html = await container.renderToString(TasksPage, {
         params: { groupId },
-        locals: { pb, user: authUser(pb) },
+        locals: { db: pb.db, user: authUser(pb) },
       })
 
       expect(html).toContain('Tisch decken')
