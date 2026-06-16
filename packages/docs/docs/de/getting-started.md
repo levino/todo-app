@@ -61,7 +61,7 @@ Oder detaillierter:
 
 Die Kiosk-Ansicht ist für die Kinder gedacht:
 
-1. Öffne `https://todos.levinkeller.de/kiosk`
+1. Öffne `https://todos.levinkeller.de/`
 2. Wähle das Kind aus
 3. Das Kind sieht seine Aufgaben und kann sie abhaken
 

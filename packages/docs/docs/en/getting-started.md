@@ -61,7 +61,7 @@ Or more detailed:
 
 The kiosk view is designed for children:
 
-1. Open `https://todos.levinkeller.de/kiosk`
+1. Open `https://todos.levinkeller.de/`
 2. Select the child
 3. The child sees their tasks and can check them off
 

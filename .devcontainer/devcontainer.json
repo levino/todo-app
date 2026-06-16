@@ -1,5 +1,5 @@
 {
-  "name": "Shipyard PocketBase Template",
+  "name": "Family Todo App",
   "image": "mcr.microsoft.com/devcontainers/typescript-node:1-22-bookworm",
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {},
@@ -22,5 +22,5 @@
     }
   },
   "postCreateCommand": "npm install && curl -fsSL https://github.com/zellij-org/zellij/releases/latest/download/zellij-$(uname -m)-unknown-linux-musl.tar.gz | sudo tar -xz -C /usr/local/bin",
-  "forwardPorts": [4321, 8090]
+  "forwardPorts": [4321, 3001]
 }

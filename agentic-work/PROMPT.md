@@ -24,7 +24,7 @@ Then read these files (replace `{workflow}` with the folder name from above):
 
 Additionally check:
 - Recent git log (last 10 commits) - run `git log --oneline -10`
-- `.claude/CLAUDE.md` - Project guidelines (TDD, PocketBase rules!)
+- `.claude/CLAUDE.md` - Project guidelines (TDD, SQLite data layer, one-page-one-view)
 
 ### Step 2: Pick a Task
 
@@ -46,24 +46,20 @@ If no pending/in_progress tasks remain, output `<promise>COMPLETE</promise>` and
 
 **CRITICAL - Test-Driven Development (TDD):**
 1. **Write a failing integration test FIRST** in `*.integration.test.ts`
-2. Run the test: `npm test` (this starts Docker Compose and runs tests inside the container)
+2. Run the test: `npm test` (runs in-process against in-memory SQLite — no Docker)
 3. Write code to make the test pass
 4. **RUN THE TESTS AGAIN** to verify they pass
 5. Only mark task as complete if tests pass
 
 **Test File Naming:**
 - `*.test.ts` - Unit tests (pure logic, no API, no side effects)
-- `*.integration.test.ts` - Integration tests (Astro Container + real PocketBase) **← USE THIS!**
-- `*.e2e.test.ts` - Playwright E2E tests (NOT needed now)
-
-**Script Naming Convention:**
-- `npm test` → Wraps in Docker Compose, runs in container where `pocketbase-test` host is accessible
-- `npm run test:bare` → Runs directly (only use when already inside Docker network)
+- `*.integration.test.ts` - Integration tests (Astro Container + real in-memory SQLite) **← USE THIS!**
+- `tests/e2e/*.spec.ts` - Playwright E2E tests (NOT needed now)
 
 **Integration Tests (`*.integration.test.ts`) - PRIMARY:**
 - Use Astro Container API to test pages/components
-- Connect to real PocketBase API (no mocks!)
-- Must run inside Docker Compose (containers talk to each other)
+- Talk to a real SQLite database via `@family-todo/db` (no mocks!); the setup
+  resets a fresh in-memory DB before each test
 - Tests must be extensive - cover all functionality and edge cases
 - **YOU MUST RUN `npm test` AND SEE TESTS PASS**
 
@@ -72,10 +68,10 @@ If no pending/in_progress tasks remain, output `<promise>COMPLETE</promise>` and
 - Integration tests cover functionality
 - E2E tests are for later (critical user flows only)
 
-**PocketBase Schema Changes:**
-- **Never write migration SQL by hand!**
-- Use `/create-collection` skill or write temporary JS with `pb.collections.create()`
-- PocketBase generates the migration automatically
+**Database Schema Changes:**
+- Schema lives in `packages/db/migrations/` as numbered `NNN_description.sql` files
+- Add a **new** migration file (forward-only); never edit an applied one
+- Cover it with a test in `packages/db/src/*.test.ts`
 
 **Verification Checklist (before marking task complete):**
 - [ ] Integration tests written in `*.integration.test.ts`
@@ -120,7 +116,7 @@ This signals the loop to stop. Otherwise just end your session normally and the 
 ## Important Rules
 
 - **TDD is mandatory**: Test first, then code. No exceptions.
-- **RUN THE TESTS**: You MUST run `npm run test:bare -- --run` and verify tests pass before marking complete
+- **RUN THE TESTS**: You MUST run `npm test` and verify tests pass before marking complete
 - **Integration tests over E2E**: Write extensive Vitest integration tests, E2E is optional
 - **One task, fully completed**: Pick one task and complete it fully before session ends
 - **Never leave tasks half-done**: Only mark as `blocked` if truly blocked
@@ -132,25 +128,24 @@ This signals the loop to stop. Otherwise just end your session normally and the 
 ## Project-Specific Notes
 
 ### Technology Stack
-- **Framework**: Astro with SSR (Shipyard template)
-- **Backend**: PocketBase (Docker container)
+- **Framework**: Astro with SSR (Shipyard)
+- **Data layer**: SQLite via `@family-todo/db` (better-sqlite3, raw SQL)
+- **Admin API**: MCP server (Express, OAuth 2.0 + RS256 JWT)
+- **Auth**: oauth2-proxy (OIDC / ZITADEL) in front of the frontend
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS / DaisyUI
 - **Tests**: Vitest (Integration - PRIMARY) + Playwright (E2E - optional)
 
 ### Important Commands
 ```bash
-# Start PocketBase
-docker compose up -d pocketbase-dev
+# Install all workspaces
+npm install
 
-# Get container IP for scripts
-docker network inspect shipyard-pocketbase-template_default --format '{{range .Containers}}{{.IPv4Address}}{{end}}'
+# Start dev (frontend :4321 + mcp :3001 against ./data/app.db)
+npm run dev
 
-# Start dev server
-npm run dev:bare
-
-# Run tests
-npm run test:bare
+# Run tests (in-memory SQLite, no Docker)
+npm test
 
 # Build
 npm run build
@@ -163,10 +158,10 @@ npm run build
 - **Time-based visibility**: Routines (morning, school, afternoon, evening)
 - **Gamification**: Achievements defined in code, not in DB
 
-### PocketBase Rules (from CLAUDE.md)
-- **Never mock PocketBase** - Tests run against real instance
-- **Schema changes only via API** - Use `/create-collection` or `pb.collections.create()`
-- **PocketBase internal only** - Not publicly exposed
+### Data Layer Rules (from CLAUDE.md)
+- **Never mock the data layer** - Tests run against a real (in-memory) SQLite DB
+- **Schema changes via migrations** - Add a new `NNN_*.sql` in `packages/db/migrations/`
+- **One page → one SQL view** - Aggregate in SQL, group client-side
 
 ## Example Session Output
 

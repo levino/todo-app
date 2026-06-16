@@ -250,10 +250,12 @@ Gamification is **not tied to the logged-in user**.
 
 ## 12. Technical Stack (Context)
 
-- Frontend: Shipyard (Astro, SSR)
-- Backend: PocketBase
+- Frontend: Shipyard (Astro, SSR) behind an oauth2-proxy (OIDC via ZITADEL)
+- Data layer: SQLite (`@family-todo/db`, raw SQL via better-sqlite3)
+- Admin API: MCP server (Express, OAuth 2.0 + RS256 JWT)
 - Language: TypeScript
-- Tests: present (integration / E2E)
+- Tests: present (in-memory SQLite integration tests; Playwright E2E optional)
+- Deployment: Kubernetes (Kustomize overlay, Flux)
 - UX-driven development, minimal UI surface
 
 ---
