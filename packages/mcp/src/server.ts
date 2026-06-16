@@ -273,11 +273,12 @@ function registerTools() {
       points: z.number().optional().describe('Points awarded for completing this task'),
       isChore: z.boolean().optional().describe('If true, task never shows as overdue and silently rolls over to the next day if not completed'),
       dailyOnly: z.boolean().optional().describe('If true, the task is a "Tagesaufgabe": it only shows on its due date and expires silently afterwards (never overdue, never carried forward). Good for optional/bonus tasks.'),
+      isProject: z.boolean().optional().describe('If true, the task is a "Projektaufgabe": worked on over several days. The UI offers two actions — "Für heute geschafft" (hides it until the next day, then it reappears) and "Ganz fertig" (final completion / reschedule). Good for things like handwork.'),
     }),
     handler: async (args, { db }) => {
-      const { childId, title, timeOfDay, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays, points, isChore, dailyOnly } = args as {
+      const { childId, title, timeOfDay, priority, dueDate, recurrenceType, recurrenceInterval, recurrenceDays, points, isChore, dailyOnly, isProject } = args as {
         childId: string; title: string; timeOfDay: string; priority?: number; dueDate?: string;
-        recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]; points?: number; isChore?: boolean; dailyOnly?: boolean
+        recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]; points?: number; isChore?: boolean; dailyOnly?: boolean; isProject?: boolean
       }
 
       const daysError = validateRecurrenceDays(recurrenceDays)
@@ -296,6 +297,7 @@ function registerTools() {
         points: points ?? null,
         isChore: isChore ?? false,
         dailyOnly: dailyOnly ?? false,
+        isProject: isProject ?? false,
       })
 
       const parts = [`Created task "${title}" (ID: ${task.id})`]
@@ -317,15 +319,16 @@ function registerTools() {
       timeOfDay: z.enum(['morning', 'afternoon', 'evening']).optional().describe('Time of day phase'),
       isChore: z.boolean().optional().describe('Mark/unmark as chore (never overdue, silent rollover)'),
       dailyOnly: z.boolean().optional().describe('Mark/unmark as daily-only "Tagesaufgabe" (only shows on its due date, expires silently)'),
+      isProject: z.boolean().optional().describe('Mark/unmark as "Projektaufgabe" (two actions in the UI: "Für heute geschafft" defers to the next day, "Ganz fertig" completes/reschedules)'),
       dueDate: z.string().optional().describe('Due date (ISO 8601, e.g. "2026-03-15")'),
       recurrenceType: z.string().optional().describe('Recurrence type: "interval" (every N days) or "weekly" (specific weekdays)'),
       recurrenceInterval: z.number().optional().describe('Days between recurrences (for interval type)'),
       recurrenceDays: z.array(z.number()).optional().describe('Weekdays for recurrence (0=Sunday, 1=Monday, ..., 6=Saturday)'),
     }),
     handler: async (args, { db }) => {
-      const { taskId, title, priority, childId, timeOfDay, isChore, dailyOnly, dueDate, recurrenceType, recurrenceInterval, recurrenceDays } = args as {
+      const { taskId, title, priority, childId, timeOfDay, isChore, dailyOnly, isProject, dueDate, recurrenceType, recurrenceInterval, recurrenceDays } = args as {
         taskId: string; title?: string; priority?: number; childId?: string; timeOfDay?: string; isChore?: boolean;
-        dailyOnly?: boolean; dueDate?: string; recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]
+        dailyOnly?: boolean; isProject?: boolean; dueDate?: string; recurrenceType?: string; recurrenceInterval?: number; recurrenceDays?: number[]
       }
 
       const daysError = validateRecurrenceDays(recurrenceDays)
@@ -340,6 +343,7 @@ function registerTools() {
         timeOfDay,
         isChore,
         dailyOnly,
+        isProject,
         dueDate,
         recurrenceType,
         recurrenceInterval,

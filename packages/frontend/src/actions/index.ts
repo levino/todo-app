@@ -1,6 +1,12 @@
 import { ActionError, defineAction } from 'astro:actions'
 import { z } from 'astro/zod'
-import { completeTask as completeTaskLib, deleteTask as deleteTaskLib, undoTask as undoTaskLib } from '@/lib/tasks'
+import { getGroup } from '@family-todo/db'
+import {
+  completeTask as completeTaskLib,
+  deferTask as deferTaskLib,
+  deleteTask as deleteTaskLib,
+  undoTask as undoTaskLib,
+} from '@/lib/tasks'
 
 const errorLabels: Record<string, string> = {
   'not-yet-due': 'Diese Aufgabe ist noch nicht fällig.',
@@ -29,6 +35,32 @@ export const completeTask = defineAction({
         throw new ActionError({
           code: 'BAD_REQUEST',
           message: errorLabels[result.error] || 'Fehler beim Abschließen der Aufgabe.',
+        })
+      }
+
+      return { success: true }
+    },
+  })
+
+export const deferTask = defineAction({
+    accept: 'form',
+    input: z.object({
+      taskId: z.string().min(1),
+      groupId: z.string().min(1),
+    }),
+    handler: async (input, context) => {
+      const { db, user } = context.locals
+      if (!user) {
+        throw new ActionError({ code: 'UNAUTHORIZED', message: 'Nicht angemeldet.' })
+      }
+
+      const group = getGroup(db, input.groupId)
+      const result = await deferTaskLib(db, input.taskId, group?.timezone)
+
+      if (result.error) {
+        throw new ActionError({
+          code: 'BAD_REQUEST',
+          message: errorLabels[result.error] || 'Fehler beim Verschieben der Aufgabe.',
         })
       }
 
@@ -86,6 +118,7 @@ export const deleteTask = defineAction({
 
 export const server = {
   completeTask,
+  deferTask,
   undoTask,
   deleteTask,
 }

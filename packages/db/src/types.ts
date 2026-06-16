@@ -59,6 +59,8 @@ export interface Task {
   points: number | null
   isChore: boolean
   dailyOnly: boolean
+  isProject: boolean
+  deferredUntil: string | null
   created: string
   updated: string
 }
@@ -108,4 +110,6 @@ export interface TasksPageViewRow {
   task_points: number | null
   task_is_chore: number | null
   task_daily_only: number | null
+  task_is_project: number | null
+  task_deferred_until: string | null
 }

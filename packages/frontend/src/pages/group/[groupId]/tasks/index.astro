@@ -127,6 +127,18 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
 ---
 
 <Layout title={selectedChild ? `${selectedChild.name} - Aufgaben` : `${groupName} - Aufgaben`}>
+  <style is:inline>
+    /* Calmer, slower view transitions. Checking off a task morphs it into the
+       "Heute erledigt" list; at the browser default this slide is too fast to
+       follow, so we slow every view-transition group/old/new down. !important
+       overrides Astro's per-element (transition:animate) durations. is:inline
+       keeps the rule verbatim in the document (it must stay a global rule). */
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+      animation-duration: 0.6s !important;
+    }
+  </style>
   <div transition:animate="fade" class="min-h-screen bg-base-100 p-4 md:p-8">
     <div class:list={[selectedChild ? 'max-w-3xl' : 'max-w-6xl', 'mx-auto']}>
       {error && (
@@ -254,13 +266,32 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
                     return (
                       <li
                         data-testid="task-item"
+                        data-project={task.isProject ? 'true' : undefined}
                         transition:name={`task-${task.id}`}
                         transition:animate="fade"
                         class:list={[
-                          'flex items-center gap-4 p-4 rounded-xl min-h-[56px] transition-transform duration-150 active:scale-[0.97] hover:shadow-md cursor-pointer',
+                          'flex items-center gap-4 p-4 rounded-xl min-h-[56px] transition-transform duration-150 active:scale-[0.97] hover:shadow-md',
+                          task.isProject ? '' : 'cursor-pointer',
                           'bg-base-200',
                         ]}
                       >
+                        {task.isProject && (
+                          <form method="POST" action={`${actions.deferTask}${actionSuffix}`} data-defer-task-title={task.title}>
+                            <input type="hidden" name="taskId" value={task.id} />
+                            <input type="hidden" name="groupId" value={groupId} />
+                            <button
+                              type="submit"
+                              data-testid="defer-button"
+                              class="btn btn-circle btn-md btn-outline btn-warning min-w-[48px] min-h-[48px] transition-transform duration-150 active:scale-90"
+                              aria-label={`${task.title} für heute geschafft`}
+                              title="Für heute geschafft"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+                              </svg>
+                            </button>
+                          </form>
+                        )}
                         <form method="POST" action={`${actions.completeTask}${actionSuffix}`} data-task-title={task.title}>
                           <input type="hidden" name="taskId" value={task.id} />
                           <input type="hidden" name="childId" value={child.id} />
@@ -270,7 +301,8 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
                             type="submit"
                             data-testid="complete-button"
                             class="btn btn-circle btn-lg btn-outline btn-success min-w-[56px] min-h-[56px] transition-transform duration-150 active:scale-90"
-                            aria-label={`${task.title} erledigen`}
+                            aria-label={task.isProject ? `${task.title} ganz fertig` : `${task.title} erledigen`}
+                            title={task.isProject ? 'Ganz fertig' : undefined}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
@@ -279,6 +311,9 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
                         </form>
                         <div class="flex-1">
                           <span class="text-xl md:text-2xl">{task.title}</span>
+                          {task.isProject && (
+                            <span data-testid="project-badge" class="badge badge-outline badge-sm ml-2">Projekt</span>
+                          )}
                           {task.points > 0 && (
                             <span data-testid="task-points" class="badge badge-warning badge-sm ml-2">+{task.points}</span>
                           )}
@@ -411,6 +446,20 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
     </form>
   </dialog>
 
+  <dialog data-testid="defer-confirm-dialog" id="defer-confirm-dialog" class="modal modal-bottom sm:modal-middle">
+    <div class="modal-box">
+      <h3 class="text-lg font-bold">Für heute geschafft?</h3>
+      <p class="py-4">Hast du heute an <strong id="defer-confirm-task-title"></strong> gearbeitet? Sie wird ausgeblendet und kommt morgen wieder.</p>
+      <div class="modal-action">
+        <button data-testid="defer-confirm-cancel" id="defer-confirm-cancel" class:list={['btn', pressClasses, focusRingClasses]}>Abbrechen</button>
+        <button data-testid="defer-confirm-ok" id="defer-confirm-ok" class:list={['btn btn-warning', pressClasses, focusRingClasses]}>Für heute!</button>
+      </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+      <button>close</button>
+    </form>
+  </dialog>
+
   <dialog data-testid="delete-confirm-dialog" id="delete-confirm-dialog" class="modal modal-bottom sm:modal-middle">
     <div class="modal-box">
       <h3 class="text-lg font-bold">Aufgabe löschen?</h3>
@@ -426,7 +475,28 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
   </dialog>
 
   <script>
+    import { lockSubmitButton, unlockSubmitButton } from '@/lib/submit-lock'
+
     document.addEventListener('astro:page-load', () => {
+      // Put a submit button into a disabled loading state so rapid double-taps
+      // can't fire a second POST (which would fail with "already completed").
+      // Returns false if it was already locked → the caller aborts.
+      const startLoading = (btn: HTMLButtonElement) => {
+        if (!lockSubmitButton(btn)) return false
+        if (!btn.querySelector('[data-submit-spinner]')) {
+          const spinner = document.createElement('span')
+          spinner.className = 'loading loading-spinner loading-sm mr-2'
+          spinner.setAttribute('data-submit-spinner', '')
+          btn.prepend(spinner)
+        }
+        return true
+      }
+      const resetLoading = (btn: HTMLButtonElement | null) => {
+        if (!btn) return
+        unlockSubmitButton(btn)
+        btn.querySelector('[data-submit-spinner]')?.remove()
+      }
+
       let pendingForm: HTMLFormElement | null = null
       const dialog = document.getElementById('confirm-dialog') as HTMLDialogElement
       const titleEl = document.getElementById('confirm-task-title') as HTMLElement
@@ -438,6 +508,12 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
       const deleteTitleEl = document.getElementById('delete-confirm-task-title') as HTMLElement
       const deleteCancelBtn = document.getElementById('delete-confirm-cancel') as HTMLButtonElement
       const deleteOkBtn = document.getElementById('delete-confirm-ok') as HTMLButtonElement
+
+      let pendingDeferForm: HTMLFormElement | null = null
+      const deferDialog = document.getElementById('defer-confirm-dialog') as HTMLDialogElement
+      const deferTitleEl = document.getElementById('defer-confirm-task-title') as HTMLElement
+      const deferCancelBtn = document.getElementById('defer-confirm-cancel') as HTMLButtonElement
+      const deferOkBtn = document.getElementById('defer-confirm-ok') as HTMLButtonElement
 
       if (!dialog || !titleEl || !cancelBtn || !okBtn) return
 
@@ -453,17 +529,21 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
           e.preventDefault()
           pendingForm = form as HTMLFormElement
           titleEl.textContent = form.getAttribute('data-task-title') || ''
+          resetLoading(okBtn)
           dialog.showModal()
         })
       })
 
       cancelBtn.addEventListener('click', () => {
         pendingForm = null
+        resetLoading(okBtn)
         dialog.close()
       })
 
       okBtn.addEventListener('click', () => {
         if (pendingForm) {
+          // Ignore extra taps while the submit is in flight.
+          if (!startLoading(okBtn)) return
           // requestSubmit() (not submit()) fires a real submit event the router
           // intercepts, so the view transition runs instead of a hard reload.
           pendingForm.dataset.confirmed = '1'
@@ -482,25 +562,74 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
             e.stopPropagation()
             pendingDeleteForm = form as HTMLFormElement
             deleteTitleEl.textContent = form.getAttribute('data-delete-task-title') || ''
+            resetLoading(deleteOkBtn)
             deleteDialog.showModal()
           })
         })
 
         deleteCancelBtn.addEventListener('click', () => {
           pendingDeleteForm = null
+          resetLoading(deleteOkBtn)
           deleteDialog.close()
         })
 
         deleteOkBtn.addEventListener('click', () => {
           if (pendingDeleteForm) {
+            if (!startLoading(deleteOkBtn)) return
             pendingDeleteForm.dataset.confirmed = '1'
             pendingDeleteForm.requestSubmit()
           }
         })
       }
 
+      if (deferDialog && deferTitleEl && deferCancelBtn && deferOkBtn) {
+        document.querySelectorAll('form[data-defer-task-title]').forEach((form) => {
+          form.addEventListener('submit', (e) => {
+            if ((form as HTMLFormElement).dataset.confirmed === '1') {
+              ;(form as HTMLFormElement).removeAttribute('data-confirmed')
+              return
+            }
+            e.preventDefault()
+            e.stopPropagation()
+            pendingDeferForm = form as HTMLFormElement
+            deferTitleEl.textContent = form.getAttribute('data-defer-task-title') || ''
+            resetLoading(deferOkBtn)
+            deferDialog.showModal()
+          })
+        })
+
+        deferCancelBtn.addEventListener('click', () => {
+          pendingDeferForm = null
+          resetLoading(deferOkBtn)
+          deferDialog.close()
+        })
+
+        deferOkBtn.addEventListener('click', () => {
+          if (pendingDeferForm) {
+            if (!startLoading(deferOkBtn)) return
+            pendingDeferForm.dataset.confirmed = '1'
+            pendingDeferForm.requestSubmit()
+          }
+        })
+      }
+
+      // Undo posts directly (no dialog), so guard its button against double taps.
+      document.querySelectorAll('form[data-undo-form]').forEach((form) => {
+        form.addEventListener('submit', (e) => {
+          const btn = (form as HTMLFormElement).querySelector(
+            'button[type="submit"]',
+          ) as HTMLButtonElement | null
+          if (btn && !startLoading(btn)) {
+            e.preventDefault()
+          }
+        })
+      })
+
       document.querySelectorAll('[data-testid="task-item"]').forEach((li) => {
         li.addEventListener('click', (e) => {
+          // Project tasks expose explicit yellow/green buttons; a stray tap on
+          // the row must not trigger the (final) completion.
+          if ((li as HTMLElement).dataset.project === 'true') return
           const target = e.target as Element
           if (target.closest('button')) return
           if (target.closest('form[data-delete-task-title]')) return
@@ -586,6 +715,7 @@ const buildFutureToggleHref = (nextShowFuture: boolean) => {
         var form = e.target
         if (!form || !(form instanceof HTMLFormElement)) return
         if (form.hasAttribute('data-task-title') ||
+            form.hasAttribute('data-defer-task-title') ||
             form.hasAttribute('data-delete-task-title') ||
             form.getAttribute('action') && form.getAttribute('action').indexOf('undoTask') !== -1) {
           saveScroll()

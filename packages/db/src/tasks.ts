@@ -32,6 +32,8 @@ export interface ViewTask {
   points: number
   isChore: boolean
   dailyOnly: boolean
+  isProject: boolean
+  deferredUntil: string | null
 }
 
 export interface ViewChild {
@@ -58,6 +60,8 @@ export const viewRowToTask = (row: TasksPageViewRow): ViewTask => ({
   points: row.task_points as number,
   isChore: !!row.task_is_chore,
   dailyOnly: !!row.task_daily_only,
+  isProject: !!row.task_is_project,
+  deferredUntil: row.task_deferred_until || null,
 })
 
 export interface ChildTasksSplit {
@@ -106,18 +110,29 @@ export const splitViewRowsByChild = (
       ? row.task_last_completed_at.slice(0, 10)
       : ''
 
+    // Project tasks ("Projektaufgaben") can be marked "done for today": this
+    // sets deferredUntil to the next day, hiding the task from the active list
+    // until then. While deferred it appears in the "done today" section (with
+    // an undo) so the child sees what they finished for the day.
+    const deferredUntilStr = row.task_deferred_until
+      ? row.task_deferred_until.slice(0, 10)
+      : ''
+    const isDeferred = !!deferredUntilStr && deferredUntilStr > params.todayDateStr
+
     // Daily-only ("Tagesaufgaben") tasks are bound to a single day: they are
     // only active exactly on their due date and expire silently afterwards
     // (no overdue, no carry-forward). Regular tasks stay active once due.
     const dailyOnly = !!row.task_daily_only
     const isActive =
       !row.task_completed &&
+      !isDeferred &&
       row.task_time_of_day === params.phase &&
       (dailyOnly
         ? dueDateStr === params.todayDateStr
         : !dueDateStr || dueDateStr <= params.todayDateStr)
 
     const isRecentlyCompleted =
+      isDeferred ||
       (!!row.task_completed && completedAtDateStr === params.todayDateStr) ||
       (!row.task_completed &&
         !!row.task_recurrence_type &&
@@ -356,6 +371,8 @@ interface TaskRow {
   points: number | null
   isChore: number
   dailyOnly: number
+  isProject: number
+  deferredUntil: string | null
   created: string
   updated: string
 }
@@ -379,6 +396,8 @@ function rowToTask(row: TaskRow): Task {
     points: row.points,
     isChore: !!row.isChore,
     dailyOnly: !!row.dailyOnly,
+    isProject: !!row.isProject,
+    deferredUntil: row.deferredUntil,
     created: row.created,
     updated: row.updated,
   }
@@ -423,6 +442,7 @@ export interface CreateTaskInput {
   points?: number | null
   isChore?: boolean
   dailyOnly?: boolean
+  isProject?: boolean
 }
 
 /**
@@ -458,8 +478,8 @@ export function createTask(
     `INSERT INTO tasks
       (id, title, child_id, priority, completed, completedAt, dueDate, lastCompletedAt,
        recurrenceType, recurrenceInterval, recurrenceDays, timeOfDay, completedBy,
-       previousDueDate, points, isChore, dailyOnly, created, updated)
-     VALUES (?, ?, ?, ?, 0, NULL, ?, NULL, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?)`,
+       previousDueDate, points, isChore, dailyOnly, isProject, deferredUntil, created, updated)
+     VALUES (?, ?, ?, ?, 0, NULL, ?, NULL, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, NULL, ?, ?)`,
   ).run(
     id,
     input.title,
@@ -473,6 +493,7 @@ export function createTask(
     input.points ?? null,
     input.isChore ? 1 : 0,
     input.dailyOnly ? 1 : 0,
+    input.isProject ? 1 : 0,
     now,
     now,
   )
@@ -486,6 +507,7 @@ export interface UpdateTaskInput {
   timeOfDay?: string
   isChore?: boolean
   dailyOnly?: boolean
+  isProject?: boolean
   dueDate?: string
   recurrenceType?: string
   recurrenceInterval?: number
@@ -523,6 +545,10 @@ export function updateTask(db: DB, taskId: string, input: UpdateTaskInput): void
   if (input.dailyOnly !== undefined) {
     sets.push('dailyOnly = ?')
     values.push(input.dailyOnly ? 1 : 0)
+  }
+  if (input.isProject !== undefined) {
+    sets.push('isProject = ?')
+    values.push(input.isProject ? 1 : 0)
   }
   if (input.dueDate !== undefined) {
     sets.push('dueDate = ?')
@@ -591,6 +617,30 @@ export function resetTask(db: DB, taskId: string, dueDate?: string): void {
 // ===========================================================================
 
 /**
+ * Mark a (project) task as "done for today": it stays incomplete but is hidden
+ * from the active list until the next local day, after which it reappears.
+ * Implemented by setting deferredUntil to tomorrow's local date.
+ */
+export function deferTask(db: DB, taskId: string, timezone?: string): { error?: string } {
+  const task = getTask(db, taskId)
+  if (!task) return { error: 'not-found' }
+  if (task.completed) return { error: 'already-completed' }
+
+  const tz = timezone || 'Europe/Berlin'
+  const todayStr = getLocalDateString(tz, new Date())
+  const next = new Date(todayStr + 'T00:00:00Z')
+  next.setUTCDate(next.getUTCDate() + 1)
+  const deferredUntil = next.toISOString()
+
+  db.prepare('UPDATE tasks SET deferredUntil = ?, updated = ? WHERE id = ?').run(
+    deferredUntil,
+    new Date().toISOString(),
+    taskId,
+  )
+  return {}
+}
+
+/**
  * Complete a task. For recurring tasks this reschedules to the next due date
  * (leaving it incomplete); for one-off tasks it marks completed. Returns an
  * error code for the same conditions the original raised.
@@ -633,13 +683,13 @@ export function completeTask(
   if (nextDueDate) {
     db.prepare(
       `UPDATE tasks SET completed = 0, completedAt = NULL, completedBy = NULL,
-         lastCompletedAt = ?, dueDate = ?, previousDueDate = ?, updated = ?
+         lastCompletedAt = ?, dueDate = ?, previousDueDate = ?, deferredUntil = NULL, updated = ?
        WHERE id = ?`,
     ).run(now.toISOString(), nextDueDate, task.dueDate || null, updated, taskId)
   } else {
     db.prepare(
       `UPDATE tasks SET completed = 1, completedAt = ?, completedBy = ?,
-         lastCompletedAt = ?, previousDueDate = ?, updated = ?
+         lastCompletedAt = ?, previousDueDate = ?, deferredUntil = NULL, updated = ?
        WHERE id = ?`,
     ).run(now.toISOString(), completedBy, now.toISOString(), task.dueDate || null, updated, taskId)
   }
@@ -658,6 +708,16 @@ export function undoTask(db: DB, taskId: string, timezone?: string): { error?: s
   const tz = timezone || 'Europe/Berlin'
   const todayStr = getLocalDateString(tz, now)
   const todayStart = todayStr + ' 00:00:00.000Z'
+
+  // A project task marked "done for today" carries a future deferredUntil.
+  // Undoing it simply lifts the deferral so it returns to the active list.
+  if (task.deferredUntil && task.deferredUntil.slice(0, 10) > todayStr) {
+    db.prepare('UPDATE tasks SET deferredUntil = NULL, updated = ? WHERE id = ?').run(
+      now.toISOString(),
+      taskId,
+    )
+    return {}
+  }
 
   const completedToday =
     task.completed && task.completedAt && task.completedAt >= todayStart
@@ -720,11 +780,9 @@ export function deleteTask(db: DB, taskId: string, timezone?: string): { error?:
       }
 
       if (nextDueDate) {
-        db.prepare('UPDATE tasks SET dueDate = ?, updated = ? WHERE id = ?').run(
-          nextDueDate,
-          new Date().toISOString(),
-          taskId,
-        )
+        db.prepare(
+          'UPDATE tasks SET dueDate = ?, deferredUntil = NULL, updated = ? WHERE id = ?',
+        ).run(nextDueDate, new Date().toISOString(), taskId)
         return {}
       }
     }

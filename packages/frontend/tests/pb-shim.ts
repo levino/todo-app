@@ -45,7 +45,7 @@ const FIELD_MAP: Record<string, Record<string, string>> = {
 }
 
 const BOOL_FIELDS: Record<string, Set<string>> = {
-  tasks: new Set(['completed', 'isChore', 'dailyOnly']),
+  tasks: new Set(['completed', 'isChore', 'dailyOnly', 'isProject']),
   todos: new Set(['completed']),
 }
 
@@ -63,7 +63,12 @@ const mapField = (collection: string, field: string): string =>
 
 // tasks_page_view boolean columns + text columns whose SQL NULL PocketBase
 // surfaced as the empty string '' (the frontend's TasksPageViewRow shape).
-const VIEW_BOOL = new Set(['task_completed', 'task_is_chore', 'task_daily_only'])
+const VIEW_BOOL = new Set([
+  'task_completed',
+  'task_is_chore',
+  'task_daily_only',
+  'task_is_project',
+])
 const VIEW_TEXT = new Set([
   'task_id',
   'task_title',
@@ -72,6 +77,7 @@ const VIEW_TEXT = new Set([
   'task_completed_at',
   'task_last_completed_at',
   'task_recurrence_type',
+  'task_deferred_until',
 ])
 
 /**
