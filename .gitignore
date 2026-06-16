@@ -4,8 +4,9 @@ node_modules/
 # Build output
 dist/
 
-# PocketBase data (development only)
-**/pb_data/
+# Local SQLite dev data (created by `npm run dev`)
+/data/
+**/data/app.db*
 
 # Environment files
 .env

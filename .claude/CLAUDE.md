@@ -1,287 +1,187 @@
 # Project Rules
 
+## Architecture (read this first)
+
+This is an npm-workspaces **monorepo**. The data layer is **SQLite** — there is
+no PocketBase, no separate database server.
+
+- `@family-todo/db` (`packages/db`) — the shared data layer: `better-sqlite3`,
+  **raw SQL**, numbered migrations in `packages/db/migrations/`. Imported
+  directly (in-process) by both runtime services.
+- `@family-todo/frontend` (`packages/frontend`) — Astro SSR. Kiosk UI for
+  children + a minimal admin page. Auth comes from an `oauth2-proxy` (OIDC /
+  ZITADEL) that injects a trusted `X-Forwarded-Email` header.
+- `@family-todo/mcp` (`packages/mcp`) — Express MCP server (JSON-RPC over HTTP)
+  that AI agents call. Own OAuth 2.0 authorization server (PKCE + RS256 JWT).
+- `@family-todo/docs` (`packages/docs`) — documentation site.
+
+Frontend and MCP run as separate processes sharing **one SQLite file**
+(`DB_PATH`, default `./data/app.db`), in WAL mode.
+
 ## Test-Driven Development (TDD)
 
 **No code changes without a failing test!**
 
 1. First write a test that fails
-2. **RUN THE TESTS** to confirm the test actually fails: `npm run docker:test`
+2. **RUN THE TESTS** to confirm the test actually fails: `npm test`
 3. Only THEN change the production code — the minimum needed to make the test pass
 4. **RUN THE TESTS** again to verify they pass
 5. Refactor only when tests are green
 
 This applies to all bug fixes and new features.
 
-**CRITICAL: NEVER write production code and tests in the same step!** The whole point of TDD is that you SEE the test fail first. Writing both together defeats the purpose — you can't know your test actually catches the bug if you never saw it fail. This is non-negotiable.
+**CRITICAL: NEVER write production code and tests in the same step!** The whole
+point of TDD is that you SEE the test fail first. Writing both together defeats
+the purpose — you can't know your test actually catches the bug if you never saw
+it fail. This is non-negotiable.
 
-**NEVER verify behavior by hand.** Do not "check it works" with one-off scripts, manual `curl`/`docker run`, or throwaway commands that you don't commit. Every check that matters must be written as an automated test that lives in the repo and runs in CI on every change. If you find yourself reproducing something manually to gain confidence, that reproduction belongs in the test suite. Manual checks are invisible to the next person and silently rot.
-
-**IMPORTANT:** Never run `npm run test:bare` directly on the host machine. Tests require Docker networking to reach `pocketbase-test`. Always use `npm run docker:test` which runs tests inside a container.
+**NEVER verify behavior by hand.** Do not "check it works" with one-off scripts,
+manual `curl`, or throwaway commands that you don't commit. Every check that
+matters must be written as an automated test that lives in the repo and runs in
+CI on every change. If you find yourself reproducing something manually to gain
+confidence, that reproduction belongs in the test suite. Manual checks are
+invisible to the next person and silently rot.
 
 ## Testing Strategy
 
+Tests run **in-process against in-memory SQLite** — no Docker, no external
+services, no network. This is what CI runs (`npm run test --workspaces`).
+
+```bash
+npm test               # every workspace (matches CI)
+npm run test:db        # @family-todo/db
+npm run test:mcp       # @family-todo/mcp
+npm run test:frontend  # @family-todo/frontend
+```
+
 ### Test Types and File Naming
 
-| Type | File Pattern | Runs In | Purpose |
-|------|--------------|---------|---------|
-| **Unit Tests** | `*.test.ts` | Anywhere | Pure logic, no side effects, no API |
-| **Integration Tests** | `*.integration.test.ts` | Docker Compose | Astro Container API + real PocketBase |
-| **E2E Tests** | `*.e2e.test.ts` | Docker Compose | Playwright browser tests (optional) |
+| Type | File Pattern | Purpose |
+|------|--------------|---------|
+| **Unit Tests** | `*.test.ts` | Pure logic, no side effects |
+| **Integration Tests** | `*.integration.test.ts` | Astro Container API + real SQLite (in-memory) |
+| **E2E Tests** | `tests/e2e/*.spec.ts` | Playwright (optional, currently needs rewiring) |
 
 ### Unit Tests (`*.test.ts`)
 
-- Pure functions, utilities, helpers
-- No side effects, no network calls
-- Can run anywhere (no Docker needed)
-- Fast and isolated
+- Pure functions, utilities, helpers (e.g. recurrence math, view-row splitting)
+- No side effects, no network calls — fast and isolated
 
-### Integration Tests (`*.integration.test.ts`) - PRIMARY!
+### Integration Tests (`*.integration.test.ts`) — PRIMARY!
 
 **This is the main test type. Write extensive integration tests for all features.**
 
-- Use **Astro Container API** to test pages/components
-- Connect to **real PocketBase API** (no mocks!)
-- Must run inside Docker Compose (containers talk to each other)
-- Test the full stack: page rendering → API calls → database
+- Use the **Astro Container API** to render pages/components.
+- Talk to a **real SQLite database** — never mock the data layer. Tests use a
+  fresh in-memory database (`createDb(':memory:')` / `resetDb()` from
+  `@family-todo/db`) with all migrations applied. `tests/setup.integration.ts`
+  resets the DB before each test so every test starts clean.
+- Seed data through `@family-todo/db` functions (or the PocketBase-compatible
+  `tests/pb-shim.ts` helper, which translates the old collection API to raw SQL
+  against the same in-memory DB).
 
-```bash
-# Run tests (resets test DB, runs inside container where pocketbase-test is accessible)
-npm run docker:test
-```
-
-**Script naming convention:**
-- `npm run docker:test` → Resets test DB, runs tests in Docker container with network access
-- `npm run test:bare` → **DO NOT USE DIRECTLY** - only runs inside Docker container
-
-**Example: Testing an Astro Page with Container API**
+**Example: Testing an Astro Page with the Container API**
 
 ```typescript
 // src/pages/stats.integration.test.ts
 import { experimental_AstroContainer as AstroContainer } from 'astro/container'
-import { describe, expect, it, beforeAll, afterAll } from 'vitest'
-import PocketBase from 'pocketbase'
+import { describe, expect, it, beforeEach } from 'vitest'
+import { getDb, createChild } from '@family-todo/db'
 import StatsPage from './stats.astro'
 
-const POCKETBASE_URL = process.env.POCKETBASE_URL || 'http://pocketbase-test:8090'
-
 describe('Stats Page', () => {
-  let pb: PocketBase
-  let container: AstroContainer
-  let testDataIds: string[] = []
-
-  beforeAll(async () => {
-    // 1. Setup PocketBase client and auth
-    pb = new PocketBase(POCKETBASE_URL)
-    await pb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
-
-    // 2. Create test data in PocketBase
-    const task = await pb.collection('kiosk_tasks').create({ title: 'Test Task', ... })
-    testDataIds.push(task.id)
-
-    // 3. Create Astro container for rendering pages
-    container = await AstroContainer.create()
+  beforeEach(() => {
+    // The integration setup resets an in-memory DB before each test.
+    const db = getDb()
+    createChild(db, { /* ... */ })
   })
 
-  afterAll(async () => {
-    // Clean up test data
-    for (const id of testDataIds) {
-      try { await pb.collection('kiosk_tasks').delete(id) } catch {}
-    }
-  })
-
-  it('should render the page with data from PocketBase', async () => {
-    // Render the Astro page to HTML string
+  it('renders data from the database', async () => {
+    const container = await AstroContainer.create()
     const html = await container.renderToString(StatsPage)
-
-    // Assert on the rendered HTML
     expect(html).toContain('data-testid="stats-page"')
-    expect(html).toContain('Total tasks:')
   })
 })
 ```
 
-**Key Points:**
-1. Import the page directly: `import StatsPage from './stats.astro'`
-2. Create container: `container = await AstroContainer.create()`
-3. Render to string: `await container.renderToString(StatsPage)`
-4. Assert on the HTML output
+**Required: `vitest.config.ts` uses Astro's `getViteConfig`** so Vitest can parse
+`.astro` files.
 
-**Required: vitest.config.ts must use Astro's getViteConfig:**
-```typescript
-import { getViteConfig } from 'astro/config'
+### E2E Tests — optional, currently not in CI
 
-export default getViteConfig({
-  test: {
-    include: ['src/**/*.test.ts', 'src/**/*.integration.test.ts'],
-    // ... other config
-  },
-})
-```
-This enables Vitest to parse `.astro` files.
+Playwright specs live in `packages/frontend/tests/e2e`. They predate the
+SQLite/oauth2-proxy migration and need rewiring before use; they are not part of
+CI. Integration tests cover functionality. Only invest in E2E for critical user
+flows once they are wired to the current stack.
 
-**Database Reset:** The `tests/setup.integration.ts` file runs `beforeEach` to:
-1. Reset the PocketBase singleton (ensures correct URL)
-2. Clear all records from all collections (respecting FK order)
+## One Page → One SQL View
 
-This ensures each test starts with a clean database.
+**Each page reads from exactly one read model optimized for it.**
 
-### E2E Tests (`*.e2e.test.ts`) - NOT NEEDED NOW
+A view is a SQL `SELECT` that runs inside SQLite. Filters, JOINs and aggregates
+(`SUM`, `COUNT`) execute in the database — far faster than fetching multiple
+tables and combining in JavaScript. The page calls one helper, then groups
+client-side.
 
-- Playwright browser automation
-- Run inside Docker Compose
-- **Not required at this stage** - integration tests cover functionality
-- Only add later for critical user flows if needed
+### Rules
 
-## View-Tables statt Multi-Fetch
+1. **One page → one view (or one query helper).** No `for`-loop of sequential
+   per-row queries. If a page needs data from several tables, a SQL view with
+   JOINs resolves it in one read.
+2. **Aggregate in SQL, not in the client.** `SUM(points)` as a subquery in the
+   view, not `getFullList` + `reduce` in the frontend.
+3. **Add indexes** for columns the view filters, joins or sorts on (including
+   inside subqueries). Define them in the migration alongside the view.
+4. **Denormalization is allowed but not required.** If a view with JOINs and
+   subqueries stays clean, that's enough.
 
-**Jede Page fetcht aus genau einer, für sie optimierten PocketBase-View-Collection.**
+### Naming convention
 
-Eine View-Collection ist ein SQL SELECT, das in der Datenbank läuft (SQLite im
-PocketBase-Prozess). Filter, JOINs und Aggregate (`SUM`, `COUNT`) werden dort
-ausgeführt — das ist Größenordnungen schneller als mehrere HTTP-Fetches vom
-Client. Die Page ruft dann genau eine Collection ab, filtert minimal und gruppiert
-client-seitig.
-
-### Regeln
-
-1. **Eine Page → eine View-Collection.** Kein `for`-Loop mit sequenziellen
-   `await pb.collection(...).getList(...)`. Wenn die Page Daten aus mehreren
-   Tabellen braucht, löst die View das per JOIN.
-2. **Keine JSON-Spalten in der Datenbank.** Alle View-Spalten müssen echte SQL-Typen
-   haben (text/number/bool/date/relation). Wenn PocketBase einen Ausdruck nicht
-   inferred, hilft `CAST(... AS REAL/INTEGER/TEXT)`. Komplexe `COALESCE`s
-   vermeiden — PocketBase fällt sonst auf `json` zurück.
-3. **Aggregate im View, nicht im Client.** `SUM(points)` als Subquery im View,
-   nicht `getFullList` plus `reduce` im Frontend.
-4. **Indexes sind Pflicht** für alle Spalten, auf denen die View filtert, joint
-   oder sortiert (inkl. der Subqueries innerhalb der View). PocketBase indexiert
-   nicht automatisch, auch nicht Relation-Felder. Index-Pflege läuft über
-   `pb.collections.update(name, { indexes: ['CREATE INDEX ...'] })`.
-5. **Denormalisierung ist erlaubt, aber nicht Pflicht.** Wenn eine View mit JOINs
-   und Subqueries sauber bleibt, reicht das. Ein denormalisiertes Feld (gepflegt
-   via MCP-Tool oder pb_hooks) ist ok, wenn es die View-Definition deutlich
-   vereinfacht.
-
-### Namenskonvention
-
-- View-Collection heißt nach der Page: `tasks_page_view`, `stats_page_view`, …
-- Spalten-Präfixe spiegeln die Basistabelle: `child_name`, `task_title`,
-  `group_id` — so ist im Client klar, woher das Feld kommt.
-
-### Beispiel
-
-Die Tasks-Page (`src/pages/group/[groupId]/tasks/index.astro`) nutzt
-`tasks_page_view`: ein `LEFT JOIN` zwischen `children` und `tasks`, Phantom-Zeile
-für Kinder ohne Tasks, `CAST(SUM(points) AS REAL)` als Subquery auf
-`point_transactions`. Die Page macht einen Fetch und splittet mit
-`splitViewRowsByChild` (`src/lib/tasks.ts`) client-seitig in active / completed /
-future.
-
-## PocketBase Database Schema Changes
-
-**Never write migration SQL by hand!**
-
-When you need to alter the database schema (create/update/delete collections), use the `/create-collection` skill or follow this process:
-
-1. Write a temporary JavaScript file that uses `pb.collections.create()` (or `.update()` / `.delete()`)
-2. Run it with `node <file>.js`
-3. PocketBase automatically generates the migration file in `pocketbase/pb_migrations/`
-4. Delete the temporary file
-5. Commit the generated migration
+- View named after the page: `tasks_page_view`, `stats_page_view`, …
+- Column prefixes mirror the base table: `child_name`, `task_title`, `group_id`
+  — so it's clear in the client where each field came from.
 
 ### Example
 
-```javascript
-// temp-collection.js
-import PocketBase from 'pocketbase'
+The tasks page (`src/pages/group/[groupId]/tasks/index.astro`) uses
+`tasks_page_view` (a `LEFT JOIN` between `children` and `tasks`, with a
+`SUM(points)` subquery on `point_transactions`), fetched via
+`getTasksPageViewForGroup` from `@family-todo/db`. The page does one read and
+splits the rows client-side (`splitViewRowsByChild` in `src/lib/tasks.ts`) into
+active / completed / future.
 
-const pb = new PocketBase('http://<CONTAINER_IP>:8090')
-await pb.collection('_superusers').authWithPassword('admin@test.local', 'testtest123')
+## Database Schema Changes
 
-await pb.collections.create({
-  name: 'my_collection',
-  type: 'base',
-  fields: [
-    { name: 'title', type: 'text', required: true },
-  ],
-})
+Schema lives in `packages/db/migrations/` as numbered `NNN_description.sql`
+files. On first connection, `@family-todo/db` applies any unapplied migrations
+in filename order and records them in `schema_migrations`.
 
-console.log('Done!')
-```
+To change the schema:
 
-Then: `node temp-collection.js && rm temp-collection.js`
+1. Add a **new** `NNN_description.sql` file (next number). Use real SQL column
+   types; create page-specific read models as SQL `CREATE VIEW`s here too.
+2. Add or extend a test in `packages/db/src/*.test.ts` (TDD — write it failing
+   first).
+3. **Never edit a migration that has already been applied.** Forward-only.
 
-### Why This Approach
-
-- PocketBase generates correct internal IDs
-- Proper migration format with rollback functions
-- No risk of SQL errors from manual migrations
-- Type-safe field definitions
-
-### Testing Migrations (on a POPULATED database!)
-
-**Running a migration on an empty database is NOT a test.** The integration
-suite always boots a fresh, empty DB and applies every migration on startup —
-that only proves the migrations *parse and apply*, never that they correctly
-transform **existing production data**. The dangerous case (and the only one
-worth testing) is a migration running against a DB that already has rows.
-
-Every migration — especially any **data migration** (one that reads/rewrites
-records, not just schema) — must have an automated test that:
-
-1. Boots the **exact PocketBase version used in production** (keep it in sync —
-   see below). Use the pinned `ghcr.io/muchobien/pocketbase:<version>` image.
-2. Applies only the migrations **before** the one under test, then **seeds
-   representative, production-like data** (include the messy/edge cases the
-   migration is meant to fix).
-3. Applies the remaining migrations and **asserts the data was transformed
-   correctly** (and that row counts / unrelated data survived).
-
-This lives in **`packages/api/pocketbase/migrations-test/run.mjs`** and runs in
-CI on every change (the `migration-tests` job) and locally via:
-
-```bash
-npm run test:migrations
-```
-
-To cover a new data migration, add a scenario (`cut` file + `seed` + `assert`)
-to the `SCENARIOS` array in that file. **Never** confirm a migration by hand —
-write the scenario instead.
-
-### PocketBase version must stay in sync
-
-The version is pinned in **one conceptual place, mirrored in several files** —
-update them together:
-
-- `packages/api/pocketbase/Dockerfile` (`ARG POCKETBASE_VERSION`) — **production**
-- `docker-compose.test.yaml` and `docker-compose.dev.yaml` (`image:` tag)
-- `.github/workflows/test.yml` (the `Start PocketBase` step)
-- `packages/api/pocketbase/migrations-test/run.mjs` (`PB_IMAGE`)
-
-Test and production **must** run the same major version, otherwise green tests
-say nothing about what production will do. Keep production as up to date as
-possible.
-
-## PocketBase Testing
-
-**Never mock PocketBase!**
-
-- Tests run against real PocketBase instance (pocketbase-test in Docker Compose)
-- No `vi.mock('pocketbase')` or similar
-- Integration tests ensure real-world behavior
+> `packages/db/scripts/migrate-from-pocketbase.ts` is a one-off importer kept for
+> history. The app no longer uses PocketBase; do not add to it.
 
 ## Development Workflow
 
 ```bash
-# Start PocketBase for development
-docker compose up -d pocketbase-dev
+npm install            # install all workspaces
 
-# Get container IP for migration scripts
-docker network inspect levino-todo-app_default --format '{{range .Containers}}{{.IPv4Address}}{{end}}'
+npm run dev            # frontend (:4321) + mcp (:3001) against ./data/app.db
 
-# Start dev server (requires POCKETBASE_URL env var)
-POCKETBASE_URL=http://localhost:8090 npm run dev:bare
+# single workspace
+npm run dev -w @family-todo/frontend
+npm run dev -w @family-todo/mcp
 
-# Run tests (ALWAYS use docker:test, never test:bare directly!)
-npm run docker:test
+npm test               # run before every commit
 ```
+
+Local auth: the frontend expects an `oauth2-proxy` in front of it injecting
+`X-Forwarded-Email`. Without one, protected pages redirect to `/login`. The MCP
+server can be exercised directly during development with a `?token=<userId>`
+query parameter. See `deploy/overlays/production` for the real proxy config.

@@ -30,7 +30,7 @@ export default defineConfig({
     url: 'http://localhost:4321',
     reuseExistingServer: !process.env.CI,
     env: {
-      POCKETBASE_URL: process.env.POCKETBASE_URL || 'http://localhost:8090',
+      DB_PATH: process.env.DB_PATH || './data/e2e.db',
       HOST: '0.0.0.0',
       PORT: '4321',
       NODE_ENV: 'test',

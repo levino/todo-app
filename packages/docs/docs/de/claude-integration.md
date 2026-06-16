@@ -13,11 +13,11 @@ Family Todo nutzt das **Model Context Protocol (MCP)** für die Integration mit 
 flowchart TB
     Claude[Claude AI]
     MCP[MCP Server]
-    DB[(Database)]
+    DB[(SQLite)]
 
     Claude <-->|OAuth 2.0| MCP
     Claude <-->|JSON-RPC| MCP
-    MCP -->|PocketBase Impersonation| DB
+    MCP -->|raw SQL im Namen des Benutzers| DB
 ```
 
 ## OAuth 2.0 Flow
@@ -33,7 +33,7 @@ Die Authentifizierung läuft über einen standardkonformen OAuth 2.0 Flow:
 
 - **PKCE (S256)**: Schutz gegen Authorization Code Interception
 - **JWT Access Tokens**: Stateless, signiert mit RS256
-- **User Impersonation**: Der MCP Server agiert im Namen des Benutzers
+- **Gescopeter Zugriff**: Der MCP Server agiert im Namen des angemeldeten Benutzers und liest/schreibt nur dessen Daten
 
 ## MCP Protocol
 
@@ -134,18 +134,20 @@ Family Todo ist Open Source. Du kannst den MCP Server selbst hosten:
 ```bash
 git clone https://github.com/levino/todo-app
 cd todo-app
-docker compose up -d
+npm install
+npm run dev
 ```
 
-Konfiguriere dann die Umgebungsvariablen:
+Der MCP Server liest folgende Umgebungsvariablen:
 
 ```env
-OAUTH_ISSUER=https://your-domain.com
-FRONTEND_URL=https://your-app.com
-POCKETBASE_URL=http://pocketbase:8090
-POCKETBASE_ADMIN_EMAIL=admin@example.com
-POCKETBASE_ADMIN_PASSWORD=secure-password
+OAUTH_ISSUER=https://your-domain.com   # öffentliche Issuer-URL des MCP-OAuth-Servers
+FRONTEND_URL=https://your-app.com      # Frontend-URL für den Login-Redirect
+DB_PATH=/data/app.db                   # SQLite-Datei (gemeinsam mit dem Frontend)
 ```
+
+Die vollständige Liste der Variablen und das Produktiv-Deployment (Kubernetes)
+stehen im [README des Repositories](https://github.com/levino/todo-app).
 
 ## Weiterführende Links
 
