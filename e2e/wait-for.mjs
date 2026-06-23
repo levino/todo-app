@@ -10,6 +10,7 @@
 
 const BASE_URL = process.env.BASE_URL || 'http://oauth2-proxy:4180'
 const DEX_URL = process.env.DEX_URL || 'http://dex:5556'
+const MCP_URL = process.env.MCP_URL || 'http://frontend:3001'
 
 const TIMEOUT_MS = 180_000
 const INTERVAL_MS = 2_000
@@ -45,6 +46,14 @@ await probe(
 await probe(
   'dex discovery',
   `${DEX_URL}/dex/.well-known/openid-configuration`,
+  (res) => res.status === 200,
+)
+
+// mcp shares the frontend netns and starts independently; make sure its OAuth
+// server answers before the consent-flow test registers a client.
+await probe(
+  'mcp discovery',
+  `${MCP_URL}/.well-known/oauth-authorization-server`,
   (res) => res.status === 200,
 )
 
