@@ -63,11 +63,18 @@ jobs:
           cache-to: type=gha,scope=${{ matrix.name }},mode=max
 
   # Pull-based deploy: pin the production overlay to the immutable :<sha> tags we
-  # just pushed and commit the bump back to main. Flux (and later Argo CD) pulls
-  # the changed overlay and rolls the Deployment forward — NO cluster access in CI.
-  # Without this the overlay stays on :latest, the manifest content never changes,
-  # the GitOps controller sees no diff, and merges never reach the cluster.
-  # The [skip ci] on the bump commit prevents an infinite build->commit->build loop.
+  # just built and publish it to the 'production' branch, which the GitOps
+  # controller (Flux, later Argo CD) tracks. It pulls the changed overlay and
+  # rolls the Deployment forward — NO cluster access in CI.
+  #
+  # Why a separate 'production' branch instead of committing back to main:
+  # main is a protected branch (ruleset requires the 'test' check), and the
+  # built-in GITHUB_TOKEN cannot be a ruleset bypass actor on a user-owned repo.
+  # So the bot cannot push to main. 'production' is unprotected and exists only
+  # to carry "main's tree + the image-tag pin"; it is force-updated each deploy.
+  # CI triggers only on main + PRs, so pushes to 'production' start no new run
+  # (no build->commit->build loop, no [skip ci] needed). main stays fully
+  # protected; humans never touch 'production'.
   deploy:
     needs: build-and-push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -76,6 +83,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - name: Install kustomize
         run: curl -sSL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz | sudo tar xz -C /usr/local/bin
       - name: Pin overlay to the freshly built :<sha> images
@@ -83,10 +92,10 @@ jobs:
         run: |
           kustomize edit set image ghcr.io/levino/todo-app-frontend=ghcr.io/levino/todo-app-frontend:${{ github.sha }}
           kustomize edit set image ghcr.io/levino/todo-app-mcp=ghcr.io/levino/todo-app-mcp:${{ github.sha }}
-      - name: Commit & push tag bump
+      - name: Publish pinned overlay to the GitOps 'production' branch
         run: |
           git config user.name  "deploy-bot"
           git config user.email "deploy-bot@users.noreply.github.com"
           git add deploy/overlays/production/kustomization.yaml
-          git diff --staged --quiet || git commit -m "chore(deploy): roll to ${{ github.sha }} [skip ci]"
-          git push
+          git commit -m "chore(deploy): roll to ${{ github.sha }}"
+          git push --force origin HEAD:production
