@@ -61,3 +61,32 @@ jobs:
             ${{ env.REGISTRY }}/${{ matrix.image }}:latest
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,scope=${{ matrix.name }},mode=max
+
+  # Pull-based deploy: pin the production overlay to the immutable :<sha> tags we
+  # just pushed and commit the bump back to main. Flux (and later Argo CD) pulls
+  # the changed overlay and rolls the Deployment forward — NO cluster access in CI.
+  # Without this the overlay stays on :latest, the manifest content never changes,
+  # the GitOps controller sees no diff, and merges never reach the cluster.
+  # The [skip ci] on the bump commit prevents an infinite build->commit->build loop.
+  deploy:
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kustomize
+        run: curl -sSL https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.4.3/kustomize_v5.4.3_linux_amd64.tar.gz | sudo tar xz -C /usr/local/bin
+      - name: Pin overlay to the freshly built :<sha> images
+        working-directory: deploy/overlays/production
+        run: |
+          kustomize edit set image ghcr.io/levino/todo-app-frontend=ghcr.io/levino/todo-app-frontend:${{ github.sha }}
+          kustomize edit set image ghcr.io/levino/todo-app-mcp=ghcr.io/levino/todo-app-mcp:${{ github.sha }}
+      - name: Commit & push tag bump
+        run: |
+          git config user.name  "deploy-bot"
+          git config user.email "deploy-bot@users.noreply.github.com"
+          git add deploy/overlays/production/kustomization.yaml
+          git diff --staged --quiet || git commit -m "chore(deploy): roll to ${{ github.sha }} [skip ci]"
+          git push
