@@ -40,6 +40,12 @@ spec:
             - --pass-user-headers=true
             - --set-xauthrequest=true
             - --skip-provider-button=true
+            # PWA assets are static and non-sensitive. Without this, the browser's
+            # credential-less manifest fetch is 302'd to ZITADEL, and that
+            # cross-origin redirect is blocked by CORS (no Access-Control-Allow-Origin
+            # on id.levinkeller.de). Serving them unauthenticated removes the redirect.
+            - --skip-auth-route=^/manifest\.json$
+            - --skip-auth-route=^/icon-.*\.svg$
           env:
             - name: OAUTH2_PROXY_CLIENT_ID
               valueFrom:
