@@ -19,6 +19,7 @@
     "test:db": "npm run test -w @family-todo/db",
     "test:mcp": "npm run test -w @family-todo/mcp",
     "test:frontend": "npm run test -w @family-todo/frontend",
+    "test:e2e": "docker compose -f e2e/docker-compose.yml up --build --abort-on-container-exit --exit-code-from e2e; code=$?; docker compose -f e2e/docker-compose.yml down -v >/dev/null 2>&1; exit $code",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "format": "biome format --write ."
