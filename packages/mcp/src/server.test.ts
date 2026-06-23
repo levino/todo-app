@@ -816,6 +816,67 @@ describe('MCP Server', () => {
         expect(res.body.result?.isError || res.body.error).toBeTruthy()
       })
 
+      it('should clear recurrence and priority via update_task with null', async () => {
+        // Mirrors a real "Handarbeit" task: a daily-after-completion interval
+        // task whose recurrence the parent wants to remove/fix. The natural way
+        // to express "remove this" is to send null, which previously failed the
+        // zod schema (fields were .optional() but not .nullable()) and surfaced
+        // to the user as a server-side "Invalid parameters" error.
+        const createRes = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'create_task',
+              arguments: {
+                childId,
+                title: 'Handarbeit',
+                timeOfDay: 'afternoon',
+                priority: 1,
+                recurrenceType: 'interval',
+                recurrenceInterval: 1,
+              },
+            },
+            id: 3,
+          })
+        const taskId = createRes.body.result.content[0].text.match(/ID: ([a-z0-9]+)/)[1]
+
+        const res = await request(app)
+          .post('/mcp')
+          .query({ token: authToken })
+          .send({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: {
+              name: 'update_task',
+              arguments: {
+                taskId,
+                isProject: true,
+                priority: null,
+                recurrenceType: null,
+                recurrenceInterval: null,
+                recurrenceDays: null,
+                dueDate: null,
+              },
+            },
+            id: 4,
+          })
+
+        expect(res.status).toBe(200)
+        expect(res.body.error).toBeUndefined()
+        expect(res.body.result?.isError).toBeFalsy()
+
+        const task = getTask(db, taskId)!
+        expect(task.isProject).toBe(true)
+        expect(task.priority).toBeNull()
+        expect(task.recurrenceType).toBeNull()
+        expect(task.recurrenceInterval).toBeNull()
+        expect(task.recurrenceDays).toBeNull()
+        expect(task.dueDate).toBeNull()
+      })
+
       it('should set dailyOnly via update_task (#79)', async () => {
         const createRes = await request(app)
           .post('/mcp')
