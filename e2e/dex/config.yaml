@@ -1,0 +1,35 @@
+# Dex — lightweight OIDC provider standing in for ZITADEL in the e2e harness.
+#
+# Dex speaks the same OIDC contract oauth2-proxy consumes in production, but is
+# fully driven by this static config file (no DB bootstrap, no admin UI), which
+# makes it reproducible in CI. The issuer hostname `dex` resolves both from the
+# oauth2-proxy container (server-to-server discovery) and from the Playwright
+# container's browser (the login redirect) because all services share one
+# docker-compose network.
+issuer: http://dex:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  # Skip the per-client consent screen so the login flow is a single form POST.
+  skipApprovalScreen: true
+
+staticClients:
+  - id: oauth2-proxy
+    name: oauth2-proxy
+    secret: proxy-secret-do-not-use-in-prod
+    redirectURIs:
+      - http://oauth2-proxy:4180/oauth2/callback
+
+enablePasswordDB: true
+staticPasswords:
+  # email: test@example.com / password: password
+  # (bcrypt hash of the literal string "password", cost 10)
+  - email: test@example.com
+    hash: "$2a$10$WXioiKUFm/QRDzakNugyK.Zi02sjVbhzN5TU76e.q1247YCxz2oUW"
+    username: test
+    userID: 08a8684b-db88-4b73-90a9-3cd1661f5466

@@ -1,0 +1,128 @@
+# Full-stack e2e harness — reproduces the production auth topology so the
+# OAuth / consent / PWA-manifest flow can be exercised end-to-end:
+#
+#   browser ─▶ oauth2-proxy ─▶ frontend (Astro SSR)
+#                  │                 └─ shares one SQLite file with ─┐
+#                  └─▶ dex (OIDC, stands in for ZITADEL)             │
+#                                                          mcp ──────┘
+#
+# The Playwright runner lives inside this same network so service hostnames
+# (`dex`, `oauth2-proxy`) resolve identically server-side and in the browser —
+# avoiding the OIDC issuer-URL mismatch you get when the browser is on the host.
+#
+# Run:  npm run test:e2e         (from the repo root)
+# or:   docker compose -f e2e/docker-compose.yml up --build \
+#           --abort-on-container-exit --exit-code-from e2e
+
+name: family-todo-e2e
+
+services:
+  # ---- dex: OIDC provider (ZITADEL stand-in) ----
+  dex:
+    image: ghcr.io/dexidp/dex:v2.41.1
+    entrypoint: ["/usr/local/bin/dex"]
+    command: ["serve", "/etc/dex/config.yaml"]
+    volumes:
+      - ./dex/config.yaml:/etc/dex/config.yaml:ro
+    expose:
+      - "5556"
+
+  # ---- frontend: Astro SSR app (behind oauth2-proxy) ----
+  frontend:
+    build:
+      context: ..
+      dockerfile: packages/frontend/Dockerfile
+    environment:
+      DB_PATH: /data/app.db
+      MCP_INTERNAL_URL: http://mcp:3001
+      PUBLIC_MCP_URL: http://mcp:3001
+      HOST: 0.0.0.0
+      PORT: "3000"
+      NODE_ENV: production
+    volumes:
+      - app-data:/data
+    expose:
+      - "3000"
+    healthcheck:
+      # /login is a public path in the frontend middleware (renders 200 without
+      # auth), so it doubles as a readiness probe. Use 127.0.0.1 (not localhost):
+      # the SSR server binds IPv4 0.0.0.0, but `localhost` resolves to IPv6 [::1]
+      # inside the container → connection refused.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/login"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  # ---- mcp: MCP server + its own OAuth authorization server ----
+  mcp:
+    build:
+      context: ..
+      dockerfile: packages/mcp/Dockerfile
+    environment:
+      DB_PATH: /data/app.db
+      OAUTH_ISSUER: http://mcp:3001
+      FRONTEND_URL: http://oauth2-proxy:4180
+      OAUTH_KEY_PATH: /data/oauth-keys
+      PORT: "3001"
+      NODE_ENV: production
+    volumes:
+      - app-data:/data
+    expose:
+      - "3001"
+
+  # ---- oauth2-proxy: OIDC gatekeeper (same image + flags as production) ----
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
+    depends_on:
+      dex:
+        condition: service_started
+      frontend:
+        condition: service_healthy
+    # restart so it keeps retrying provider discovery until dex is ready.
+    restart: on-failure
+    command:
+      - --provider=oidc
+      - --oidc-issuer-url=http://dex:5556/dex
+      - --upstream=http://frontend:3000
+      - --http-address=0.0.0.0:4180
+      - --redirect-url=http://oauth2-proxy:4180/oauth2/callback
+      - --email-domain=*
+      - --cookie-secure=false
+      - --cookie-samesite=lax
+      - --cookie-csrf-per-request=true
+      - --cookie-csrf-expire=15m
+      - --scope=openid email profile
+      - --pass-user-headers=true
+      - --set-xauthrequest=true
+      - --skip-provider-button=true
+      - --insecure-oidc-allow-unverified-email=true
+      # --- the behaviour under test (mirrors deploy/overlays/production) ---
+      # PWA assets must be served without auth, otherwise the credential-less
+      # manifest fetch is 302'd cross-origin to the IdP and blocked by CORS.
+      - --skip-auth-route=^/manifest\.json$$
+      - --skip-auth-route=^/icon-.*\.svg$$
+    environment:
+      OAUTH2_PROXY_CLIENT_ID: oauth2-proxy
+      OAUTH2_PROXY_CLIENT_SECRET: proxy-secret-do-not-use-in-prod
+      # raw 32-byte cookie secret (test-only)
+      OAUTH2_PROXY_COOKIE_SECRET: 0123456789abcdef0123456789abcdef
+    expose:
+      - "4180"
+
+  # ---- e2e: Playwright runner (same network → hostnames resolve) ----
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.57.0-jammy
+    depends_on:
+      oauth2-proxy:
+        condition: service_started
+    working_dir: /e2e
+    volumes:
+      - ./:/e2e
+    environment:
+      BASE_URL: http://oauth2-proxy:4180
+      DEX_URL: http://dex:5556
+      CI: "true"
+    command: ["sh", "-c", "npm install --no-audit --no-fund && node wait-for.mjs && npx playwright test"]
+
+volumes:
+  app-data:
