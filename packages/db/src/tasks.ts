@@ -502,16 +502,16 @@ export function createTask(
 
 export interface UpdateTaskInput {
   title?: string
-  priority?: number
+  priority?: number | null
   childId?: string
   timeOfDay?: string
   isChore?: boolean
   dailyOnly?: boolean
   isProject?: boolean
-  dueDate?: string
-  recurrenceType?: string
-  recurrenceInterval?: number
-  recurrenceDays?: number[]
+  dueDate?: string | null
+  recurrenceType?: string | null
+  recurrenceInterval?: number | null
+  recurrenceDays?: number[] | null
 }
 
 /**
@@ -564,7 +564,8 @@ export function updateTask(db: DB, taskId: string, input: UpdateTaskInput): void
   }
   if (input.recurrenceDays !== undefined) {
     sets.push('recurrenceDays = ?')
-    values.push(JSON.stringify(input.recurrenceDays))
+    // Store SQL NULL (not the literal string "null") when clearing the field.
+    values.push(input.recurrenceDays === null ? null : JSON.stringify(input.recurrenceDays))
   }
   if (sets.length === 0) return
   sets.push('updated = ?')
