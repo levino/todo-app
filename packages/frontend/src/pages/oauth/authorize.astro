@@ -114,7 +114,7 @@ if (Astro.request.method === 'POST' && user && !error && !clientError) {
             <p class="text-sm text-base-content/70 mb-4">
               Bitte melde dich an, um den Zugriff zu autorisieren.
             </p>
-            <form method="POST" action="/api/auth/login" class="space-y-4" data-loading-submit>
+            <form method="POST" action="/api/auth/login" class="space-y-4" data-loading-submit data-astro-reload>
               <input type="hidden" name="next" value={currentPath} />
               <fieldset>
                 <label class="label" for="email">E-Mail</label>
@@ -168,7 +168,15 @@ if (Astro.request.method === 'POST' && user && !error && !clientError) {
                 </div>
               )}
             </div>
-            <form method="POST" class="card-actions justify-end gap-2" data-loading-submit>
+            {/*
+              data-astro-reload is REQUIRED here: this form's POST returns a
+              cross-origin redirect to the OAuth client's callback (e.g.
+              https://claude.ai/api/mcp/auth_callback). Astro's ClientRouter
+              otherwise submits forms via fetch(), which follows that redirect
+              cross-origin and is blocked by CORS. Forcing a full-page
+              navigation makes the authorization-code redirect work.
+            */}
+            <form method="POST" class="card-actions justify-end gap-2" data-loading-submit data-astro-reload>
               <a href="/" class:list={['btn btn-ghost', pressClasses, focusRingClasses]}>Abbrechen</a>
               <button type="submit" class:list={['btn btn-primary', pressClasses, focusRingClasses]}>
                 Zugriff erlauben
