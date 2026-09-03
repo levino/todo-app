@@ -1,0 +1,31 @@
+# Markiert Dependabot-PRs, die automatisch gemergt werden duerfen (Patch, Minor).
+# Laeuft im PR-Kontext, weil nur dort `update-type` bekannt ist. Gemergt wird
+# NICHT hier (das Warten auf die eigenen Checks wuerde sich verklemmen), sondern
+# vom Zeitplan in automerge.yml, sobald alle Checks gruen sind.
+name: Dependabot einordnen
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+permissions:
+  pull-requests: write
+jobs:
+  label:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Patch/Minor -> automerge, Major -> braucht einen Menschen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+          TYPE: ${{ steps.meta.outputs.update-type }}
+        run: |
+          case "$TYPE" in
+            version-update:semver-patch|version-update:semver-minor)
+              gh pr edit "$PR" --add-label automerge --repo "$GITHUB_REPOSITORY" ;;
+            *)
+              gh pr edit "$PR" --add-label major --repo "$GITHUB_REPOSITORY" ;;
+          esac

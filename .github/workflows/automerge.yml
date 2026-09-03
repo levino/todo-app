@@ -1,0 +1,33 @@
+# Mergt Dependabot-PRs mit dem Label `automerge` (Patch/Minor, gesetzt von
+# dependabot-label.yml), sobald alle Checks gruen sind. Major-Updates tragen das
+# Label `major` und bleiben liegen, bis ein Mensch sie gemergt hat.
+#
+# Nur der GITHUB_TOKEN dieses Repos, kein PAT, keine App, nichts im Cluster.
+name: Automerge
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          for pr in $(gh pr list --repo "$GITHUB_REPOSITORY" --author 'app/dependabot' --label automerge --state open --json number --jq '.[].number'); do
+            # Alle Checks muessen fertig und gruen sein (keine Checks = ok).
+            state=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json statusCheckRollup,mergeable \
+              --jq '[.statusCheckRollup[]? | select(.name != "Automerge") | (.conclusion // .state)] as $c
+                    | if ($c | length) == 0 then "green"
+                      elif ($c | map(. == "SUCCESS" or . == "NEUTRAL" or . == "SKIPPED") | all) then "green"
+                      elif ($c | map(. == "FAILURE" or . == "ERROR" or . == "CANCELLED" or . == "TIMED_OUT") | any) then "red"
+                      else "pending" end')
+            echo "PR #$pr: $state"
+            [ "$state" = green ] || continue
+            gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --squash --delete-branch || echo "PR #$pr konnte nicht gemergt werden (Konflikt? Schutzregel?)"
+          done
