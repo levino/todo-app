@@ -1,0 +1,105 @@
+# Abhaengigkeiten automatisch aktualisieren. Patch- und Minor-Updates mergt
+# automerge.yml von selbst, sobald die Checks gruen sind; Major-Updates bleiben
+# als PR liegen (Label `major`). Kein Token ausserhalb von GitHub.
+version: 2
+updates:
+- package-ecosystem: github-actions
+  directory: /
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+- package-ecosystem: npm
+  directory: /
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+  groups: &id001
+    minor-and-patch:
+      update-types:
+      - minor
+      - patch
+- package-ecosystem: npm
+  directory: /e2e
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+  groups: *id001
+- package-ecosystem: npm
+  directory: /packages/db
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+  groups: *id001
+- package-ecosystem: npm
+  directory: /packages/docs
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+  groups: *id001
+- package-ecosystem: npm
+  directory: /packages/frontend
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+  groups: *id001
+- package-ecosystem: npm
+  directory: /packages/mcp
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+  groups: *id001
+- package-ecosystem: docker
+  directory: /packages/frontend
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+- package-ecosystem: docker
+  directory: /packages/mcp
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
+- package-ecosystem: devcontainers
+  directory: /
+  schedule:
+    interval: daily
+    time: 04:00
+    timezone: Europe/Berlin
+  labels:
+  - dependencies
+  open-pull-requests-limit: 10
