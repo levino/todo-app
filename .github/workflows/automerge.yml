@@ -57,6 +57,14 @@ permissions:
   # Merge-Schritt stirbt, bevor er irgendetwas gemergt hat.
   checks: read
   statuses: read
+  # Und `actions: read` dazu: `gh pr view --json statusCheckRollup` fragt intern
+  # auch `checkSuite.workflowRun` ab. Ohne diesen Scope antwortet GraphQL mit
+  # "Resource not accessible by integration
+  # (...statusCheckRollup.contexts.nodes.0.checkSuite.workflowRun)", gh gibt
+  # einen Fehlercode zurueck, der Status wird `unreadable` und der PR wird nie
+  # gemergt -- lautlos, denn die Schleife laeuft ja weiter (gesehen am
+  # 2026-09-08 in den fws-maschsee-Repos).
+  actions: read
 jobs:
   automerge:
     runs-on: ubuntu-latest
