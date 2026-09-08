@@ -2,7 +2,8 @@
 #
 # Ziel: Levin soll nichts babysitten. Sicherheits- und Routine-Updates rollen
 # vollautomatisch durch (automerge.yml labelt `automerge` und mergt, sobald die
-# Checks gruen sind), nur Major-Updates landen als einzelner PR auf seinem Tisch.
+# Checks gruen sind), nur Major-Updates landen auf seinem Tisch -- gebuendelt
+# als ein Sammel-PR je Oekosystem.
 #
 # Warum die Gruppen (`groups`)?
 #
@@ -15,11 +16,17 @@
 #     und braucht darum eine zweite Gruppe. Ohne sie kommt pro Advisory ein
 #     eigener PR (genau der Schwall vom 2026-09-08: postcss-selector-parser,
 #     fast-uri, nanoid, browserslist einzeln). Mit ihr: ein PR je Oekosystem.
-#   * MAJORS BLEIBEN BEWUSST UNGRUPPIERT. `minor-and-patch` laesst `major` in
-#     `update-types` weg, also faellt jedes Major-Update aus der Gruppe heraus
-#     und kommt als eigener PR -- Label `major`, kein Automerge. Genau die
-#     Stelle, an der Levin draufschauen will. Ein Sammel-PR mit Majors drin
-#     waere das Gegenteil davon.
+#   * `majors` (applies-to: version-updates): Major-Updates matchen die Gruppe
+#     `minor-and-patch` nicht (dort fehlt `major` in `update-types`) und
+#     fielen darum bisher als je ein eigener PR heraus. Das war ein Griff ins
+#     Klo: die Umstellung auf Gruppen hat den nie angelegten Rueckstau auf
+#     einmal freigegeben, 136 offene Major-PRs an einem Tag. Diese dritte
+#     Gruppe macht daraus EIN Review-Paket je Oekosystem.
+#     Draufschauen soll Levin trotzdem: automerge.yml erkennt die Gruppe am
+#     `dependency-group: majors` und labelt sie `major` -- kein Automerge.
+#     (Dependabot erlaubt beliebig viele Gruppen je Eintrag; eine Abhaengigkeit
+#     landet immer in der ERSTEN Gruppe, die sie matcht -- darum steht
+#     `minor-and-patch` vor `majors`.)
 #
 # Warum `weekly` statt `daily`?
 #
@@ -43,7 +50,7 @@ updates:
     open-pull-requests-limit: 10
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich und kommen weiter einzeln.
+      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
       minor-and-patch:
         applies-to: version-updates
         patterns:
@@ -57,6 +64,15 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
+      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
+      # Label `major` vom Automerge ausgenommen.
+      majors:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - major
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -69,7 +85,7 @@ updates:
     open-pull-requests-limit: 10
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich und kommen weiter einzeln.
+      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
       minor-and-patch:
         applies-to: version-updates
         patterns:
@@ -83,6 +99,15 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
+      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
+      # Label `major` vom Automerge ausgenommen.
+      majors:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - major
   - package-ecosystem: npm
     directory: /e2e
     schedule:
@@ -95,7 +120,7 @@ updates:
     open-pull-requests-limit: 10
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich und kommen weiter einzeln.
+      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
       minor-and-patch:
         applies-to: version-updates
         patterns:
@@ -109,6 +134,15 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
+      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
+      # Label `major` vom Automerge ausgenommen.
+      majors:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - major
   - package-ecosystem: npm
     directory: /packages/db
     schedule:
@@ -121,7 +155,7 @@ updates:
     open-pull-requests-limit: 10
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich und kommen weiter einzeln.
+      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
       minor-and-patch:
         applies-to: version-updates
         patterns:
@@ -135,6 +169,15 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
+      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
+      # Label `major` vom Automerge ausgenommen.
+      majors:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - major
   - package-ecosystem: npm
     directory: /packages/docs
     schedule:
@@ -147,7 +190,7 @@ updates:
     open-pull-requests-limit: 10
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich und kommen weiter einzeln.
+      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
       minor-and-patch:
         applies-to: version-updates
         patterns:
@@ -161,6 +204,15 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
+      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
+      # Label `major` vom Automerge ausgenommen.
+      majors:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - major
   - package-ecosystem: npm
     directory: /packages/frontend
     schedule:
@@ -173,7 +225,7 @@ updates:
     open-pull-requests-limit: 10
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich und kommen weiter einzeln.
+      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
       minor-and-patch:
         applies-to: version-updates
         patterns:
@@ -187,6 +239,15 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
+      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
+      # Label `major` vom Automerge ausgenommen.
+      majors:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - major
   - package-ecosystem: npm
     directory: /packages/mcp
     schedule:
@@ -199,7 +260,7 @@ updates:
     open-pull-requests-limit: 10
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich und kommen weiter einzeln.
+      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
       minor-and-patch:
         applies-to: version-updates
         patterns:
@@ -213,6 +274,15 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
+      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
+      # Label `major` vom Automerge ausgenommen.
+      majors:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - major
   - package-ecosystem: docker
     directory: /packages/frontend
     schedule:
@@ -225,7 +295,7 @@ updates:
     open-pull-requests-limit: 10
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich und kommen weiter einzeln.
+      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
       minor-and-patch:
         applies-to: version-updates
         patterns:
@@ -239,6 +309,15 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
+      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
+      # Label `major` vom Automerge ausgenommen.
+      majors:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - major
   - package-ecosystem: docker
     directory: /packages/mcp
     schedule:
@@ -251,7 +330,7 @@ updates:
     open-pull-requests-limit: 10
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich und kommen weiter einzeln.
+      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
       minor-and-patch:
         applies-to: version-updates
         patterns:
@@ -265,6 +344,15 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
+      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
+      # Label `major` vom Automerge ausgenommen.
+      majors:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - major
   - package-ecosystem: devcontainers
     directory: /
     schedule:
@@ -277,7 +365,7 @@ updates:
     open-pull-requests-limit: 10
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich und kommen weiter einzeln.
+      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
       minor-and-patch:
         applies-to: version-updates
         patterns:
@@ -291,3 +379,12 @@ updates:
         applies-to: security-updates
         patterns:
           - "*"
+      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
+      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
+      # Label `major` vom Automerge ausgenommen.
+      majors:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - major
