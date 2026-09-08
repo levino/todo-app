@@ -1,105 +1,293 @@
-# Abhaengigkeiten automatisch aktualisieren. Patch- und Minor-Updates mergt
-# automerge.yml von selbst, sobald die Checks gruen sind; Major-Updates bleiben
-# als PR liegen (Label `major`). Kein Token ausserhalb von GitHub.
+# Abhaengigkeiten automatisch aktualisieren -- moeglichst ohne Nachfrage.
+#
+# Ziel: Levin soll nichts babysitten. Sicherheits- und Routine-Updates rollen
+# vollautomatisch durch (automerge.yml labelt `automerge` und mergt, sobald die
+# Checks gruen sind), nur Major-Updates landen als einzelner PR auf seinem Tisch.
+#
+# Warum die Gruppen (`groups`)?
+#
+#   * `minor-and-patch` (applies-to: version-updates): ohne Gruppe oeffnet
+#     Dependabot pro Abhaengigkeit einen eigenen PR -- vier Actions-Bumps sind
+#     dann vier PRs. Mit `patterns: ["*"]` wird daraus EIN Sammel-PR je
+#     Oekosystem, den automerge.yml in einem Rutsch wegmergt.
+#   * `security` (applies-to: security-updates): Security-Updates sind eine
+#     eigene Welt -- Dependabot mischt sie nie mit Version-Updates in einen PR
+#     und braucht darum eine zweite Gruppe. Ohne sie kommt pro Advisory ein
+#     eigener PR (genau der Schwall vom 2026-09-08: postcss-selector-parser,
+#     fast-uri, nanoid, browserslist einzeln). Mit ihr: ein PR je Oekosystem.
+#   * MAJORS BLEIBEN BEWUSST UNGRUPPIERT. `minor-and-patch` laesst `major` in
+#     `update-types` weg, also faellt jedes Major-Update aus der Gruppe heraus
+#     und kommt als eigener PR -- Label `major`, kein Automerge. Genau die
+#     Stelle, an der Levin draufschauen will. Ein Sammel-PR mit Majors drin
+#     waere das Gegenteil davon.
+#
+# Warum `weekly` statt `daily`?
+#
+#   Nur die Routine-Version-Updates folgen dem `schedule`. Security-Updates
+#   haengen an den Dependabot-Alerts und werden ausgeloest, sobald ein Advisory
+#   erscheint -- die ignorieren `schedule` komplett. `weekly` beruhigt also nur
+#   das Alltagsrauschen, Sicherheitsfixes kommen weiterhin sofort.
+#
+# Nur der GITHUB_TOKEN der Repos, kein PAT, keine App, nichts im Cluster.
 version: 2
 updates:
-- package-ecosystem: github-actions
-  directory: /
-  schedule:
-    interval: daily
-    time: 04:00
-    timezone: Europe/Berlin
-  labels:
-  - dependencies
-  open-pull-requests-limit: 10
-- package-ecosystem: npm
-  directory: /
-  schedule:
-    interval: daily
-    time: 04:00
-    timezone: Europe/Berlin
-  labels:
-  - dependencies
-  open-pull-requests-limit: 10
-  groups: &id001
-    minor-and-patch:
-      update-types:
-      - minor
-      - patch
-- package-ecosystem: npm
-  directory: /e2e
-  schedule:
-    interval: daily
-    time: 04:00
-    timezone: Europe/Berlin
-  labels:
-  - dependencies
-  open-pull-requests-limit: 10
-  groups: *id001
-- package-ecosystem: npm
-  directory: /packages/db
-  schedule:
-    interval: daily
-    time: 04:00
-    timezone: Europe/Berlin
-  labels:
-  - dependencies
-  open-pull-requests-limit: 10
-  groups: *id001
-- package-ecosystem: npm
-  directory: /packages/docs
-  schedule:
-    interval: daily
-    time: 04:00
-    timezone: Europe/Berlin
-  labels:
-  - dependencies
-  open-pull-requests-limit: 10
-  groups: *id001
-- package-ecosystem: npm
-  directory: /packages/frontend
-  schedule:
-    interval: daily
-    time: 04:00
-    timezone: Europe/Berlin
-  labels:
-  - dependencies
-  open-pull-requests-limit: 10
-  groups: *id001
-- package-ecosystem: npm
-  directory: /packages/mcp
-  schedule:
-    interval: daily
-    time: 04:00
-    timezone: Europe/Berlin
-  labels:
-  - dependencies
-  open-pull-requests-limit: 10
-  groups: *id001
-- package-ecosystem: docker
-  directory: /packages/frontend
-  schedule:
-    interval: daily
-    time: 04:00
-    timezone: Europe/Berlin
-  labels:
-  - dependencies
-  open-pull-requests-limit: 10
-- package-ecosystem: docker
-  directory: /packages/mcp
-  schedule:
-    interval: daily
-    time: 04:00
-    timezone: Europe/Berlin
-  labels:
-  - dependencies
-  open-pull-requests-limit: 10
-- package-ecosystem: devcontainers
-  directory: /
-  schedule:
-    interval: daily
-    time: 04:00
-    timezone: Europe/Berlin
-  labels:
-  - dependencies
-  open-pull-requests-limit: 10
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    labels:
+      - dependencies
+    open-pull-requests-limit: 10
+    groups:
+      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
+      # absichtlich und kommen weiter einzeln.
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
+      # eines PRs pro Advisory.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    labels:
+      - dependencies
+    open-pull-requests-limit: 10
+    groups:
+      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
+      # absichtlich und kommen weiter einzeln.
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
+      # eines PRs pro Advisory.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+  - package-ecosystem: npm
+    directory: /e2e
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    labels:
+      - dependencies
+    open-pull-requests-limit: 10
+    groups:
+      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
+      # absichtlich und kommen weiter einzeln.
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
+      # eines PRs pro Advisory.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+  - package-ecosystem: npm
+    directory: /packages/db
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    labels:
+      - dependencies
+    open-pull-requests-limit: 10
+    groups:
+      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
+      # absichtlich und kommen weiter einzeln.
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
+      # eines PRs pro Advisory.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+  - package-ecosystem: npm
+    directory: /packages/docs
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    labels:
+      - dependencies
+    open-pull-requests-limit: 10
+    groups:
+      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
+      # absichtlich und kommen weiter einzeln.
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
+      # eines PRs pro Advisory.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+  - package-ecosystem: npm
+    directory: /packages/frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    labels:
+      - dependencies
+    open-pull-requests-limit: 10
+    groups:
+      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
+      # absichtlich und kommen weiter einzeln.
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
+      # eines PRs pro Advisory.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+  - package-ecosystem: npm
+    directory: /packages/mcp
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    labels:
+      - dependencies
+    open-pull-requests-limit: 10
+    groups:
+      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
+      # absichtlich und kommen weiter einzeln.
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
+      # eines PRs pro Advisory.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+  - package-ecosystem: docker
+    directory: /packages/frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    labels:
+      - dependencies
+    open-pull-requests-limit: 10
+    groups:
+      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
+      # absichtlich und kommen weiter einzeln.
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
+      # eines PRs pro Advisory.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+  - package-ecosystem: docker
+    directory: /packages/mcp
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    labels:
+      - dependencies
+    open-pull-requests-limit: 10
+    groups:
+      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
+      # absichtlich und kommen weiter einzeln.
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
+      # eines PRs pro Advisory.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+  - package-ecosystem: devcontainers
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    labels:
+      - dependencies
+    open-pull-requests-limit: 10
+    groups:
+      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
+      # absichtlich und kommen weiter einzeln.
+      minor-and-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
+      # eines PRs pro Advisory.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
