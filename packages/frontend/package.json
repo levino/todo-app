@@ -18,7 +18,7 @@
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.3.3",
     "astro": "^5.16.0",
-    "daisyui": "^5",
+    "daisyui": "^5.7.28",
     "tailwindcss": "^4"
   },
   "devDependencies": {
