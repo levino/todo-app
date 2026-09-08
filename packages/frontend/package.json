@@ -24,7 +24,7 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@types/supertest": "^7.2.0",
-    "@vitest/coverage-v8": "^4.0.16",
+    "@vitest/coverage-v8": "^5.0.0",
     "supertest": "^7.2.2",
     "typescript": "^5.8.2",
     "vitest": "^4.0.16"
