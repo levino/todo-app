@@ -54,9 +54,12 @@ jobs:
               label=automerge
             else
               # Kein Trailer (z.B. manuell umgeschriebene PRs): "from A to B" auswerten.
+              # `|| true`, weil `set -o pipefail` sonst am leeren grep-Treffer
+              # abbricht (z.B. "node from 22-alpine to 26-alpine") und der Rest
+              # der offenen PRs nie eingeordnet wird.
               paare=$(printf '%s\n' "$meta" \
                 | grep -oiE 'from v?[0-9]+(\.[0-9]+)* to v?[0-9]+(\.[0-9]+)*' \
-                | sed -E 's/[Ff]rom v?([0-9.]+) to v?([0-9.]+)/\1 \2/')
+                | sed -E 's/[Ff]rom v?([0-9.]+) to v?([0-9.]+)/\1 \2/' || true)
               if [ -z "$paare" ]; then
                 label=major
               elif printf '%s\n' "$paare" \
