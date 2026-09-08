@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@family-todo/db": "*",
-    "better-sqlite3": "^11.7.0",
+    "better-sqlite3": "^13.0.3",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.6",
     "express": "^5.0.1",
