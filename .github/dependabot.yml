@@ -28,6 +28,19 @@
 #     landet immer in der ERSTEN Gruppe, die sie matcht -- darum steht
 #     `minor-and-patch` vor `majors`.)
 #
+# Warum `open-pull-requests-limit` HOCH steht (und nicht niedrig)?
+#
+#   Das Limit war nie die Volumenbremse -- das sind die Gruppen: mit drei
+#   Gruppen ueber `patterns: ["*"]` oeffnet Dependabot hoechstens drei PRs je
+#   Eintrag (`minor-and-patch`, `security`, `majors`), egal wie hoch das Limit
+#   steht. Ein zu NIEDRIGES Limit dreht die Sache dagegen um und blockiert die
+#   Buendelung: ist das Limit ausgeschoepft, legt Dependabot gar keinen neuen
+#   PR mehr an -- auch nicht den Sammel-PR, der die Einzel-PRs ersetzen soll.
+#   Genau das ist am 2026-09-08 passiert (klasse-christophers: 11 offene
+#   npm-PRs bei Limit 10 -> die `majors`-Gruppe wurde nie erzeugt, waehrend
+#   Repos mit Luft im Kontingent ihre Gruppe sofort bekamen). 20 ist die Luft,
+#   die der Rueckstau braucht; im eingeschwungenen Zustand sind es drei.
+#
 # Warum `weekly` statt `daily`?
 #
 #   Nur die Routine-Version-Updates folgen dem `schedule`. Security-Updates
@@ -47,7 +60,7 @@ updates:
       timezone: Europe/Berlin
     labels:
       - dependencies
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
       # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
@@ -82,7 +95,7 @@ updates:
       timezone: Europe/Berlin
     labels:
       - dependencies
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
       # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
@@ -117,7 +130,7 @@ updates:
       timezone: Europe/Berlin
     labels:
       - dependencies
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
       # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
@@ -152,7 +165,7 @@ updates:
       timezone: Europe/Berlin
     labels:
       - dependencies
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
       # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
@@ -187,7 +200,7 @@ updates:
       timezone: Europe/Berlin
     labels:
       - dependencies
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
       # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
@@ -222,7 +235,7 @@ updates:
       timezone: Europe/Berlin
     labels:
       - dependencies
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
       # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
@@ -257,7 +270,7 @@ updates:
       timezone: Europe/Berlin
     labels:
       - dependencies
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
       # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
@@ -292,7 +305,7 @@ updates:
       timezone: Europe/Berlin
     labels:
       - dependencies
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
       # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
@@ -327,7 +340,7 @@ updates:
       timezone: Europe/Berlin
     labels:
       - dependencies
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
       # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
@@ -362,7 +375,7 @@ updates:
       timezone: Europe/Berlin
     labels:
       - dependencies
-    open-pull-requests-limit: 10
+    open-pull-requests-limit: 20
     groups:
       # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
       # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
