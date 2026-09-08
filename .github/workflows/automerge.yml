@@ -1,6 +1,28 @@
-# Mergt Dependabot-PRs mit dem Label `automerge` (Patch/Minor, gesetzt von
-# dependabot-label.yml), sobald alle Checks gruen sind. Major-Updates tragen das
-# Label `major` und bleiben liegen, bis ein Mensch sie gemergt hat.
+# Ordnet offene Dependabot-PRs ein und mergt die harmlosen davon.
+#
+# Warum das alles in EINEM Zeitplan-Workflow steckt (und nicht mehr zusaetzlich
+# in einem `dependabot-label.yml`, das am PR-Event haengt):
+#
+#   * Die Token-Falle: Workflows, die per `pull_request` von `dependabot[bot]`
+#     ausgeloest werden, bekommen von GitHub einen READ-ONLY GITHUB_TOKEN. Ein
+#     `permissions:`-Block im Workflow hebt das NICHT auf -- er kann Rechte nur
+#     einschraenken, nicht zurueckholen. `gh pr edit --add-label` lief dort also
+#     zwangslaeufig in einen 403.
+#   * Die Zeitfalle: ein PR, der schon offen war, bevor es den Workflow gab,
+#     liefert nie ein `opened`-Event nach. Er waere also selbst mit korrekten
+#     Rechten nie eingeordnet worden.
+#   * Dieser Workflow laeuft per `schedule`/`workflow_dispatch` auf dem
+#     Default-Branch. Da gilt der normale Schreib-Token, und er sieht bei jedem
+#     Lauf ALLE offenen Dependabot-PRs -- auch die aelteren.
+#   * `pull_request_target` waere die andere Loesung, holt sich aber ohne Not
+#     Schreibrechte in einen Kontext, in dem fremder PR-Code liegt.
+#
+# Einordnung: Major -> Label `major`, bleibt liegen, bis ein Mensch draufschaut.
+#             Alles andere -> Label `automerge`, wird gemergt sobald gruen.
+# Grundlage ist der `update-type:`-Trailer, den Dependabot in die Commit-Message
+# schreibt (genau das, was `dependabot/fetch-metadata` im PR-Kontext ausliest).
+# Fehlt er, wird "from A to B" aus Titel und Body verglichen; ist auch das nicht
+# lesbar, gewinnt im Zweifel der Mensch (`major`).
 #
 # Nur der GITHUB_TOKEN dieses Repos, kein PAT, keine App, nichts im Cluster.
 name: Automerge
@@ -12,10 +34,46 @@ permissions:
   contents: write
   pull-requests: write
 jobs:
-  merge:
+  automerge:
     runs-on: ubuntu-latest
     steps:
-      - env:
+      - name: Unetikettierte Dependabot-PRs einordnen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          offen=$(gh pr list --repo "$GITHUB_REPOSITORY" --author 'app/dependabot' --state open \
+            --json number,labels \
+            --jq '.[] | select([.labels[].name] | any(. == "automerge" or . == "major") | not) | .number')
+          for pr in $offen; do
+            meta=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json title,body,commits \
+              --jq '[.title, .body, (.commits[]?.messageHeadline), (.commits[]?.messageBody)] | join("\n")')
+            if printf '%s\n' "$meta" | grep -qE 'update-type: *version-update:semver-major'; then
+              label=major
+            elif printf '%s\n' "$meta" | grep -qE 'update-type: *version-update:semver-'; then
+              label=automerge
+            else
+              # Kein Trailer (z.B. manuell umgeschriebene PRs): "from A to B" auswerten.
+              # `|| true`, weil `set -o pipefail` sonst am leeren grep-Treffer
+              # abbricht (z.B. "node from 22-alpine to 26-alpine") und der Rest
+              # der offenen PRs nie eingeordnet wird.
+              paare=$(printf '%s\n' "$meta" \
+                | grep -oiE 'from v?[0-9]+(\.[0-9]+)* to v?[0-9]+(\.[0-9]+)*' \
+                | sed -E 's/[Ff]rom v?([0-9.]+) to v?([0-9.]+)/\1 \2/' || true)
+              if [ -z "$paare" ]; then
+                label=major
+              elif printf '%s\n' "$paare" \
+                   | awk 'NF==2 { split($1,a,"."); split($2,b,"."); if (a[1]+0 != b[1]+0) f=1 } END { exit f?0:1 }'; then
+                label=major
+              else
+                label=automerge
+              fi
+            fi
+            echo "PR #$pr -> $label"
+            gh pr edit "$pr" --repo "$GITHUB_REPOSITORY" --add-label "$label"
+          done
+      - name: Gruene `automerge`-PRs mergen
+        env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
