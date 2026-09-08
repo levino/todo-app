@@ -33,6 +33,12 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # Ein `permissions:`-Block setzt ALLE nicht genannten Scopes auf `none`.
+  # Ohne diese beiden liefert `gh pr view --json statusCheckRollup` in Repos mit
+  # Checks fremder Apps ein "Resource not accessible by integration" und der
+  # Merge-Schritt stirbt, bevor er irgendetwas gemergt hat.
+  checks: read
+  statuses: read
 jobs:
   automerge:
     runs-on: ubuntu-latest
@@ -84,7 +90,7 @@ jobs:
                     | if ($c | length) == 0 then "green"
                       elif ($c | map(. == "SUCCESS" or . == "NEUTRAL" or . == "SKIPPED") | all) then "green"
                       elif ($c | map(. == "FAILURE" or . == "ERROR" or . == "CANCELLED" or . == "TIMED_OUT") | any) then "red"
-                      else "pending" end')
+                      else "pending" end' || echo unreadable)
             echo "PR #$pr: $state"
             [ "$state" = green ] || continue
             gh pr merge "$pr" --repo "$GITHUB_REPOSITORY" --squash --delete-branch || echo "PR #$pr konnte nicht gemergt werden (Konflikt? Schutzregel?)"
