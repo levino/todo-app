@@ -12,12 +12,12 @@
   },
   "dependencies": {
     "@astrojs/check": "^0.9.10",
-    "@astrojs/node": "^9.0.0",
+    "@astrojs/node": "^11.0.2",
     "@family-todo/db": "*",
     "@levino/shipyard-base": "^0.9.1",
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "^4.3.3",
-    "astro": "^5.16.0",
+    "astro": "^7.2.8",
     "daisyui": "^5",
     "tailwindcss": "^4"
   },
@@ -27,6 +27,6 @@
     "@vitest/coverage-v8": "^4.0.16",
     "supertest": "^7.2.2",
     "typescript": "^5.8.2",
-    "vitest": "^4.0.16"
+    "vitest": "^4.1.11"
   }
 }
