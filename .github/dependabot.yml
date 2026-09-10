@@ -86,6 +86,26 @@ updates:
           - "*"
         update-types:
           - major
+  # EIN npm-Eintrag fuer die Wurzel -- und bewusst KEINE Eintraege je Paket.
+  #
+  # Das hier ist ein npm-Workspace (`workspaces: ["packages/*"]`) mit genau
+  # EINER package-lock.json, naemlich der in der Wurzel. Dependabot behandelt
+  # jeden `directory:`-Eintrag als eigenes Projekt: fuer `/packages/frontend`
+  # findet es dort keine Lockfile, aendert also nur die package.json -- und
+  # dann passen package.json und die Wurzel-Lockfile nicht mehr zusammen:
+  #
+  #     npm error `npm ci` can only install packages when your package.json
+  #     and package-lock.json are in sync.
+  #     npm error Missing: astro@7.3.2 from lock file
+  #
+  # Genau daran sind am 2026-09-10 sechs frische PRs (#164-#170) gescheitert,
+  # bevor sie ueberhaupt etwas gebaut hatten. Mit dem Wurzel-Eintrag liest
+  # Dependabot die Workspaces aus der Wurzel-package.json, aktualisiert die
+  # Abhaengigkeiten aller Pakete und schreibt die eine Lockfile mit.
+  #
+  # `/e2e` bleibt ein eigener Eintrag: es ist KEIN Workspace (`packages/*`
+  # deckt es nicht ab) und haengt nicht an der Wurzel-Lockfile, deshalb kann
+  # es dort auch nichts aus dem Tritt bringen.
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -123,146 +143,6 @@ updates:
           - major
   - package-ecosystem: npm
     directory: /e2e
-    schedule:
-      interval: weekly
-      day: monday
-      time: "04:00"
-      timezone: Europe/Berlin
-    labels:
-      - dependencies
-    open-pull-requests-limit: 20
-    groups:
-      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
-      minor-and-patch:
-        applies-to: version-updates
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
-      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
-      # eines PRs pro Advisory.
-      security:
-        applies-to: security-updates
-        patterns:
-          - "*"
-      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
-      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
-      # Label `major` vom Automerge ausgenommen.
-      majors:
-        applies-to: version-updates
-        patterns:
-          - "*"
-        update-types:
-          - major
-  - package-ecosystem: npm
-    directory: /packages/db
-    schedule:
-      interval: weekly
-      day: monday
-      time: "04:00"
-      timezone: Europe/Berlin
-    labels:
-      - dependencies
-    open-pull-requests-limit: 20
-    groups:
-      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
-      minor-and-patch:
-        applies-to: version-updates
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
-      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
-      # eines PRs pro Advisory.
-      security:
-        applies-to: security-updates
-        patterns:
-          - "*"
-      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
-      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
-      # Label `major` vom Automerge ausgenommen.
-      majors:
-        applies-to: version-updates
-        patterns:
-          - "*"
-        update-types:
-          - major
-  - package-ecosystem: npm
-    directory: /packages/docs
-    schedule:
-      interval: weekly
-      day: monday
-      time: "04:00"
-      timezone: Europe/Berlin
-    labels:
-      - dependencies
-    open-pull-requests-limit: 20
-    groups:
-      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
-      minor-and-patch:
-        applies-to: version-updates
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
-      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
-      # eines PRs pro Advisory.
-      security:
-        applies-to: security-updates
-        patterns:
-          - "*"
-      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
-      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
-      # Label `major` vom Automerge ausgenommen.
-      majors:
-        applies-to: version-updates
-        patterns:
-          - "*"
-        update-types:
-          - major
-  - package-ecosystem: npm
-    directory: /packages/frontend
-    schedule:
-      interval: weekly
-      day: monday
-      time: "04:00"
-      timezone: Europe/Berlin
-    labels:
-      - dependencies
-    open-pull-requests-limit: 20
-    groups:
-      # Ein Sammel-PR fuer alle Minor-/Patch-Version-Updates. Majors fehlen hier
-      # absichtlich -- die holt weiter unten die Gruppe `majors` ab.
-      minor-and-patch:
-        applies-to: version-updates
-        patterns:
-          - "*"
-        update-types:
-          - minor
-          - patch
-      # Ein Sammel-PR fuer alle Sicherheitsupdates dieses Oekosystems statt
-      # eines PRs pro Advisory.
-      security:
-        applies-to: security-updates
-        patterns:
-          - "*"
-      # Ein Sammel-PR fuer ALLE Major-Updates dieses Oekosystems statt eines PRs
-      # pro Abhaengigkeit -- ein Review-Paket statt eines Dutzends. Bleibt per
-      # Label `major` vom Automerge ausgenommen.
-      majors:
-        applies-to: version-updates
-        patterns:
-          - "*"
-        update-types:
-          - major
-  - package-ecosystem: npm
-    directory: /packages/mcp
     schedule:
       interval: weekly
       day: monday
