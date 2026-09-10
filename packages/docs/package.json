@@ -13,9 +13,9 @@
     "@levino/shipyard-base": "^0.9.1",
     "@levino/shipyard-docs": "^0.9.1",
     "@tailwindcss/typography": "^0.5.16",
-    "astro": "^5.6.1",
-    "daisyui": "^4.12.0",
-    "tailwindcss": "^3.4.0"
+    "astro": "^7.3.1",
+    "daisyui": "^5.7.28",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "wrangler": "^4.129.0"
