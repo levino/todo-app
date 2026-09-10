@@ -331,6 +331,18 @@ updates:
           - "*"
         update-types:
           - major
+    ignore:
+      # Das Basis-Image muss der Node-Version folgen, die CI testet und die in
+      # `engines` steht -- beides ist 22 (LTS). Node 26 ist heute Current, nicht
+      # LTS. Der automatisch gemergte Sprung auf `node:26-alpine` hat den
+      # Image-Build am 2026-09-08 zerlegt: better-sqlite3 fand keine Prebuilds
+      # fuer Node 26, und der node-gyp-Fallback scheiterte an V8-APIs, die Node
+      # 26 entfernt hat. Der PR-Check `test` laeuft auf Node 22 und konnte das
+      # nicht sehen -- gemerkt hat es niemand, bis der Deploy still stehenblieb.
+      # Wieder anheben, sobald ci.yml und `engines` gemeinsam auf die naechste
+      # LTS gehen (dann gehoert dieser Block umgestellt, nicht geloescht).
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker
     directory: /packages/mcp
     schedule:
@@ -366,6 +378,18 @@ updates:
           - "*"
         update-types:
           - major
+    ignore:
+      # Das Basis-Image muss der Node-Version folgen, die CI testet und die in
+      # `engines` steht -- beides ist 22 (LTS). Node 26 ist heute Current, nicht
+      # LTS. Der automatisch gemergte Sprung auf `node:26-alpine` hat den
+      # Image-Build am 2026-09-08 zerlegt: better-sqlite3 fand keine Prebuilds
+      # fuer Node 26, und der node-gyp-Fallback scheiterte an V8-APIs, die Node
+      # 26 entfernt hat. Der PR-Check `test` laeuft auf Node 22 und konnte das
+      # nicht sehen -- gemerkt hat es niemand, bis der Deploy still stehenblieb.
+      # Wieder anheben, sobald ci.yml und `engines` gemeinsam auf die naechste
+      # LTS gehen (dann gehoert dieser Block umgestellt, nicht geloescht).
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: devcontainers
     directory: /
     schedule:
