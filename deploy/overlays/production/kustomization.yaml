@@ -4,16 +4,18 @@ kind: Kustomization
 namespace: todo-app
 
 resources:
-  - namespace.yaml
-  - sealed-secret.yaml
-  - pvc.yaml
-  - deployment.yaml
-  - service.yaml
-  - ingress.yaml
+- namespace.yaml
+- sealed-secret.yaml
+- pvc.yaml
+- deployment.yaml
+- service.yaml
+- ingress.yaml
 
 # Image tags are bumped by CI (deploy.yml) via `kustomize edit set image`.
 images:
-  - name: ghcr.io/levino/todo-app-frontend
-    newTag: latest
-  - name: ghcr.io/levino/todo-app-mcp
-    newTag: latest
+- name: ghcr.io/levino/todo-app-frontend
+  newName: ghcr.io/levino/todo-app-frontend
+  newTag: 565b053276b622e11b4497170daab52229687703
+- name: ghcr.io/levino/todo-app-mcp
+  newName: ghcr.io/levino/todo-app-mcp
+  newTag: 565b053276b622e11b4497170daab52229687703
