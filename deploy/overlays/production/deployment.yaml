@@ -19,6 +19,8 @@ spec:
       labels:
         app: todo-app
     spec:
+      # Eigener User-Namespace: root im Container ist auf dem Host kein root.
+      hostUsers: false
       containers:
         # ---- oauth2-proxy: OIDC gatekeeper in front of the frontend ----
         - name: oauth2-proxy
