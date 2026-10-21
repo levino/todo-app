@@ -27,11 +27,8 @@
 #      `updated-dependencies` fuehrt dort nur `dependency-name`,
 #      `dependency-version`, `dependency-type` und `dependency-group`. Auf den
 #      Trailer allein zu bauen hiesse, jeden Sammel-PR blind zu raten.
-#      `dependency-group: majors` (bzw. der Branch `dependabot/.../majors-...`)
-#      ist dagegen eindeutig: das ist die Gruppe aus dependabot.yml, die per
-#      `update-types: [major]` definiert NUR Majors enthaelt -> `major`.
-#      `dependency-group: minor-and-patch` ist genauso eindeutig die andere
-#      Richtung: die Gruppe ist per `update-types` auf minor/patch begrenzt,
+#      `dependency-group: minor-and-patch` ist dagegen eindeutig: die Gruppe
+#      ist per `update-types` auf minor/patch begrenzt,
 #      Dependabot kann dort kein Major hineinlegen -> `automerge`.
 #      Die Gruppe `security` steht bewusst NICHT in dieser Liste -- ein
 #      Security-Update darf auch ein Major sein, das faellt unten durch.
@@ -80,10 +77,7 @@ jobs:
           for pr in $offen; do
             meta=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json title,body,headRefName,commits \
               --jq '[.title, .headRefName, .body, (.commits[]?.messageHeadline), (.commits[]?.messageBody)] | join("\n")')
-            if printf '%s\n' "$meta" | grep -qE '^ *dependency-group: *majors *$|^dependabot/.+/majors-[0-9a-f]+$'; then
-              # Sammel-PR der Gruppe `majors` -- per Definition nur Majors.
-              label=major
-            elif printf '%s\n' "$meta" | grep -qE 'update-type: *version-update:semver-major'; then
+            if printf '%s\n' "$meta" | grep -qE 'update-type: *version-update:semver-major'; then
               label=major
             elif printf '%s\n' "$meta" | grep -qE '^ *dependency-group: *minor-and-patch *$|^dependabot/.+/minor-and-patch-[0-9a-f]+$'; then
               # Sammel-PR der Gruppe `minor-and-patch` -- per `update-types` auf
