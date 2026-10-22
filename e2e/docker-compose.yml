@@ -133,7 +133,7 @@ services:
 
   # ---- e2e: Playwright runner (same network → hostnames resolve) ----
   e2e:
-    image: mcr.microsoft.com/playwright:v1.57.0-jammy
+    image: mcr.microsoft.com/playwright:v1.64.1-jammy
     depends_on:
       oauth2-proxy:
         condition: service_started
