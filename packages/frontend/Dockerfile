@@ -6,7 +6,7 @@
 # + its `@family-todo/db` dependency) and ensure `better-sqlite3` is compiled for
 # the image architecture in the runtime stage.
 
-FROM node:22-alpine AS builder
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS builder
 
 WORKDIR /app
 
@@ -30,7 +30,7 @@ RUN npm run build -w @family-todo/db
 RUN npm run build -w @family-todo/frontend
 
 # Production image
-FROM node:22-alpine AS runner
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS runner
 
 WORKDIR /app
 

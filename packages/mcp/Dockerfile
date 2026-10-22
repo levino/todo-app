@@ -5,7 +5,7 @@
 # SQLite data layer). We therefore build both packages/db and packages/mcp in
 # the builder and carry the resolved workspace into the runner.
 
-FROM node:22-alpine AS builder
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS builder
 
 # Install build dependencies for native modules (better-sqlite3)
 RUN apk add --no-cache python3 make g++
@@ -30,7 +30,7 @@ RUN npm run build -w @family-todo/db \
   && npm run build -w @family-todo/mcp
 
 # Production image
-FROM node:22-alpine AS runner
+FROM node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS runner
 
 # Install runtime build deps for native modules (better-sqlite3 rebuild)
 RUN apk add --no-cache python3 make g++
