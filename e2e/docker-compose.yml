@@ -24,7 +24,7 @@ name: family-todo-e2e
 services:
   # ---- dex: OIDC provider (ZITADEL stand-in) ----
   dex:
-    image: ghcr.io/dexidp/dex:v2.41.1
+    image: ghcr.io/dexidp/dex:v2.46.1
     entrypoint: ["/usr/local/bin/dex"]
     command: ["serve", "/etc/dex/config.yaml"]
     volumes:
