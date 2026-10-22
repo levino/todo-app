@@ -125,7 +125,7 @@ services:
   # A different origin (host:port) than oauth2-proxy, so the authorization-code
   # redirect to it is genuinely cross-origin (stands in for claude.ai).
   callback:
-    image: nginx:1.27-alpine
+    image: nginx:1.31-alpine
     volumes:
       - ./callback/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     expose:
